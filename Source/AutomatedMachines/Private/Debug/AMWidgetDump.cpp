@@ -17,21 +17,26 @@ namespace
 {
 	// Windows whose whole widget tree is written to the log (once per class).
 	const TCHAR* const AMWD_TreeClasses[] = {
-		TEXT("Widget_Manufacturing_C"),
+		TEXT("BPW_Hub_C"),
 	};
 
 	// Widgets inside those windows whose variables (with values) and functions are written too:
 	// the tab machinery, to learn how to add an Automation tab.
 	const TCHAR* const AMWD_ReflectionClasses[] = {
-		TEXT("Widget_Manufacturing_C"),
+		TEXT("BPW_Hub_C"),
 		TEXT("Widget_Window_DarkMode_C"),
 		TEXT("Widget_TabsContainer_C"),
 		TEXT("Widget_SlidingTabs_C"),
 		TEXT("Widget_SlidingTabs_Button_C"),
 	};
 
+	// Also every widget in those windows whose class name contains one of these (tab and menu parts).
+	const TCHAR* const AMWD_ReflectionKeywords[] = {
+		TEXT("Tab"), TEXT("Menu"), TEXT("Hub"),
+	};
+
 	constexpr int32 AMWD_MaxDepth = 40;
-	constexpr int32 AMWD_MaxLinesPerDump = 3000;
+	constexpr int32 AMWD_MaxLinesPerDump = 8000;
 	constexpr int32 AMWD_MaxValueLength = 300;
 
 	/** Widgets already looked at, so each is handled once. */
@@ -65,7 +70,18 @@ namespace
 
 	bool AMWD_IsReflectionClass(const FString& ClassName)
 	{
-		return AMWD_IsOneOf(ClassName, AMWD_ReflectionClasses, UE_ARRAY_COUNT(AMWD_ReflectionClasses));
+		if (AMWD_IsOneOf(ClassName, AMWD_ReflectionClasses, UE_ARRAY_COUNT(AMWD_ReflectionClasses)))
+		{
+			return true;
+		}
+		for (const TCHAR* Keyword : AMWD_ReflectionKeywords)
+		{
+			if (ClassName.Contains(Keyword))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Names of the user widgets this widget sits in, outermost last, e.g. "BPW_A < BPW_GameUI". */

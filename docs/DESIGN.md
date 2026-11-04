@@ -58,6 +58,13 @@ Do                     when event
 - No "all of these at once" combinations for now.
 - A machine can have **any number** of rows. No limit for now; if many automated machines cause lag, we add a limit or optimise later.
 
+### World actions: the Automation tab of the HUB terminal (decided 4 Nov 2026)
+
+Some actions have nothing to do with a machine: they only need to hear an alarm (Show message; later maybe a sound, ringing another alarm, "A and B rang"). They live in an **Automation tab of the HUB terminal**, next to Milestones.
+
+- The HUB only **listens**: "when alarm X rings, do Y". It has no machine events, because it is not a machine and has nothing to watch or act on.
+- Show message moves there from the machines; machine rules with Show message from older saves are moved to the HUB on load.
+
 ### Unlock
 
 - Unlocked by a **MAM research, as early in the game as possible**, so players can use it from the start.

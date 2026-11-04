@@ -135,6 +135,9 @@ Not offered: production boost (Somersloops are items, not a setting).
 
 ## The widget dump
 
+Now pointed at the HUB terminal (`BPW_Hub_C`): its tree, plus variables and functions of every widget in it whose class name contains Tab, Menu or Hub, to find where an Automation tab goes next to Milestones.
+
+
 `AMWidgetDump` now writes, once per session:
 
 - the full tree of `Widget_Manufacturing_C` (between `===== begin` and `===== end`);
