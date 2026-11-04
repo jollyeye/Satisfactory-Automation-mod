@@ -25,6 +25,9 @@ public:
 	// Used by the rows (UAMRuleRow).
 	UWidgetTree* GetTree() const { return WidgetTree; }
 	FSlateFontInfo GetGameFont() const;
+
+	/** The font of the window's tab buttons ("Select Recipe"...): used for the rows, so they match. */
+	FSlateFontInfo GetRowFont() const;
 	FAMFireRule* GetFireRule(int32 Index) { return mFires.IsValidIndex(Index) ? &mFires[Index] : nullptr; }
 	FAMReactionRule* GetReactionRule(int32 Index) { return mReactions.IsValidIndex(Index) ? &mReactions[Index] : nullptr; }
 
@@ -126,6 +129,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mNoticeText;
+
+	/** Labels of the "+ Add" buttons (they get the row font). */
+	UPROPERTY()
+	TArray<TObjectPtr<UTextBlock>> mAddLabels;
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mInfoTitle;

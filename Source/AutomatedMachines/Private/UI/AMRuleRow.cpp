@@ -74,7 +74,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 	mIndex = InIndex;
 
 	UWidgetTree* Tree = mTab->GetTree();
-	const FSlateFontInfo Font = AMUI::SizedFont(mTab->GetGameFont(), AMRowLayout::FontSize);
+	const FSlateFontInfo Font = mTab->GetRowFont();
 
 	mRoot = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
@@ -165,7 +165,7 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 	mChoices->ClearChildren();
 	mChoiceHandlers.Reset();
 	UWidgetTree* Tree = mTab->GetTree();
-	const FSlateFontInfo Font = AMUI::SizedFont(mTab->GetGameFont(), AMRowLayout::FontSize - 1);
+	const FSlateFontInfo Font = mTab->GetRowFont();
 
 	auto AddChoice = [this, Tree, &Font, Kind](const FString& Label, const FString& Alarm, uint8 Value, bool bCurrent)
 	{

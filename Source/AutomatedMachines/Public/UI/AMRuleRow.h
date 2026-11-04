@@ -25,7 +25,8 @@ namespace AMRowLayout
 	constexpr float OnAlarm = 200.f;
 	constexpr float Remove = 36.f;
 	constexpr float Gap = 6.f;
-	constexpr int32 FontSize = 15;
+	/** Used only if the tab buttons' font cannot be read. */
+	constexpr int32 FallbackFontSize = 12;
 }
 
 /** What a list under a row offers. */

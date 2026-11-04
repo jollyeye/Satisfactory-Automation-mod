@@ -36,6 +36,7 @@ namespace
 	const FName AMAT_ActiveIndexProperty(TEXT("mActiveIndex"));
 	const FName AMAT_PagesProperty(TEXT("mHorizontalBox"));
 	const FName AMAT_FontSourceWidget(TEXT("mRecipeName"));
+	const FName AMAT_TabTitleWidget(TEXT("mTitleObject"));
 	const FName AMAT_ActiveTabChangedProperty(TEXT("OnActiveTabChanged"));
 	const FName AMAT_ProductionPageName(TEXT("mManufacturingTab"));
 
@@ -228,6 +229,20 @@ void UAMAutomationTab::TrackText(UTextBlock* Text, int32 FontSize)
 	}
 }
 
+FSlateFontInfo UAMAutomationTab::GetRowFont() const
+{
+	// The title of the first tab button: frame -> tabs container -> buttons panel -> button -> mTitleObject.
+	UObject* TabsContainer = AMAT_GetObject(GetWindowFrame(), AMAT_TabsContainerProperty);
+	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
+	const UUserWidget* FirstButton = Buttons && Buttons->GetChildrenCount() > 0 ? Cast<UUserWidget>(Buttons->GetChildAt(0)) : nullptr;
+	const UTextBlock* Title = FirstButton && FirstButton->WidgetTree ? Cast<UTextBlock>(FirstButton->WidgetTree->FindWidget(AMAT_TabTitleWidget)) : nullptr;
+	if (Title)
+	{
+		return Title->GetFont();
+	}
+	return AMUI::SizedFont(GetGameFont(), AMRowLayout::FallbackFontSize);
+}
+
 FSlateFontInfo UAMAutomationTab::GetGameFont() const
 {
 	return bHasGameFont ? mGameFont : GetDefault<UTextBlock>()->GetFont();
@@ -320,7 +335,7 @@ void UAMAutomationTab::BuildLayout()
 		Scroll->AddChild(OutRows);
 
 		UButton* AddButton = AMUI::MakeButton(WidgetTree, AddLabel, GetGameFont(), AMUI::Button, nullptr);
-		TrackText(Cast<UTextBlock>(AddButton->GetChildAt(0)), 15);
+		mAddLabels.Add(Cast<UTextBlock>(AddButton->GetChildAt(0)));
 		if (UVerticalBoxSlot* AddSlot = Inside->AddChildToVerticalBox(AddButton))
 		{
 			AddSlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
@@ -445,7 +460,14 @@ void UAMAutomationTab::RebuildRows()
 			RowSlot->SetHorizontalAlignment(HAlign_Left);
 		}
 	};
-	const FSlateFontInfo HintFont = AMUI::SizedFont(GetGameFont(), 14);
+	const FSlateFontInfo HintFont = GetRowFont();
+	for (UTextBlock* AddLabel : mAddLabels)
+	{
+		if (AddLabel)
+		{
+			AddLabel->SetFont(HintFont);
+		}
+	}
 
 	for (int32 Index = 0; Index < mFires.Num(); ++Index)
 	{
@@ -616,6 +638,11 @@ void UAMAutomationTab::EnsureTabButtonExists()
 {
 	// Also a good moment to read the machine: the window has it by now.
 	UpdateMachineName();
+	if (bRulesLoaded)
+	{
+		// The rows may have been made before the tab buttons existed: again, with the buttons' font.
+		RebuildRows();
+	}
 	LoadRules();
 
 	UObject* Frame = GetWindowFrame();
