@@ -92,6 +92,10 @@ private:
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastShowMessage(const FString& Title, const FString& Body);
 
+	/** Plays a sound of AMRules::GetSounds for every player (runs on the server and on every client). */
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlaySound(uint8 SoundIndex);
+
 	/** The machine's name, e.g. "Constructor". */
 	static FString GetMachineName(const AActor* Machine);
 

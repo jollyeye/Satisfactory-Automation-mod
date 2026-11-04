@@ -62,7 +62,8 @@ Do                     when event
 
 Some actions have nothing to do with a machine: they only need to hear an alarm (Show message; later maybe a sound, ringing another alarm, "A and B rang"). They live in an **Automation tab of the HUB terminal**, next to Milestones.
 
-- The HUB only **listens**: "when alarm X rings, do Y". It has no machine events, because it is not a machine and has nothing to watch or act on.
+- The HUB **listens**: "when alarm X rings, do Y". It has an Alarms section too, for world events to come later (e.g. night falls, a fuse blows); for now it rings nothing.
+- World actions: **Show message** (our notification: Wi-Fi icon, the alarm's name, your text or "Rung by <machine>"; stacked at the side with the game's notifications) and **Play sound** (one of 5 short game sounds: Blip, Ping, Warning, Error, Success), for every player.
 - Show message moves there from the machines; machine rules with Show message from older saves are moved to the HUB on load.
 
 ### Unlock
@@ -131,6 +132,6 @@ In a crowd of machines the player must see at a glance which ones are automated,
 
 Machine events (an alarm rings when one becomes true): Output full, Output not full, Starts producing, Stops producing, Loses power, Gets power, Input missing, Input available, Paused, Resumed, Productivity below N%, Productivity above N%, Recipe changed, Input full, Input not full.
 
-Actions: Pause, Resume, Pause or resume, Set clock speed N% (within what the machine's power shards allow), Delete output, Delete input (our own functions: the items are destroyed), Change recipe (empties the input and output slots, then switches to the chosen recipe; only recipes the machine can make and the player has unlocked), Show message (a notification on every player's screen: own text, or "<machine>: <alarm>").
+Actions: Pause, Resume, Pause or resume, Set clock speed N% (within what the machine's power shards allow), Delete output, Delete input (our own functions: the items are destroyed), Change recipe (empties the input and output slots, then switches to the chosen recipe; only recipes the machine can make and the player has unlocked), Show message and Play sound (world actions, in the HUB's Automation tab).
 
 Each one has an explanation in the tab's info panel.

@@ -48,6 +48,7 @@ enum class EAMAction : uint8
 	DeleteInput    UMETA(DisplayName = "Delete input"),
 	ChangeRecipe   UMETA(DisplayName = "Change recipe"),
 	ShowMessage    UMETA(DisplayName = "Show message"),
+	PlaySound      UMETA(DisplayName = "Play sound"),
 	Count          UMETA(Hidden)
 };
 
@@ -153,6 +154,21 @@ namespace AMRules
 
 	/** Longest message text kept. */
 	constexpr int32 MaxMessageLength = 120;
+
+	/** Actions that play one of the sounds below (Play sound); the sound's number is the rule's Value. */
+	AUTOMATEDMACHINES_API bool ActionNeedsSound(EAMAction Action);
+
+	/** A few short sounds of the game for Play sound (Wwise events). */
+	struct FSound
+	{
+		const TCHAR* Label;
+		const TCHAR* EventPath;
+		const TCHAR* Description;
+	};
+	AUTOMATEDMACHINES_API const TArray<FSound>& GetSounds();
+
+	/** The sound of a rule's value (clamped to the list). */
+	AUTOMATEDMACHINES_API int32 GetSoundIndex(float Value);
 
 	/** "2 Iron Ingot -> 1 Iron Plate" (fluids in m3). */
 	AUTOMATEDMACHINES_API FText DescribeRecipe(const UObject* WorldContext, TSubclassOf<UFGRecipe> Recipe);

@@ -51,6 +51,7 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::DeleteInput:   return AMTY_Text(TEXT("Delete input"));
 	case EAMAction::ChangeRecipe:  return AMTY_Text(TEXT("Change recipe"));
 	case EAMAction::ShowMessage:   return AMTY_Text(TEXT("Show message"));
+	case EAMAction::PlaySound:     return AMTY_Text(TEXT("Play sound"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -112,6 +113,8 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Destroys everything in the machine's input slots, including fluids. The items are gone for good: no points, no refund.\n\nHandy to clear out leftovers, e.g. after the recipe was changed."));
 	case EAMAction::ShowMessage:
 		return AMTY_Text(TEXT("Shows a message on the screen of every player, in the game's notifications.\n\nIt shows the alarm's name with your text under it; leave the text empty to show which machine rang it, e.g. \"PLATES BACKED UP - Rung by Constructor\"."));
+	case EAMAction::PlaySound:
+		return AMTY_Text(TEXT("Plays a short sound for every player, wherever they are. Choose one of a few sounds of the game; picking one in the list plays it once so you can hear it."));
 	case EAMAction::ChangeRecipe:
 		return AMTY_Text(TEXT("Switches the machine to the recipe you choose.\n\nThe game only allows this with empty slots, so everything in the input and output slots is destroyed first (no refund). Does nothing if the machine already makes this recipe."));
 	default:
@@ -159,7 +162,35 @@ bool AMRules::ActionNeedsMessage(EAMAction Action)
 
 bool AMRules::IsWorldAction(EAMAction Action)
 {
-	return Action == EAMAction::ShowMessage;
+	return Action == EAMAction::ShowMessage || Action == EAMAction::PlaySound;
+}
+
+bool AMRules::ActionNeedsSound(EAMAction Action)
+{
+	return Action == EAMAction::PlaySound;
+}
+
+const TArray<AMRules::FSound>& AMRules::GetSounds()
+{
+	// Chosen from the game's sound events by name (short, not looping: no matching Stop_ event).
+	static const TArray<FSound> Sounds = {
+		{ TEXT("Blip"), TEXT("/Game/WwiseAudio/Events/Interface/CodecMessage/Play_UI_CodexMessage_Blip.Play_UI_CodexMessage_Blip"),
+			TEXT("A short blip, the sound of a new message arriving.") },
+		{ TEXT("Ping"), TEXT("/Game/WwiseAudio/Events/Equipment/ResourcePing/Play_EQ_Resource_Ping_Fire.Play_EQ_Resource_Ping_Fire"),
+			TEXT("The ping of the resource scanner.") },
+		{ TEXT("Warning"), TEXT("/Game/WwiseAudio/Events/Character/Player/TakeDamage/Play_P_Suit_Damage_Warning.Play_P_Suit_Damage_Warning"),
+			TEXT("The warning of your suit when you take damage: for things that need you now.") },
+		{ TEXT("Error"), TEXT("/Game/WwiseAudio/Events/Buildable/Factory/TrainSignals/Play_Train_Signals_Error.Play_Train_Signals_Error"),
+			TEXT("The error sound of a train signal.") },
+		{ TEXT("Success"), TEXT("/Game/WwiseAudio/Events/Buildable/Factory/MAM/Play_MAM_Scanner_Complete_Fanfare.Play_MAM_Scanner_Complete_Fanfare"),
+			TEXT("The fanfare of a finished MAM research: for good news.") },
+	};
+	return Sounds;
+}
+
+int32 AMRules::GetSoundIndex(float Value)
+{
+	return FMath::Clamp(FMath::RoundToInt(Value), 0, GetSounds().Num() - 1);
 }
 
 FText AMRules::DescribeRecipe(const UObject* WorldContext, TSubclassOf<UFGRecipe> Recipe)

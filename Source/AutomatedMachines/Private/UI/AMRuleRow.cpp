@@ -3,6 +3,7 @@
 #include "UI/AMUIHelpers.h"
 #include "Automation/AMTypes.h"
 #include "Buildables/FGBuildableManufacturer.h"
+#include "Automation/AMSound.h"
 #include "FGRecipe.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -203,6 +204,27 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		{
 			MessageSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 		}
+
+		// "Sound [Blip v]" for Play sound.
+		UHorizontalBox* SoundLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		mSoundLine = SoundLine;
+		if (UHorizontalBoxSlot* LabelSlot = SoundLine->AddChildToHorizontalBox(AMUI::MakeText(Tree, TEXT("Sound"), Font, AMUI::Grey)))
+		{
+			LabelSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		UTextBlock* SoundLabel = nullptr;
+		UButton* SoundButton = AMUI::MakeDropdown(Tree, Font, SoundLabel);
+		mSoundLabel = SoundLabel;
+		SoundButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnSoundCellClicked);
+		if (UHorizontalBoxSlot* ButtonSlot = SoundLine->AddChildToHorizontalBox(AMRR_Cell(Tree, AMRowLayout::Do, SoundButton)))
+		{
+			ButtonSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		}
+		SoundLine->SetVisibility(ESlateVisibility::Collapsed);
+		if (UVerticalBoxSlot* SoundSlot = mRoot->AddChildToVerticalBox(SoundLine))
+		{
+			SoundSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
 	}
 
 	mChoices = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -250,6 +272,17 @@ void UAMRuleRow::UpdateLabels()
 		{
 			mRecipeLabel->SetText(Rule->Recipe ? UFGRecipe::GetRecipeName(Rule->Recipe) : FText::FromString(TEXT("choose a recipe")));
 			mRecipeLabel->SetColorAndOpacity(FSlateColor(Rule->Recipe ? AMUI::White : AMUI::Grey));
+		}
+	}
+
+	if (!bIsAlarm && mSoundLine && mSoundLabel)
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		const bool bNeedsSound = Rule && AMRules::ActionNeedsSound(Rule->Action);
+		mSoundLine->SetVisibility(bNeedsSound ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		if (bNeedsSound)
+		{
+			mSoundLabel->SetText(FText::FromString(AMRules::GetSounds()[AMRules::GetSoundIndex(Rule->Value)].Label));
 		}
 	}
 
@@ -390,6 +423,16 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 				continue;
 			}
 			AddChoice(AMRules::GetActionText(Action).ToString(), FString(), Value, Rule && Rule->Action == Action);
+		}
+	}
+	else if (Kind == EAMChoiceKind::Sound)
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		const int32 Current = Rule ? AMRules::GetSoundIndex(Rule->Value) : INDEX_NONE;
+		const TArray<AMRules::FSound>& Sounds = AMRules::GetSounds();
+		for (int32 Index = 0; Index < Sounds.Num(); ++Index)
+		{
+			AddChoice(Sounds[Index].Label, FString(), static_cast<uint8>(Index), Index == Current);
 		}
 	}
 	else if (Kind == EAMChoiceKind::Recipe)
@@ -570,6 +613,18 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 			}
 		}
 		break;
+	case EAMChoiceKind::Sound:
+		if (FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
+		{
+			if (AMRules::GetSoundIndex(Rule->Value) != Choice.Value)
+			{
+				Rule->Value = Choice.Value;
+				mTab->OnRulesEdited();
+			}
+			// Let the player hear it.
+			AMSound::PlayForPlayer(mTab->GetOwningPlayer(), Choice.Value);
+		}
+		break;
 	case EAMChoiceKind::Recipe:
 		if (FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 		{
@@ -620,6 +675,14 @@ void UAMRuleRow::Explain(const UAMChoice& Choice)
 		mTab->ShowInfo(AMRules::GetActionText(Action), AMRules::GetActionDescription(Action));
 		break;
 	}
+	case EAMChoiceKind::Sound:
+		if (AMRules::GetSounds().IsValidIndex(Choice.Value))
+		{
+			const AMRules::FSound& Sound = AMRules::GetSounds()[Choice.Value];
+			mTab->ShowInfo(FText::FromString(Sound.Label), FText::FromString(FString::Printf(
+				TEXT("%s\n\nClick it to choose it and hear it."), Sound.Description)));
+		}
+		break;
 	case EAMChoiceKind::Recipe:
 		if (Choice.RecipeClass)
 		{
@@ -671,6 +734,20 @@ void UAMRuleRow::OnAlarmCellClicked()
 		mTab->ShowAlarmInfo(Rule->Event);
 	}
 	ShowChoices(EAMChoiceKind::Alarm, mTab->GetEventNames(), TEXT("No alarms yet: give a machine an alarm first."));
+}
+
+void UAMRuleRow::OnSoundCellClicked()
+{
+	if (bChoicesOpen && mOpenKind == EAMChoiceKind::Sound)
+	{
+		HideChoices();
+		return;
+	}
+	if (const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
+	{
+		mTab->ShowInfo(AMRules::GetActionText(Rule->Action), AMRules::GetActionDescription(Rule->Action));
+	}
+	ShowChoices(EAMChoiceKind::Sound, {}, FString());
 }
 
 void UAMRuleRow::OnRecipeCellClicked()

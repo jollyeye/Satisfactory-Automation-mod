@@ -10,6 +10,7 @@
 #include "FGHUD.h"
 #include "UI/FGGameUI.h"
 #include "UI/AMNotification.h"
+#include "Automation/AMSound.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
 #include "EngineUtils.h"
@@ -182,7 +183,9 @@ FAMReactionRule AAMAutomationSubsystem::CleanReaction(const FAMReactionRule& Rul
 {
 	FAMReactionRule Clean = Rule;
 	Clean.Event = AMRules::NormalizeEventName(Rule.Event);
-	Clean.Value = AMRules::CleanValue(AMRules::GetActionValueInfo(Rule.Action), Rule.Value);
+	Clean.Value = AMRules::ActionNeedsSound(Rule.Action)
+		? static_cast<float>(AMRules::GetSoundIndex(Rule.Value))
+		: AMRules::CleanValue(AMRules::GetActionValueInfo(Rule.Action), Rule.Value);
 	if (!AMRules::ActionNeedsRecipe(Rule.Action))
 	{
 		Clean.Recipe = nullptr;
@@ -580,6 +583,9 @@ void AAMAutomationSubsystem::ApplyWorldAction(const FAMReactionRule& Rule, const
 		MulticastShowMessage(Rule.Event, Body);
 		break;
 	}
+	case EAMAction::PlaySound:
+		MulticastPlaySound(static_cast<uint8>(AMRules::GetSoundIndex(Rule.Value)));
+		break;
 	default:
 		break;
 	}
@@ -590,6 +596,11 @@ FString AAMAutomationSubsystem::GetMachineName(const AActor* Machine)
 	// AFGBuildable::mDisplayName is protected: read it by name.
 	const FTextProperty* NameProperty = Machine ? FindFProperty<FTextProperty>(Machine->GetClass(), TEXT("mDisplayName")) : nullptr;
 	return NameProperty ? NameProperty->GetPropertyValue_InContainer(Machine).ToString() : AMAS_Describe(Machine);
+}
+
+void AAMAutomationSubsystem::MulticastPlaySound_Implementation(uint8 SoundIndex)
+{
+	AMSound::PlayForLocalPlayers(GetWorld(), SoundIndex);
 }
 
 void AAMAutomationSubsystem::MulticastShowMessage_Implementation(const FString& Title, const FString& Body)

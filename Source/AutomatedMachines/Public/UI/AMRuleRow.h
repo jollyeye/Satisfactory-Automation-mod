@@ -38,6 +38,7 @@ enum class EAMChoiceKind : uint8
 	MachineEvent,
 	Action,
 	Recipe,
+	Sound,
 };
 
 /** Click and hover handler of one button in a row's list of choices. */
@@ -99,6 +100,10 @@ public:
 	/** Action row with Change recipe: the recipe dropdown under the row. */
 	UFUNCTION()
 	void OnRecipeCellClicked();
+
+	/** Action row with Play sound: the sound dropdown under the row. */
+	UFUNCTION()
+	void OnSoundCellClicked();
 
 	/** Action row with Show message: the text field under the row. */
 	UFUNCTION()
@@ -173,6 +178,13 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mRecipeLabel;
+
+	/** The line with the sound dropdown, under the row (Play sound only). */
+	UPROPERTY()
+	TObjectPtr<UWidget> mSoundLine;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mSoundLabel;
 
 	/** The line with the message text field, under the row (Show message only). */
 	UPROPERTY()
