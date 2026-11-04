@@ -18,5 +18,5 @@ public:
 	bool MakeUppercase();
 
 	/** Shows this text now (on the Slate widget: works also right after the field was committed). */
-	void ShowText(const FString& Text);
+	void ShowText(const FString& NewText);
 };

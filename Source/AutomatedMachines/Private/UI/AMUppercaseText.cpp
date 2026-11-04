@@ -19,11 +19,11 @@ bool UAMUppercaseText::MakeUppercase()
 	return true;
 }
 
-void UAMUppercaseText::ShowText(const FString& Text)
+void UAMUppercaseText::ShowText(const FString& NewText)
 {
-	SetText(FText::FromString(Text));
+	SetText(FText::FromString(NewText));
 	if (MyEditableText.IsValid())
 	{
-		MyEditableText->SetText(FText::FromString(Text));
+		MyEditableText->SetText(FText::FromString(NewText));
 	}
 }
