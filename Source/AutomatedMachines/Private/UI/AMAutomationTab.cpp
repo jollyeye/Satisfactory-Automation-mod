@@ -37,6 +37,7 @@ namespace
 	const FName AMAT_PagesProperty(TEXT("mHorizontalBox"));
 	const FName AMAT_FontSourceWidget(TEXT("mRecipeName"));
 	const FName AMAT_TabTitleWidget(TEXT("mTitleObject"));
+	const TCHAR* const AMAT_HubWindowClass = TEXT("BPW_Hub_C");
 	const FName AMAT_ActiveTabChangedProperty(TEXT("OnActiveTabChanged"));
 	const FName AMAT_ProductionPageName(TEXT("mManufacturingTab"));
 
@@ -347,10 +348,13 @@ void UAMAutomationTab::BuildLayout()
 		return AddButton;
 	};
 
-	MakePanel(TEXT("Alarms"), TEXT("Alarm Name"), AMRowLayout::AlarmName, TEXT("Machine Event"), AMRowLayout::MachineEvent,
-		TEXT("+ Add alarm"), mFireRowsBox, 0.f, AMAT_AlarmsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
-	MakePanel(TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
-		TEXT("+ Add action"), mReactionRowsBox, AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+	if (!bWorldMode)
+	{
+		MakePanel(TEXT("Alarms"), TEXT("Alarm Name"), AMRowLayout::AlarmName, TEXT("Machine Event"), AMRowLayout::MachineEvent,
+			TEXT("+ Add alarm"), mFireRowsBox, 0.f, AMAT_AlarmsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
+	}
+	MakePanel(bWorldMode ? TEXT("World Actions") : TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
+		TEXT("+ Add action"), mReactionRowsBox, bWorldMode ? 0.f : AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
 
 	// Side panel, full height on the right like the recipe tab's: explains the machine event,
 	// action or alarm last picked or pointed at.
@@ -394,6 +398,12 @@ void UAMAutomationTab::ShowInfo(const FText& Title, const FText& Body)
 
 void UAMAutomationTab::ShowDefaultInfo()
 {
+	if (bWorldMode)
+	{
+		ShowInfo(FText::FromString(TEXT("Actions for the whole world")),
+			FText::FromString(TEXT("The HUB hears every alarm in the world. These actions need no machine: they happen whenever the alarm rings, rung by any machine.\n\nClick an action or an alarm to see what it does.")));
+		return;
+	}
 	ShowInfo(FText::FromString(TEXT("Alarms connect your machines")),
 		FText::FromString(TEXT("On the left: when this machine rings an alarm.\n\nOn the right: what this machine does when an alarm rings, rung by this machine or any other.\n\nClick a machine event, an action or an alarm to see what it does.")));
 }
@@ -424,7 +434,7 @@ void UAMAutomationTab::LoadRules()
 		return;
 	}
 	AFGBuildable* Machine = Cast<AFGBuildable>(GetMachine());
-	if (!Machine)
+	if (!Machine && !bWorldMode)
 	{
 		return;
 	}
@@ -436,7 +446,11 @@ void UAMAutomationTab::LoadRules()
 		return;
 	}
 	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
-	if (const FAMMachineRules* Rules = Subsystem->FindRules(Machine))
+	if (bWorldMode)
+	{
+		mReactions = Subsystem->GetWorldActions();
+	}
+	else if (const FAMMachineRules* Rules = Subsystem->FindRules(Machine))
 	{
 		mFires = Rules->Fires;
 		mReactions = Rules->Reactions;
@@ -447,11 +461,14 @@ void UAMAutomationTab::LoadRules()
 
 void UAMAutomationTab::RebuildRows()
 {
-	if (!mFireRowsBox || !mReactionRowsBox)
+	if (!mReactionRowsBox || (!mFireRowsBox && !bWorldMode))
 	{
 		return;
 	}
-	mFireRowsBox->ClearChildren();
+	if (mFireRowsBox)
+	{
+		mFireRowsBox->ClearChildren();
+	}
 	mReactionRowsBox->ClearChildren();
 	mRows.Reset();
 
@@ -477,11 +494,17 @@ void UAMAutomationTab::RebuildRows()
 		UAMRuleRow* Row = NewObject<UAMRuleRow>(this);
 		Row->Build(this, true, Index);
 		mRows.Add(Row);
-		AddRowWidget(mFireRowsBox, Row->GetRootWidget());
+		if (mFireRowsBox)
+		{
+			AddRowWidget(mFireRowsBox, Row->GetRootWidget());
+		}
 	}
 	if (mFires.Num() == 0)
 	{
-		AddRowWidget(mFireRowsBox, AMUI::MakeText(WidgetTree, TEXT("No alarms yet."), HintFont, AMUI::Grey));
+		if (mFireRowsBox)
+		{
+			AddRowWidget(mFireRowsBox, AMUI::MakeText(WidgetTree, TEXT("No alarms yet."), HintFont, AMUI::Grey));
+		}
 	}
 
 	for (int32 Index = 0; Index < mReactions.Num(); ++Index)
@@ -525,7 +548,11 @@ TArray<FString> UAMAutomationTab::GetEventNames() const
 
 void UAMAutomationTab::OnRulesEdited()
 {
-	if (AFGBuildable* Machine = Cast<AFGBuildable>(GetMachine()))
+	if (bWorldMode)
+	{
+		UAMRemoteCallObject::RequestSetWorldActions(GetOwningPlayer(), mReactions);
+	}
+	else if (AFGBuildable* Machine = Cast<AFGBuildable>(GetMachine()))
 	{
 		UAMRemoteCallObject::RequestSetRules(GetOwningPlayer(), Machine, mFires, mReactions);
 	}
@@ -561,7 +588,11 @@ void UAMAutomationTab::OnAddFireClicked()
 
 void UAMAutomationTab::OnAddReactionClicked()
 {
-	mReactions.AddDefaulted();
+	FAMReactionRule& NewRule = mReactions.AddDefaulted_GetRef();
+	if (bWorldMode)
+	{
+		NewRule.Action = EAMAction::ShowMessage;
+	}
 	RebuildRows();
 }
 
@@ -627,6 +658,14 @@ UObject* UAMAutomationTab::GetMachine() const
 
 void UAMAutomationTab::UpdateMachineName()
 {
+	if (bWorldMode)
+	{
+		if (mMachineText)
+		{
+			mMachineText->SetText(FText::FromString(TEXT("The HUB hears every alarm in the world, and does these actions when one rings.")));
+		}
+		return;
+	}
 	const UObject* Machine = GetMachine();
 	const FTextProperty* NameProperty = Machine ? FindFProperty<FTextProperty>(Machine->GetClass(), AMAT_MachineNameProperty) : nullptr;
 	if (mMachineText && NameProperty)
@@ -692,6 +731,9 @@ void UAMAutomationTab::ApplyGameFonts()
 void UAMAutomationTab::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
+	// In the HUB terminal: world actions only.
+	const UUserWidget* Host = GetHostWindow();
+	bWorldMode = Host && Host->GetClass()->GetName() == AMAT_HubWindowClass;
 	BuildLayout();
 	// The tab entry is added in NativeConstruct: while the window is still being initialized, its
 	// variables (the frame) are not set yet.

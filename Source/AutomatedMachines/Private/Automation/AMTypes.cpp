@@ -111,7 +111,7 @@ FText AMRules::GetActionDescription(EAMAction Action)
 	case EAMAction::DeleteInput:
 		return AMTY_Text(TEXT("Destroys everything in the machine's input slots, including fluids. The items are gone for good: no points, no refund.\n\nHandy to clear out leftovers, e.g. after the recipe was changed."));
 	case EAMAction::ShowMessage:
-		return AMTY_Text(TEXT("Shows a message on the screen of every player, in the game's notifications.\n\nType your own text, or leave it empty to show the machine and the alarm, e.g. \"Constructor: PLATES BACKED UP\"."));
+		return AMTY_Text(TEXT("Shows a message on the screen of every player, in the game's notifications.\n\nType your own text, or leave it empty to show the machine that rang and the alarm, e.g. \"Constructor: PLATES BACKED UP\"."));
 	case EAMAction::ChangeRecipe:
 		return AMTY_Text(TEXT("Switches the machine to the recipe you choose.\n\nThe game only allows this with empty slots, so everything in the input and output slots is destroyed first (no refund). Does nothing if the machine already makes this recipe."));
 	default:
@@ -153,6 +153,11 @@ bool AMRules::ActionNeedsRecipe(EAMAction Action)
 }
 
 bool AMRules::ActionNeedsMessage(EAMAction Action)
+{
+	return Action == EAMAction::ShowMessage;
+}
+
+bool AMRules::IsWorldAction(EAMAction Action)
 {
 	return Action == EAMAction::ShowMessage;
 }

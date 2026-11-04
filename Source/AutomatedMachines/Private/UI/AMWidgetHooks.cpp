@@ -14,7 +14,33 @@ namespace
 	/** Its tab pages, side by side: "Select Recipe", "Production", and then ours. */
 	const TCHAR* const AMWH_ManufacturingPages = TEXT("HorizontalBox_1");
 
+	/** The HUB terminal and its tab pages ("Select Milestone", "Active Milestone", and then ours). */
+	const TCHAR* const AMWH_HubWindow = TEXT("/Game/FactoryGame/Buildable/Factory/TradingPost/UI/BPW_Hub.BPW_Hub_C");
+	const TCHAR* const AMWH_HubPages = TEXT("HorizontalBox_25");
+
 	bool AMWH_Registered = false;
+
+	/** Adds UAMAutomationTab as the last page of a window's tab pages. */
+	void AMWH_HookPages(UWidgetBlueprintHookManager* HookManager, const TCHAR* Window, const TCHAR* Pages, const TCHAR* HookName)
+	{
+		UWidgetBlueprintHookData* Hook = NewObject<UWidgetBlueprintHookData>(GetTransientPackage(), HookName);
+		Hook->AddToRoot();
+		Hook->DeveloperComment = TEXT("Automated Machines: Automation tab page");
+		Hook->WidgetClass = TSoftClassPtr<UUserWidget>(FSoftObjectPath(Window));
+		Hook->NewWidgetClass = UAMAutomationTab::StaticClass();
+		Hook->NewWidgetName = TEXT("AM_AutomationTab");
+		Hook->ParentWidgetType = EWidgetBlueprintHookParentType::Direct_Any;
+		Hook->ParentWidgetName = Pages;
+
+		UWidgetBlueprintHookSlot_Generic* SlotSetup = NewObject<UWidgetBlueprintHookSlot_Generic>(Hook);
+		SlotSetup->Size = FSlateChildSize(ESlateSizeRule::Automatic);
+		SlotSetup->HorizontalAlignment = HAlign_Fill;
+		SlotSetup->VerticalAlignment = VAlign_Fill;
+		Hook->SlotConfiguration = SlotSetup;
+
+		HookManager->RegisterWidgetBlueprintHook(Hook);
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Registered the Automation tab hook on %s"), Window);
+	}
 
 	void AMWH_Register()
 	{
@@ -28,24 +54,8 @@ namespace
 			return;
 		}
 		AMWH_Registered = true;
-
-		UWidgetBlueprintHookData* Hook = NewObject<UWidgetBlueprintHookData>(GetTransientPackage(), TEXT("AM_ManufacturingAutomationTabHook"));
-		Hook->AddToRoot();
-		Hook->DeveloperComment = TEXT("Automated Machines: Automation tab page in the manufacturer window");
-		Hook->WidgetClass = TSoftClassPtr<UUserWidget>(FSoftObjectPath(AMWH_ManufacturingWindow));
-		Hook->NewWidgetClass = UAMAutomationTab::StaticClass();
-		Hook->NewWidgetName = TEXT("AM_AutomationTab");
-		Hook->ParentWidgetType = EWidgetBlueprintHookParentType::Direct_Any;
-		Hook->ParentWidgetName = AMWH_ManufacturingPages;
-
-		UWidgetBlueprintHookSlot_Generic* SlotSetup = NewObject<UWidgetBlueprintHookSlot_Generic>(Hook);
-		SlotSetup->Size = FSlateChildSize(ESlateSizeRule::Automatic);
-		SlotSetup->HorizontalAlignment = HAlign_Fill;
-		SlotSetup->VerticalAlignment = VAlign_Fill;
-		Hook->SlotConfiguration = SlotSetup;
-
-		HookManager->RegisterWidgetBlueprintHook(Hook);
-		UE_LOG(LogAutomatedMachines, Log, TEXT("Registered the Automation tab hook on %s"), AMWH_ManufacturingWindow);
+		AMWH_HookPages(HookManager, AMWH_ManufacturingWindow, AMWH_ManufacturingPages, TEXT("AM_ManufacturingAutomationTabHook"));
+		AMWH_HookPages(HookManager, AMWH_HubWindow, AMWH_HubPages, TEXT("AM_HubAutomationTabHook"));
 	}
 }
 

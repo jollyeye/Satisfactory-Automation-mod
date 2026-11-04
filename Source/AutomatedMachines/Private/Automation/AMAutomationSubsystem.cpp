@@ -79,6 +79,7 @@ void AAMAutomationSubsystem::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AAMAutomationSubsystem, mMachines);
+	DOREPLIFETIME(AAMAutomationSubsystem, mWorldActions);
 }
 
 void AAMAutomationSubsystem::BeginPlay()
@@ -100,6 +101,7 @@ void AAMAutomationSubsystem::BeginPlay()
 
 void AAMAutomationSubsystem::PostLoadGame_Implementation(int32 SaveVersion, int32 GameVersion)
 {
+	MoveWorldActionsFromMachines();
 	RemoveInvalidEntries();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem loaded: %d automated machines, %d events"),
 		mMachines.Num(), GetAllEventNames().Num());
@@ -140,15 +142,9 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	}
 	for (const FAMReactionRule& Rule : Reactions)
 	{
-		FAMReactionRule Clean = Rule;
-		Clean.Event = AMRules::NormalizeEventName(Rule.Event);
-		Clean.Value = AMRules::CleanValue(AMRules::GetActionValueInfo(Rule.Action), Rule.Value);
-		if (!AMRules::ActionNeedsRecipe(Rule.Action))
-		{
-			Clean.Recipe = nullptr;
-		}
-		Clean.Message = AMRules::ActionNeedsMessage(Rule.Action) ? Rule.Message.TrimStartAndEnd().Left(AMRules::MaxMessageLength) : FString();
-		if (!Clean.Event.IsEmpty() && Clean.Action < EAMAction::Count)
+		const FAMReactionRule Clean = CleanReaction(Rule);
+		// World actions belong to the HUB, not to machines.
+		if (!Clean.Event.IsEmpty() && Clean.Action < EAMAction::Count && !AMRules::IsWorldAction(Clean.Action))
 		{
 			NewRules.Reactions.Add(Clean);
 		}
@@ -181,9 +177,76 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	OnRulesChanged.Broadcast();
 }
 
+FAMReactionRule AAMAutomationSubsystem::CleanReaction(const FAMReactionRule& Rule)
+{
+	FAMReactionRule Clean = Rule;
+	Clean.Event = AMRules::NormalizeEventName(Rule.Event);
+	Clean.Value = AMRules::CleanValue(AMRules::GetActionValueInfo(Rule.Action), Rule.Value);
+	if (!AMRules::ActionNeedsRecipe(Rule.Action))
+	{
+		Clean.Recipe = nullptr;
+	}
+	Clean.Message = AMRules::ActionNeedsMessage(Rule.Action) ? Rule.Message.TrimStartAndEnd().Left(AMRules::MaxMessageLength) : FString();
+	return Clean;
+}
+
+void AAMAutomationSubsystem::SetWorldActions(const TArray<FAMReactionRule>& Actions)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	mWorldActions.Reset();
+	for (const FAMReactionRule& Rule : Actions)
+	{
+		const FAMReactionRule Clean = CleanReaction(Rule);
+		if (!Clean.Event.IsEmpty() && AMRules::IsWorldAction(Clean.Action))
+		{
+			mWorldActions.Add(Clean);
+		}
+	}
+	UE_LOG(LogAutomatedMachines, Log, TEXT("World actions: %d"), mWorldActions.Num());
+	ForceNetUpdate();
+	OnRulesChanged.Broadcast();
+}
+
+void AAMAutomationSubsystem::MoveWorldActionsFromMachines()
+{
+	int32 Moved = 0;
+	for (FAMMachineRules& Entry : mMachines)
+	{
+		for (int32 Index = Entry.Reactions.Num() - 1; Index >= 0; --Index)
+		{
+			const FAMReactionRule& Rule = Entry.Reactions[Index];
+			if (!AMRules::IsWorldAction(Rule.Action))
+			{
+				continue;
+			}
+			const bool bAlready = mWorldActions.ContainsByPredicate([&Rule](const FAMReactionRule& Other)
+			{
+				return Other.Action == Rule.Action && Other.Event == Rule.Event && Other.Message == Rule.Message;
+			});
+			if (!bAlready)
+			{
+				mWorldActions.Add(Rule);
+			}
+			Entry.Reactions.RemoveAt(Index);
+			++Moved;
+		}
+	}
+	if (Moved > 0)
+	{
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Moved %d world actions from machines to the HUB"), Moved);
+	}
+}
+
 TArray<FString> AAMAutomationSubsystem::GetAllEventNames() const
 {
 	TSet<FString> Names;
+	for (const FAMReactionRule& Rule : mWorldActions)
+	{
+		Names.Add(Rule.Event);
+	}
 	for (const FAMMachineRules& Entry : mMachines)
 	{
 		for (const FAMFireRule& Rule : Entry.Fires)
@@ -270,7 +333,7 @@ void AAMAutomationSubsystem::Tick(float DeltaSeconds)
 
 void AAMAutomationSubsystem::EvaluateFireRules()
 {
-	TArray<FString> EventsToFire;
+	TArray<TPair<FString, const AActor*>> EventsToFire;
 	for (const FAMMachineRules& Entry : mMachines)
 	{
 		const AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Entry.Machine);
@@ -311,22 +374,29 @@ void AAMAutomationSubsystem::EvaluateFireRules()
 			{
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s fires %s (%s)"), *AMAS_Describe(Factory), *Rule.Event,
 					*AMRules::GetConditionText(Rule.Condition).ToString());
-				EventsToFire.Add(Rule.Event);
+				EventsToFire.Emplace(Rule.Event, Factory);
 			}
 		}
 	}
 	// Fire after the loop: actions never change the rules, but this keeps the loop simple and safe.
-	for (const FString& Event : EventsToFire)
+	for (const TPair<FString, const AActor*>& Fired : EventsToFire)
 	{
-		FireEvent(Event);
+		FireEvent(Fired.Key, Fired.Value);
 	}
 }
 
-void AAMAutomationSubsystem::FireEvent(const FString& Event)
+void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringer)
 {
 	if (!HasAuthority())
 	{
 		return;
+	}
+	for (const FAMReactionRule& Rule : mWorldActions)
+	{
+		if (Rule.Event == Event)
+		{
+			ApplyWorldAction(Rule, Ringer);
+		}
 	}
 	for (const FAMMachineRules& Entry : mMachines)
 	{
@@ -488,11 +558,23 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			UE_LOG(LogAutomatedMachines, Log, TEXT("%s recipe changed to %s"), *AMAS_Describe(Factory), *Rule.Recipe->GetName());
 		}
 		break;
+	default:
+		// World actions (Show message) are not run on machines.
+		break;
+	}
+}
+
+void AAMAutomationSubsystem::ApplyWorldAction(const FAMReactionRule& Rule, const AActor* Ringer)
+{
+	switch (Rule.Action)
+	{
 	case EAMAction::ShowMessage:
 	{
-		const FString Message = Rule.Message.IsEmpty()
-			? FString::Printf(TEXT("%s: %s"), *GetMachineName(Factory), *Rule.Event)
-			: Rule.Message;
+		FString Message = Rule.Message;
+		if (Message.IsEmpty())
+		{
+			Message = Ringer ? FString::Printf(TEXT("%s: %s"), *GetMachineName(Ringer), *Rule.Event) : Rule.Event;
+		}
 		MulticastShowMessage(Message);
 		break;
 	}

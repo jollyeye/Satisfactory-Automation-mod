@@ -145,6 +145,12 @@ namespace AMRules
 	/** Actions that have a text (Show message). */
 	AUTOMATEDMACHINES_API bool ActionNeedsMessage(EAMAction Action);
 
+	/**
+	 * World actions do nothing to a machine (Show message): they are set in the HUB terminal's
+	 * Automation tab, not on machines.
+	 */
+	AUTOMATEDMACHINES_API bool IsWorldAction(EAMAction Action);
+
 	/** Longest message text kept. */
 	constexpr int32 MaxMessageLength = 120;
 

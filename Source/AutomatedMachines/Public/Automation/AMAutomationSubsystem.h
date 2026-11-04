@@ -53,8 +53,14 @@ public:
 	/** Every machine with rules. */
 	const TArray<FAMMachineRules>& GetAllMachines() const { return mMachines; }
 
-	/** Fires an event now: every machine that reacts to it acts (server only). */
-	void FireEvent(const FString& Event);
+	/** Fires an event now: every machine that reacts to it acts, and the world actions run (server only). */
+	void FireEvent(const FString& Event, const AActor* Ringer = nullptr);
+
+	/** Actions of the whole world (the HUB terminal's Automation tab): they need no machine. */
+	const TArray<FAMReactionRule>& GetWorldActions() const { return mWorldActions; }
+
+	/** Replaces the world actions (server only). Only world actions are kept. */
+	void SetWorldActions(const TArray<FAMReactionRule>& Actions);
 
 	/** True if this machine type can be automated (for now: Smelter, Constructor and other manufacturers). */
 	static bool CanAutomate(const AActor* Machine);
@@ -94,6 +100,18 @@ private:
 
 	UPROPERTY(SaveGame, ReplicatedUsing = OnRep_Machines)
 	TArray<FAMMachineRules> mMachines;
+
+	UPROPERTY(SaveGame, ReplicatedUsing = OnRep_Machines)
+	TArray<FAMReactionRule> mWorldActions;
+
+	/** Runs one world action; Ringer is the machine that rang the alarm. */
+	void ApplyWorldAction(const FAMReactionRule& Rule, const AActor* Ringer);
+
+	/** Older saves had world actions on machines: move them to the world actions. */
+	void MoveWorldActionsFromMachines();
+
+	/** A cleaned copy of a rule (name in capitals, value in range, unused fields cleared). */
+	static FAMReactionRule CleanReaction(const FAMReactionRule& Rule);
 
 	/**
 	 * Last known value of each fire rule's condition, per machine (not saved: after loading, a

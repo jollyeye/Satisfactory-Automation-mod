@@ -19,6 +19,9 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerSetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions);
 
+	UFUNCTION(Server, Reliable)
+	void ServerSetWorldActions(const TArray<FAMReactionRule>& Actions);
+
 	/** Every player gets this object (made on the server when the player controller starts). */
 	static void InstallRegistration();
 
@@ -27,6 +30,9 @@ public:
 	 * on a client.
 	 */
 	static void RequestSetRules(APlayerController* Player, AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions);
+
+	/** Changes the world actions (HUB terminal): directly on the server, through the server on a client. */
+	static void RequestSetWorldActions(APlayerController* Player, const TArray<FAMReactionRule>& Actions);
 
 private:
 	// An RCO needs at least one replicated property for its RPCs to work.

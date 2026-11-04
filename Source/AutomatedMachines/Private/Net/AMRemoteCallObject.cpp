@@ -20,6 +20,40 @@ void UAMRemoteCallObject::ServerSetRules_Implementation(AFGBuildable* Machine, c
 	}
 }
 
+void UAMRemoteCallObject::ServerSetWorldActions_Implementation(const TArray<FAMReactionRule>& Actions)
+{
+	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(GetOuter()))
+	{
+		Subsystem->SetWorldActions(Actions);
+	}
+}
+
+void UAMRemoteCallObject::RequestSetWorldActions(APlayerController* Player, const TArray<FAMReactionRule>& Actions)
+{
+	if (!Player)
+	{
+		return;
+	}
+	if (Player->HasAuthority())
+	{
+		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Player))
+		{
+			Subsystem->SetWorldActions(Actions);
+		}
+		return;
+	}
+	AFGPlayerController* FGPlayer = Cast<AFGPlayerController>(Player);
+	UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr;
+	if (RCO)
+	{
+		RCO->ServerSetWorldActions(Actions);
+	}
+	else
+	{
+		UE_LOG(LogAutomatedMachines, Warning, TEXT("Cannot send world actions to the server: no remote call object"));
+	}
+}
+
 void UAMRemoteCallObject::InstallRegistration()
 {
 	SUBSCRIBE_METHOD_VIRTUAL_AFTER(AFGPlayerController::BeginPlay, GetMutableDefault<AFGPlayerController>(),

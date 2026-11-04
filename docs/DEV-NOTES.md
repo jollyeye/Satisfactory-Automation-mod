@@ -133,6 +133,13 @@ Rules have a `Value` (float, saved) for the ones that need a number; `AMRules::G
 
 Not offered: production boost (Somersloops are items, not a setting).
 
+## World actions in the HUB terminal (4 Nov 2026)
+
+- The HUB terminal (`/Game/FactoryGame/Buildable/Factory/TradingPost/UI/BPW_Hub.BPW_Hub_C`) uses the same window frame and sliding tabs as the machine window: tabs "Select Milestone" / "Active Milestone", pages in `HorizontalBox_25` (offsets 0, -1310). A second widget hook puts `UAMAutomationTab` there.
+- `UAMAutomationTab` is in world mode when its host window is `BPW_Hub_C`: no Alarms panel, a "World Actions" panel offering only world actions (`AMRules::IsWorldAction`: Show message), rules read from / sent to `AAMAutomationSubsystem::mWorldActions` (saved, replicated; `UAMRemoteCallObject::RequestSetWorldActions`).
+- Machines no longer accept world actions (`SetRules` drops them); `MoveWorldActionsFromMachines` moves them from older saves on load.
+- `FireEvent(Event, Ringer)` also runs the world actions; Show message without text shows "<machine that rang>: <alarm>".
+
 ## The widget dump
 
 Now pointed at the HUB terminal (`BPW_Hub_C`): its tree, plus variables and functions of every widget in it whose class name contains Tab, Menu or Hub, to find where an Automation tab goes next to Milestones.

@@ -384,6 +384,11 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 		for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
 		{
 			const EAMAction Action = static_cast<EAMAction>(Value);
+			// Machines: machine actions. HUB: world actions.
+			if (AMRules::IsWorldAction(Action) != mTab->IsWorldMode())
+			{
+				continue;
+			}
 			AddChoice(AMRules::GetActionText(Action).ToString(), FString(), Value, Rule && Rule->Action == Action);
 		}
 	}

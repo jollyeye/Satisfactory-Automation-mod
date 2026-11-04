@@ -52,6 +52,12 @@ public:
 	/** The machine this window is for (e.g. a Smelter). */
 	UObject* GetMachineObject() const { return GetMachine(); }
 
+	/**
+	 * True in the HUB terminal: the page has only actions, and only world actions (they need no
+	 * machine), saved for the whole world instead of for a machine.
+	 */
+	bool IsWorldMode() const { return bWorldMode; }
+
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
@@ -144,6 +150,8 @@ private:
 	TObjectPtr<UTextBlock> mInfoBody;
 
 	bool bBoundToPages = false;
+
+	bool bWorldMode = false;
 
 	/** Index of our tab button and page; INDEX_NONE until the tab entry is added. */
 	int32 TabIndex = INDEX_NONE;
