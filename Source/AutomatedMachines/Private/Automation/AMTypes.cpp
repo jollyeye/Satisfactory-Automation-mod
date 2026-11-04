@@ -1,4 +1,7 @@
 #include "Automation/AMTypes.h"
+#include "FGRecipe.h"
+#include "ItemAmount.h"
+#include "Resources/FGItemDescriptor.h"
 
 namespace
 {
@@ -44,6 +47,7 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::SetClockSpeed: return AMTY_Text(TEXT("Set clock speed"));
 	case EAMAction::DeleteOutput:  return AMTY_Text(TEXT("Delete output"));
 	case EAMAction::DeleteInput:   return AMTY_Text(TEXT("Delete input"));
+	case EAMAction::ChangeRecipe:  return AMTY_Text(TEXT("Change recipe"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -99,6 +103,8 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Destroys everything in the machine's output slots. The items are gone for good: no points, no refund.\n\nWith \"Output full\" on the same machine, it never stops for a full output: what nobody takes away is thrown away."));
 	case EAMAction::DeleteInput:
 		return AMTY_Text(TEXT("Destroys everything in the machine's input slots, including fluids. The items are gone for good: no points, no refund.\n\nHandy to clear out leftovers, e.g. after the recipe was changed."));
+	case EAMAction::ChangeRecipe:
+		return AMTY_Text(TEXT("Switches the machine to the recipe you choose.\n\nThe game only allows this with empty slots, so everything in the input and output slots is destroyed first (no refund). Does nothing if the machine already makes this recipe."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -130,6 +136,33 @@ AMRules::FValueInfo AMRules::GetActionValueInfo(EAMAction Action)
 		Info.Default = 100.f;
 	}
 	return Info;
+}
+
+bool AMRules::ActionNeedsRecipe(EAMAction Action)
+{
+	return Action == EAMAction::ChangeRecipe;
+}
+
+FText AMRules::DescribeRecipe(const UObject* WorldContext, TSubclassOf<UFGRecipe> Recipe)
+{
+	if (!Recipe)
+	{
+		return FText::GetEmpty();
+	}
+	auto Describe = [](const TArray<FItemAmount>& Amounts)
+	{
+		TArray<FString> Parts;
+		for (const FItemAmount& Amount : Amounts)
+		{
+			const EResourceForm Form = UFGItemDescriptor::GetForm(Amount.ItemClass);
+			const bool bFluid = Form == EResourceForm::RF_LIQUID || Form == EResourceForm::RF_GAS;
+			const FString Count = bFluid ? FString::Printf(TEXT("%g m3"), Amount.Amount / 1000.f) : FString::FromInt(Amount.Amount);
+			Parts.Add(FString::Printf(TEXT("%s %s"), *Count, *UFGItemDescriptor::GetItemName(Amount.ItemClass).ToString()));
+		}
+		return FString::Join(Parts, TEXT(" + "));
+	};
+	return FText::FromString(FString::Printf(TEXT("%s  ->  %s"),
+		*Describe(UFGRecipe::GetIngredients(WorldContext, Recipe)), *Describe(UFGRecipe::GetProducts(Recipe))));
 }
 
 float AMRules::CleanValue(const FValueInfo& Info, float Value)

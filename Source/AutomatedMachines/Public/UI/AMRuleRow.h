@@ -37,6 +37,7 @@ enum class EAMChoiceKind : uint8
 	Alarm,
 	MachineEvent,
 	Action,
+	Recipe,
 };
 
 /** Click and hover handler of one button in a row's list of choices. */
@@ -54,6 +55,10 @@ public:
 	/** The alarm name (Alarm), or the condition / action as a number. */
 	FString Alarm;
 	uint8 Value = 0;
+
+	/** The recipe (Recipe). */
+	UPROPERTY()
+	TObjectPtr<UClass> RecipeClass;
 
 	UFUNCTION()
 	void OnClicked();
@@ -90,6 +95,10 @@ public:
 	/** Action row: the On Alarm cell. */
 	UFUNCTION()
 	void OnAlarmCellClicked();
+
+	/** Action row with Change recipe: the recipe dropdown under the row. */
+	UFUNCTION()
+	void OnRecipeCellClicked();
 
 	UFUNCTION()
 	void OnRemoveClicked();
@@ -153,6 +162,13 @@ private:
 	/** Reads / writes this row's rule's number. */
 	float GetRuleValue() const;
 	void SetRuleValue(float Value);
+
+	/** The line with the recipe dropdown, under the row (Change recipe only). */
+	UPROPERTY()
+	TObjectPtr<UWidget> mRecipeLine;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mRecipeLabel;
 
 	/** On Alarm label (action row). */
 	UPROPERTY()

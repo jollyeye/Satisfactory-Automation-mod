@@ -124,6 +124,6 @@ In a crowd of machines the player must see at a glance which ones are automated,
 
 Machine events (an alarm rings when one becomes true): Output full, Output not full, Starts producing, Stops producing, Loses power, Gets power, Input missing, Input available, Paused, Resumed, Productivity below N%, Productivity above N%, Recipe changed.
 
-Actions: Pause, Resume, Pause or resume, Set clock speed N% (within what the machine's power shards allow), Delete output, Delete input (our own functions: the items are destroyed).
+Actions: Pause, Resume, Pause or resume, Set clock speed N% (within what the machine's power shards allow), Delete output, Delete input (our own functions: the items are destroyed), Change recipe (empties the input and output slots, then switches to the chosen recipe; only recipes the machine can make and the player has unlocked).
 
-Each one has an explanation in the tab's info panel. Not offered: changing the recipe (the game needs the machine emptied first, items would be lost).
+Each one has an explanation in the tab's info panel.

@@ -5,9 +5,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Templates/SubclassOf.h"
 #include "AMTypes.generated.h"
 
 class AFGBuildable;
+class UFGRecipe;
 
 /**
  * A status of a machine (a "machine event" in the game). A fire rule fires its event when the status
@@ -42,6 +44,7 @@ enum class EAMAction : uint8
 	SetClockSpeed  UMETA(DisplayName = "Set clock speed"),
 	DeleteOutput   UMETA(DisplayName = "Delete output"),
 	DeleteInput    UMETA(DisplayName = "Delete input"),
+	ChangeRecipe   UMETA(DisplayName = "Change recipe"),
 	Count          UMETA(Hidden)
 };
 
@@ -77,6 +80,10 @@ struct AUTOMATEDMACHINES_API FAMReactionRule
 	/** The number of actions that need one (clock speed %), else unused. */
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	float Value = 0.f;
+
+	/** The recipe of "Change recipe", else unused. */
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
+	TSubclassOf<UFGRecipe> Recipe;
 };
 
 /** All rules of one machine. Machines without rules have no entry at all. */
@@ -124,6 +131,12 @@ namespace AMRules
 	};
 	AUTOMATEDMACHINES_API FValueInfo GetConditionValueInfo(EAMCondition Condition);
 	AUTOMATEDMACHINES_API FValueInfo GetActionValueInfo(EAMAction Action);
+
+	/** Actions that need a recipe (Change recipe). */
+	AUTOMATEDMACHINES_API bool ActionNeedsRecipe(EAMAction Action);
+
+	/** "2 Iron Ingot -> 1 Iron Plate" (fluids in m3). */
+	AUTOMATEDMACHINES_API FText DescribeRecipe(const UObject* WorldContext, TSubclassOf<UFGRecipe> Recipe);
 
 	/** The value clamped to the allowed range (or the default if it is not set yet). */
 	AUTOMATEDMACHINES_API float CleanValue(const FValueInfo& Info, float Value);

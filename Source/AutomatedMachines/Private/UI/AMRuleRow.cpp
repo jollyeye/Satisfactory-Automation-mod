@@ -2,6 +2,8 @@
 #include "UI/AMAutomationTab.h"
 #include "UI/AMUIHelpers.h"
 #include "Automation/AMTypes.h"
+#include "Buildables/FGBuildableManufacturer.h"
+#include "FGRecipe.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -154,6 +156,31 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		}
 	}
 
+	// "Recipe [Iron Plate v]" for Change recipe, under the row.
+	if (!bIsAlarm)
+	{
+		UHorizontalBox* RecipeLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		mRecipeLine = RecipeLine;
+		if (UHorizontalBoxSlot* LabelSlot = RecipeLine->AddChildToHorizontalBox(AMUI::MakeText(Tree, TEXT("Recipe"), Font, AMUI::Grey)))
+		{
+			LabelSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		UTextBlock* RecipeLabel = nullptr;
+		UButton* RecipeButton = AMUI::MakeDropdown(Tree, Font, RecipeLabel);
+		mRecipeLabel = RecipeLabel;
+		RecipeButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnRecipeCellClicked);
+		if (UHorizontalBoxSlot* ButtonSlot = RecipeLine->AddChildToHorizontalBox(
+			AMRR_Cell(Tree, AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm - 60.f, RecipeButton)))
+		{
+			ButtonSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		}
+		RecipeLine->SetVisibility(ESlateVisibility::Collapsed);
+		if (UVerticalBoxSlot* RecipeSlot = mRoot->AddChildToVerticalBox(RecipeLine))
+		{
+			RecipeSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+	}
+
 	mChoices = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	mChoices->SetVisibility(ESlateVisibility::Collapsed);
 	if (UVerticalBoxSlot* ChoicesSlot = mRoot->AddChildToVerticalBox(mChoices))
@@ -187,6 +214,18 @@ void UAMRuleRow::UpdateLabels()
 		{
 			mAlarmLabel->SetText(FText::FromString(Rule->Event.IsEmpty() ? TEXT("choose an alarm") : Rule->Event));
 			mAlarmLabel->SetColorAndOpacity(FSlateColor(Rule->Event.IsEmpty() ? AMUI::Grey : AMUI::White));
+		}
+	}
+
+	if (!bIsAlarm && mRecipeLine && mRecipeLabel)
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		const bool bNeedsRecipe = Rule && AMRules::ActionNeedsRecipe(Rule->Action);
+		mRecipeLine->SetVisibility(bNeedsRecipe ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		if (bNeedsRecipe)
+		{
+			mRecipeLabel->SetText(Rule->Recipe ? UFGRecipe::GetRecipeName(Rule->Recipe) : FText::FromString(TEXT("choose a recipe")));
+			mRecipeLabel->SetColorAndOpacity(FSlateColor(Rule->Recipe ? AMUI::White : AMUI::Grey));
 		}
 	}
 
@@ -311,6 +350,26 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 		{
 			const EAMAction Action = static_cast<EAMAction>(Value);
 			AddChoice(AMRules::GetActionText(Action).ToString(), FString(), Value, Rule && Rule->Action == Action);
+		}
+	}
+	else if (Kind == EAMChoiceKind::Recipe)
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		TArray<TSubclassOf<UFGRecipe>> Recipes;
+		if (const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(mTab->GetMachineObject()))
+		{
+			Manufacturer->GetAvailableRecipes(Recipes);
+		}
+		if (Recipes.Num() == 0)
+		{
+			UBorder* Message = AMUI::MakeBox(Tree, AMUI::Option, FMargin(12.f, 7.f));
+			Message->AddChild(AMUI::MakeText(Tree, TEXT("No recipes available for this machine."), Font, AMUI::Grey));
+			mChoices->AddChildToVerticalBox(Message);
+		}
+		for (const TSubclassOf<UFGRecipe>& Recipe : Recipes)
+		{
+			AddChoice(UFGRecipe::GetRecipeName(Recipe).ToString(), FString(), 0, Rule && Rule->Recipe.Get() == Recipe.Get());
+			mChoiceHandlers.Last()->RecipeClass = Recipe.Get();
 		}
 	}
 	else
@@ -471,6 +530,16 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 			}
 		}
 		break;
+	case EAMChoiceKind::Recipe:
+		if (FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
+		{
+			if (Rule->Recipe.Get() != Choice.RecipeClass)
+			{
+				Rule->Recipe = Choice.RecipeClass.Get();
+				mTab->OnRulesEdited();
+			}
+		}
+		break;
 	case EAMChoiceKind::Action:
 		if (FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 		{
@@ -480,6 +549,7 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 				Rule->Action = Action;
 				const AMRules::FValueInfo Info = AMRules::GetActionValueInfo(Action);
 				Rule->Value = Info.bNeeded ? Info.Default : 0.f;
+				Rule->Recipe = nullptr;
 				mTab->OnRulesEdited();
 			}
 		}
@@ -509,6 +579,15 @@ void UAMRuleRow::Explain(const UAMChoice& Choice)
 		mTab->ShowInfo(AMRules::GetActionText(Action), AMRules::GetActionDescription(Action));
 		break;
 	}
+	case EAMChoiceKind::Recipe:
+		if (Choice.RecipeClass)
+		{
+			const TSubclassOf<UFGRecipe> Recipe(Choice.RecipeClass.Get());
+			mTab->ShowInfo(UFGRecipe::GetRecipeName(Recipe), FText::FromString(FString::Printf(
+				TEXT("%s\n\nWhen the alarm rings, this machine's input and output slots are emptied (the items are destroyed) and it switches to this recipe."),
+				*AMRules::DescribeRecipe(mTab, Recipe).ToString())));
+		}
+		break;
 	}
 }
 
@@ -551,6 +630,20 @@ void UAMRuleRow::OnAlarmCellClicked()
 		mTab->ShowAlarmInfo(Rule->Event);
 	}
 	ShowChoices(EAMChoiceKind::Alarm, mTab->GetEventNames(), TEXT("No alarms yet: give a machine an alarm first."));
+}
+
+void UAMRuleRow::OnRecipeCellClicked()
+{
+	if (bChoicesOpen && mOpenKind == EAMChoiceKind::Recipe)
+	{
+		HideChoices();
+		return;
+	}
+	if (const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
+	{
+		mTab->ShowInfo(AMRules::GetActionText(Rule->Action), AMRules::GetActionDescription(Rule->Action));
+	}
+	ShowChoices(EAMChoiceKind::Recipe, {}, FString());
 }
 
 void UAMRuleRow::OnRemoveClicked()

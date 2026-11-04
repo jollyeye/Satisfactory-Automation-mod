@@ -49,6 +49,9 @@ public:
 	/** What the page is about (shown until something is picked). */
 	void ShowDefaultInfo();
 
+	/** The machine this window is for (e.g. a Smelter). */
+	UObject* GetMachineObject() const { return GetMachine(); }
+
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;

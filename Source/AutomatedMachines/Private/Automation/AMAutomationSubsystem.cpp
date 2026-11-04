@@ -139,6 +139,10 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 		FAMReactionRule Clean = Rule;
 		Clean.Event = AMRules::NormalizeEventName(Rule.Event);
 		Clean.Value = AMRules::CleanValue(AMRules::GetActionValueInfo(Rule.Action), Rule.Value);
+		if (!AMRules::ActionNeedsRecipe(Rule.Action))
+		{
+			Clean.Recipe = nullptr;
+		}
 		if (!Clean.Event.IsEmpty() && Clean.Action < EAMAction::Count)
 		{
 			NewRules.Reactions.Add(Clean);
@@ -435,6 +439,28 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			{
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %s deleted (%d slots)"), *AMAS_Describe(Factory), bOutput ? TEXT("output") : TEXT("input"), Slots);
 			}
+		}
+		break;
+	case EAMAction::ChangeRecipe:
+		if (AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory))
+		{
+			if (!Rule.Recipe || Manufacturer->GetCurrentRecipe().Get() == Rule.Recipe.Get())
+			{
+				break;
+			}
+			// Only recipes this machine can make and the player has unlocked.
+			TArray<TSubclassOf<UFGRecipe>> Available;
+			Manufacturer->GetAvailableRecipes(Available);
+			if (!Available.ContainsByPredicate([&Rule](const TSubclassOf<UFGRecipe>& Recipe) { return Recipe.Get() == Rule.Recipe.Get(); }))
+			{
+				UE_LOG(LogAutomatedMachines, Warning, TEXT("%s cannot make %s: recipe not changed"), *AMAS_Describe(Factory), *Rule.Recipe->GetName());
+				break;
+			}
+			// The game wants empty slots for a new recipe.
+			DeleteAllItems(Manufacturer->GetInputInventory());
+			DeleteAllItems(Manufacturer->GetOutputInventory());
+			Manufacturer->SetRecipe(Rule.Recipe);
+			UE_LOG(LogAutomatedMachines, Log, TEXT("%s recipe changed to %s"), *AMAS_Describe(Factory), *Rule.Recipe->GetName());
 		}
 		break;
 	default:
