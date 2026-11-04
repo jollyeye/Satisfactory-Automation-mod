@@ -40,6 +40,8 @@ enum class EAMAction : uint8
 	Resume         UMETA(DisplayName = "Resume"),
 	TogglePause    UMETA(DisplayName = "Pause or resume"),
 	SetClockSpeed  UMETA(DisplayName = "Set clock speed"),
+	DeleteOutput   UMETA(DisplayName = "Delete output"),
+	DeleteInput    UMETA(DisplayName = "Delete input"),
 	Count          UMETA(Hidden)
 };
 

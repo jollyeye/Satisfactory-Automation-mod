@@ -127,7 +127,7 @@ Tested before: marker, tab icon, two tables, info panel and inventory hiding all
 
 Machine events (`EAMCondition`, values saved: add new ones at the end only): output full / not full, starts / stops producing, loses / gets power (`HasPower`), input missing / available (input slots hold one batch of every ingredient, `UFGRecipe::GetIngredients` + `HasItems`), paused / resumed (`IsProductionPaused`), productivity below / above N% (`GetProductivity`), recipe changed (compared with the last check, not saved).
 
-Actions (`EAMAction`): pause, resume, pause or resume (toggle), set clock speed N% (`SetPendingPotential`, clamped to `GetCurrentMinPotential` .. `GetCurrentMaxPotential`, i.e. what the machine's power shards allow).
+Actions (`EAMAction`): pause, resume, pause or resume (toggle), set clock speed N% (`SetPendingPotential`, clamped to `GetCurrentMinPotential` .. `GetCurrentMaxPotential`, i.e. what the machine's power shards allow), delete output / delete input (our own: `RemoveAllFromIndex` on every slot, not `Empty()`, so the slots keep their item settings).
 
 Rules have a `Value` (float, saved) for the ones that need a number; `AMRules::GetConditionValueInfo` / `GetActionValueInfo` give the label, range and default. The row shows a "% field" under the cell when needed.
 

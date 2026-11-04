@@ -425,7 +425,37 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			}
 		}
 		break;
+	case EAMAction::DeleteOutput:
+	case EAMAction::DeleteInput:
+		if (AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory))
+		{
+			const bool bOutput = Rule.Action == EAMAction::DeleteOutput;
+			const int32 Slots = DeleteAllItems(bOutput ? Manufacturer->GetOutputInventory() : Manufacturer->GetInputInventory());
+			if (Slots > 0)
+			{
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %s deleted (%d slots)"), *AMAS_Describe(Factory), bOutput ? TEXT("output") : TEXT("input"), Slots);
+			}
+		}
+		break;
 	default:
 		break;
 	}
+}
+
+int32 AAMAutomationSubsystem::DeleteAllItems(UFGInventoryComponent* Inventory)
+{
+	if (!Inventory)
+	{
+		return 0;
+	}
+	int32 Slots = 0;
+	for (int32 Index = 0; Index < Inventory->GetSizeLinear(); ++Index)
+	{
+		if (!Inventory->IsIndexEmpty(Index))
+		{
+			Inventory->RemoveAllFromIndex(Index);
+			++Slots;
+		}
+	}
+	return Slots;
 }

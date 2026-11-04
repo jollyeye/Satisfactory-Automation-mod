@@ -81,6 +81,9 @@ private:
 	static bool IsInputMissing(const AFGBuildableFactory* Factory);
 	static void ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule);
 
+	/** Destroys every item in an inventory, slot by slot (the slots keep their settings). Returns how many slots had items. */
+	static int32 DeleteAllItems(class UFGInventoryComponent* Inventory);
+
 	UPROPERTY(SaveGame, ReplicatedUsing = OnRep_Machines)
 	TArray<FAMMachineRules> mMachines;
 

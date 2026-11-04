@@ -42,6 +42,8 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::Resume:        return AMTY_Text(TEXT("Resume"));
 	case EAMAction::TogglePause:   return AMTY_Text(TEXT("Pause or resume"));
 	case EAMAction::SetClockSpeed: return AMTY_Text(TEXT("Set clock speed"));
+	case EAMAction::DeleteOutput:  return AMTY_Text(TEXT("Delete output"));
+	case EAMAction::DeleteInput:   return AMTY_Text(TEXT("Delete input"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -93,6 +95,10 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Switches standby: a running machine is paused, a paused machine is resumed. Handy for one alarm that turns something on and off."));
 	case EAMAction::SetClockSpeed:
 		return AMTY_Text(TEXT("Sets the machine's clock speed to the percentage you choose, like the clock speed slider in its window. Above 100% needs Power Shards in the machine; the speed is limited to what its shards allow."));
+	case EAMAction::DeleteOutput:
+		return AMTY_Text(TEXT("Destroys everything in the machine's output slots. The items are gone for good: no points, no refund.\n\nWith \"Output full\" on the same machine, it never stops for a full output: what nobody takes away is thrown away."));
+	case EAMAction::DeleteInput:
+		return AMTY_Text(TEXT("Destroys everything in the machine's input slots, including fluids. The items are gone for good: no points, no refund.\n\nHandy to clear out leftovers, e.g. after the recipe was changed."));
 	default:
 		return FText::GetEmpty();
 	}
