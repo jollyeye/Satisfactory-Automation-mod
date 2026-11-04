@@ -47,6 +47,12 @@ public:
 	/** Every event name in use, sorted. */
 	TArray<FString> GetAllEventNames() const;
 
+	/** How many machines ring this event, and how many act on it. */
+	void CountEventUses(const FString& Event, int32& OutRingers, int32& OutActors) const;
+
+	/** Every machine with rules. */
+	const TArray<FAMMachineRules>& GetAllMachines() const { return mMachines; }
+
 	/** Fires an event now: every machine that reacts to it acts (server only). */
 	void FireEvent(const FString& Event);
 
@@ -84,4 +90,8 @@ private:
 	TMap<TWeakObjectPtr<AFGBuildable>, TArray<int8>> mLastConditionValues;
 
 	float mTimeSinceEvaluation = 0.f;
+
+	/** The markers above automated machines (local, never saved; not on a dedicated server). */
+	UPROPERTY(Transient)
+	TObjectPtr<class AAMMarkers> mMarkers;
 };

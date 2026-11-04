@@ -81,4 +81,8 @@ namespace AMRules
 	/** Text shown in the UI for a condition / an action. */
 	AUTOMATEDMACHINES_API FText GetConditionText(EAMCondition Condition);
 	AUTOMATEDMACHINES_API FText GetActionText(EAMAction Action);
+
+	/** Explanations for the info panel of the Automation tab. */
+	AUTOMATEDMACHINES_API FText GetConditionDescription(EAMCondition Condition);
+	AUTOMATEDMACHINES_API FText GetActionDescription(EAMAction Action);
 }

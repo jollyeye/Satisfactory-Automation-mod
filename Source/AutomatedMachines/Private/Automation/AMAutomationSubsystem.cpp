@@ -1,4 +1,5 @@
 #include "Automation/AMAutomationSubsystem.h"
+#include "Automation/AMMarkers.h"
 #include "AutomatedMachinesModule.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableFactory.h"
@@ -80,6 +81,17 @@ void AAMAutomationSubsystem::BeginPlay()
 {
 	Super::BeginPlay();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem started (%d automated machines)"), mMachines.Num());
+
+	if (!IsRunningDedicatedServer() && GetWorld())
+	{
+		FActorSpawnParameters Params;
+		Params.ObjectFlags |= RF_Transient;
+		mMarkers = GetWorld()->SpawnActor<AAMMarkers>(Params);
+		if (mMarkers)
+		{
+			mMarkers->Init(this);
+		}
+	}
 }
 
 void AAMAutomationSubsystem::PostLoadGame_Implementation(int32 SaveVersion, int32 GameVersion)
@@ -175,6 +187,23 @@ TArray<FString> AAMAutomationSubsystem::GetAllEventNames() const
 	TArray<FString> Result = Names.Array();
 	Result.Sort();
 	return Result;
+}
+
+void AAMAutomationSubsystem::CountEventUses(const FString& Event, int32& OutRingers, int32& OutActors) const
+{
+	OutRingers = 0;
+	OutActors = 0;
+	for (const FAMMachineRules& Entry : mMachines)
+	{
+		if (Entry.Fires.ContainsByPredicate([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; }))
+		{
+			++OutRingers;
+		}
+		if (Entry.Reactions.ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; }))
+		{
+			++OutActors;
+		}
+	}
 }
 
 bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)

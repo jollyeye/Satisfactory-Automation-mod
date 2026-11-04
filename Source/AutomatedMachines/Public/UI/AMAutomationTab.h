@@ -37,6 +37,15 @@ public:
 	/** Removes a rule, saves, and rebuilds the rows (on the next frame). */
 	void RemoveRule(bool bFire, int32 Index);
 
+	/** The info panel on the right of the page. */
+	void ShowInfo(const FText& Title, const FText& Body);
+
+	/** Info about an alarm: who rings it and who acts on it (or how alarm names work, if empty). */
+	void ShowAlarmInfo(const FString& Alarm);
+
+	/** What the page is about (shown until something is picked). */
+	void ShowDefaultInfo();
+
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;
@@ -45,6 +54,10 @@ protected:
 	/** Bound to the window frame's OnTabButtonClicked. */
 	UFUNCTION()
 	void OnWindowTabButtonClicked(int32 ButtonIndex);
+
+	/** Bound to the sliding pages' OnActiveTabChanged. */
+	UFUNCTION()
+	void OnActiveTabChanged(UWidget* PreviouslyActiveWidget, UWidget* ActiveWidget);
 
 	UFUNCTION()
 	void OnAddFireClicked();
@@ -89,6 +102,9 @@ private:
 	/** Makes sure the sliding pages know where our page is, then slides to it. */
 	void ShowThisTab();
 
+	/** Our page has its own info panel, so the window's inventory panel is hidden on it. */
+	void HideInventory();
+
 	UTextBlock* MakeText(const FString& Text, int32 FontSize, const FLinearColor& Color);
 
 	/** This machine's rules as edited here (sent to the server on every change). */
@@ -110,6 +126,14 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mNoticeText;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mInfoTitle;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mInfoBody;
+
+	bool bBoundToPages = false;
 
 	/** Index of our tab button and page; INDEX_NONE until the tab entry is added. */
 	int32 TabIndex = INDEX_NONE;

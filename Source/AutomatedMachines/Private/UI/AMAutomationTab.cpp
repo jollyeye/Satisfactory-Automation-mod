@@ -6,7 +6,9 @@
 #include "Net/AMRemoteCallObject.h"
 #include "Buildables/FGBuildable.h"
 #include "Components/Button.h"
+#include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
+#include "Engine/Texture2D.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
@@ -34,6 +36,15 @@ namespace
 	const FName AMAT_ActiveIndexProperty(TEXT("mActiveIndex"));
 	const FName AMAT_PagesProperty(TEXT("mHorizontalBox"));
 	const FName AMAT_FontSourceWidget(TEXT("mRecipeName"));
+	const FName AMAT_ActiveTabChangedProperty(TEXT("OnActiveTabChanged"));
+	const FName AMAT_ProductionPageName(TEXT("mManufacturingTab"));
+
+	/** Made by Tools/create_assets.py. */
+	const TCHAR* const AMAT_TabIconPath = TEXT("/AutomatedMachines/Icons/T_AM_TabIcon.T_AM_TabIcon");
+
+	/** Width of our page: about the Production page plus the inventory panel it replaces. */
+	constexpr float AMAT_PageWidth = 1230.f;
+	constexpr float AMAT_InfoWidth = 300.f;
 
 	const TCHAR* const AMAT_TabTitle = TEXT("Automation");
 
@@ -224,57 +235,154 @@ void UAMAutomationTab::BuildLayout()
 	}
 
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMRoot"));
-	Root->SetWidthOverride(760.f);
+	Root->SetWidthOverride(AMAT_PageWidth);
 	Root->SetMinDesiredHeight(520.f);
-	Root->SetMaxDesiredHeight(680.f);
+	Root->SetMaxDesiredHeight(700.f);
 	WidgetTree->RootWidget = Root;
 
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AMBackground"));
 	Background->SetBrushColor(AMUI::PageBackground);
-	Background->SetPadding(FMargin(28.f, 24.f));
+	Background->SetPadding(FMargin(24.f, 20.f));
 	Root->AddChild(Background);
 
-	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("AMScroll"));
-	Background->AddChild(Scroll);
+	// [ title, the two tables ] [ info panel ]
+	UHorizontalBox* Main = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMMain"));
+	Background->AddChild(Main);
 
 	mContentBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMContent"));
-	Scroll->AddChild(mContentBox);
-
-	auto AddRow = [this](UWidget* Widget, float TopPadding)
+	if (UHorizontalBoxSlot* ContentSlot = Main->AddChildToHorizontalBox(mContentBox))
 	{
-		if (UVerticalBoxSlot* RowSlot = mContentBox->AddChildToVerticalBox(Widget))
+		ContentSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+	}
+
+	auto AddTo = [](UVerticalBox* Box, UWidget* Widget, float TopPadding)
+	{
+		if (UVerticalBoxSlot* RowSlot = Box->AddChildToVerticalBox(Widget))
 		{
 			RowSlot->SetPadding(FMargin(0.f, TopPadding, 0.f, 0.f));
 			RowSlot->SetHorizontalAlignment(HAlign_Left);
 		}
 	};
-	auto AddButton = [this, &AddRow](const FString& Label, float TopPadding) -> UButton*
-	{
-		UButton* Button = AMUI::MakeButton(WidgetTree, Label, GetGameFont(), false, nullptr);
-		TrackText(Cast<UTextBlock>(Button->GetChildAt(0)), 14);
-		AddRow(Button, TopPadding);
-		return Button;
-	};
 
-	AddRow(MakeText(TEXT("AUTOMATION"), 26, AMUI::Orange), 0.f);
+	AddTo(mContentBox, MakeText(TEXT("AUTOMATION"), 26, AMUI::Orange), 0.f);
 	mMachineText = MakeText(TEXT(""), 16, AMUI::Grey);
-	AddRow(mMachineText, 4.f);
-
+	AddTo(mContentBox, mMachineText, 2.f);
 	mNoticeText = MakeText(TEXT(""), 14, AMUI::Orange);
 	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
-	AddRow(mNoticeText, 12.f);
+	AddTo(mContentBox, mNoticeText, 10.f);
 
-	AddRow(MakeText(TEXT("ALARMS"), 18, AMUI::White), 26.f);
-	AddRow(MakeText(TEXT("This machine rings an alarm when its status changes."), 13, AMUI::Grey), 4.f);
-	mFireRowsBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMFireRows"));
-	AddRow(mFireRowsBox, 6.f);
-	AddButton(TEXT("+ Add alarm"), 10.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
+	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("AMScroll"));
+	if (UVerticalBoxSlot* ScrollSlot = mContentBox->AddChildToVerticalBox(Scroll))
+	{
+		ScrollSlot->SetPadding(FMargin(0.f, 18.f, 0.f, 0.f));
+		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+	}
+	UHorizontalBox* Tables = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMTables"));
+	Scroll->AddChild(Tables);
 
-	AddRow(MakeText(TEXT("ACTIONS"), 18, AMUI::White), 30.f);
-	AddRow(MakeText(TEXT("This machine does something when an alarm rings, on any machine."), 13, AMUI::Grey), 4.f);
-	mReactionRowsBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMReactionRows"));
-	AddRow(mReactionRowsBox, 6.f);
-	AddButton(TEXT("+ Add action"), 10.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+	// One table: title, explanation, column names, rows, add button.
+	auto MakeTable = [this, &AddTo](const FString& Title, const FString& Explanation,
+		const FString& FirstColumn, float FirstWidth, const FString& SecondColumn, float SecondWidth,
+		const FString& AddLabel, TObjectPtr<UVerticalBox>& OutRows) -> UVerticalBox*
+	{
+		UVerticalBox* Table = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		AddTo(Table, MakeText(Title, 18, AMUI::White), 0.f);
+		AddTo(Table, MakeText(Explanation, 12, AMUI::Grey), 2.f);
+
+		UHorizontalBox* Header = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		auto AddHeader = [this, Header](const FString& Name, float Width, float LeftPadding)
+		{
+			USizeBox* Cell = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			Cell->SetWidthOverride(Width);
+			Cell->AddChild(MakeText(Name, 12, AMUI::Grey));
+			if (UHorizontalBoxSlot* CellSlot = Header->AddChildToHorizontalBox(Cell))
+			{
+				CellSlot->SetPadding(FMargin(LeftPadding, 0.f, 0.f, 0.f));
+			}
+		};
+		AddHeader(FirstColumn, FirstWidth, 0.f);
+		AddHeader(SecondColumn, SecondWidth, AMRowLayout::Gap);
+		AddTo(Table, Header, 14.f);
+
+		OutRows = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		AddTo(Table, OutRows, 0.f);
+
+		UButton* AddButton = AMUI::MakeButton(WidgetTree, AddLabel, GetGameFont(), false, nullptr);
+		TrackText(Cast<UTextBlock>(AddButton->GetChildAt(0)), 14);
+		AddTo(Table, AddButton, 12.f);
+		return Table;
+	};
+
+	UVerticalBox* Alarms = MakeTable(TEXT("ALARMS"), TEXT("This machine rings an alarm when its status changes."),
+		TEXT("ALARM NAME"), AMRowLayout::AlarmName, TEXT("MACHINE EVENT"), AMRowLayout::MachineEvent,
+		TEXT("+ Add alarm"), mFireRowsBox);
+	Cast<UButton>(Alarms->GetChildAt(Alarms->GetChildrenCount() - 1))->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
+	Tables->AddChildToHorizontalBox(Alarms);
+
+	UVerticalBox* Actions = MakeTable(TEXT("ACTIONS"), TEXT("What this machine does when an alarm rings."),
+		TEXT("DO"), AMRowLayout::Do, TEXT("ON ALARM"), AMRowLayout::OnAlarm,
+		TEXT("+ Add action"), mReactionRowsBox);
+	Cast<UButton>(Actions->GetChildAt(Actions->GetChildrenCount() - 1))->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+	if (UHorizontalBoxSlot* ActionsSlot = Tables->AddChildToHorizontalBox(Actions))
+	{
+		ActionsSlot->SetPadding(FMargin(28.f, 0.f, 0.f, 0.f));
+	}
+
+	// Info panel: explains the machine event, action or alarm last picked or pointed at.
+	USizeBox* InfoSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMInfoSize"));
+	InfoSize->SetWidthOverride(AMAT_InfoWidth);
+	if (UHorizontalBoxSlot* InfoSlot = Main->AddChildToHorizontalBox(InfoSize))
+	{
+		InfoSlot->SetPadding(FMargin(20.f, 0.f, 0.f, 0.f));
+		InfoSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+	UBorder* InfoBox = AMUI::MakeBox(WidgetTree, AMUI::FieldBackground, FMargin(16.f, 14.f));
+	InfoSize->AddChild(InfoBox);
+	UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMInfo"));
+	InfoBox->AddChild(Info);
+	AddTo(Info, MakeText(TEXT("INFO"), 12, AMUI::Grey), 0.f);
+	mInfoTitle = MakeText(TEXT(""), 17, AMUI::Orange);
+	AddTo(Info, mInfoTitle, 6.f);
+	mInfoBody = MakeText(TEXT(""), 13, AMUI::White);
+	if (UVerticalBoxSlot* BodySlot = Info->AddChildToVerticalBox(mInfoBody))
+	{
+		BodySlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+	}
+	ShowDefaultInfo();
+}
+
+void UAMAutomationTab::ShowInfo(const FText& Title, const FText& Body)
+{
+	if (mInfoTitle && mInfoBody)
+	{
+		mInfoTitle->SetText(Title);
+		mInfoBody->SetText(Body);
+	}
+}
+
+void UAMAutomationTab::ShowDefaultInfo()
+{
+	ShowInfo(FText::FromString(TEXT("Alarms connect your machines")),
+		FText::FromString(TEXT("On the left: when this machine rings an alarm.\n\nOn the right: what this machine does when an alarm rings, rung by this machine or any other.\n\nClick a machine event, an action or an alarm to see what it does.")));
+}
+
+void UAMAutomationTab::ShowAlarmInfo(const FString& Alarm)
+{
+	if (Alarm.IsEmpty())
+	{
+		ShowInfo(FText::FromString(TEXT("Alarm name")),
+			FText::FromString(TEXT("Any name you like, e.g. PLATES BACKED UP. Names are always in capitals.\n\nEvery machine with an action for the same name reacts when this machine rings it.")));
+		return;
+	}
+	int32 Ringers = 0;
+	int32 Actors = 0;
+	if (const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
+	{
+		Subsystem->CountEventUses(Alarm, Ringers, Actors);
+	}
+	ShowInfo(FText::FromString(Alarm), FText::FromString(FString::Printf(
+		TEXT("Rung by %d machine%s, acted on by %d machine%s.\n\nEvery machine with an action for this alarm reacts when any of them rings it."),
+		Ringers, Ringers == 1 ? TEXT("") : TEXT("s"), Actors, Actors == 1 ? TEXT("") : TEXT("s"))));
 }
 
 void UAMAutomationTab::LoadRules()
@@ -451,6 +559,19 @@ void UAMAutomationTab::AddTabEntry()
 	TextField->SetPropertyValue_InContainer(Tabs.GetRawPtr(NewIndex), FText::FromString(AMAT_TabTitle));
 	TabIndex = NewIndex;
 
+	// Our own icon (the entry's texture variable is its only object variable).
+	if (UTexture2D* Icon = LoadObject<UTexture2D>(nullptr, AMAT_TabIconPath))
+	{
+		for (TFieldIterator<FProperty> It(EntryProperty->Struct); It; ++It)
+		{
+			if (FObjectPropertyBase* TextureField = CastField<FObjectPropertyBase>(*It))
+			{
+				TextureField->SetObjectPropertyValue_InContainer(Tabs.GetRawPtr(NewIndex), Icon);
+				break;
+			}
+		}
+	}
+
 	int32 PageIndex = INDEX_NONE;
 	if (UPanelWidget* Pages = GetParent())
 	{
@@ -545,6 +666,18 @@ void UAMAutomationTab::NativeConstruct()
 		AddTabEntry();
 	}
 
+	UObject* Pages = AMAT_GetObject(GetHostWindow(), AMAT_SlidingTabsProperty);
+	if (!bBoundToPages && Pages)
+	{
+		if (FMulticastDelegateProperty* ChangedProperty = FindFProperty<FMulticastDelegateProperty>(Pages->GetClass(), AMAT_ActiveTabChangedProperty))
+		{
+			FScriptDelegate Delegate;
+			Delegate.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UAMAutomationTab, OnActiveTabChanged));
+			ChangedProperty->AddDelegate(MoveTemp(Delegate), Pages);
+			bBoundToPages = true;
+		}
+	}
+
 	// The frame may make its buttons after us (then it picks up our entry by itself) or may have made
 	// them already: check one frame later, when all of the window has been constructed.
 	if (UWorld* World = GetWorld())
@@ -570,6 +703,17 @@ void UAMAutomationTab::NativeDestruct()
 		}
 		bBoundToFrame = false;
 	}
+	UObject* Pages = AMAT_GetObject(GetHostWindow(), AMAT_SlidingTabsProperty);
+	if (bBoundToPages && Pages)
+	{
+		if (FMulticastDelegateProperty* ChangedProperty = FindFProperty<FMulticastDelegateProperty>(Pages->GetClass(), AMAT_ActiveTabChangedProperty))
+		{
+			FScriptDelegate Delegate;
+			Delegate.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UAMAutomationTab, OnActiveTabChanged));
+			ChangedProperty->RemoveDelegate(Delegate, Pages);
+		}
+		bBoundToPages = false;
+	}
 	Super::NativeDestruct();
 }
 
@@ -579,7 +723,58 @@ void UAMAutomationTab::OnWindowTabButtonClicked(int32 ButtonIndex)
 	if (ButtonIndex == TabIndex)
 	{
 		ShowThisTab();
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::HideInventory));
+		}
 	}
+}
+
+void UAMAutomationTab::OnActiveTabChanged(UWidget* PreviouslyActiveWidget, UWidget* ActiveWidget)
+{
+	if (ActiveWidget == this)
+	{
+		// After the game's own handler (which may set the inventory for its own pages).
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::HideInventory));
+		}
+	}
+	else if (PreviouslyActiveWidget == this && ActiveWidget && ActiveWidget->GetFName() == AMAT_ProductionPageName)
+	{
+		// Back to Production: its inventory panel again (the game may not do it when coming from us).
+		UObject* Frame = GetWindowFrame();
+		AMAT_Call(Frame, TEXT("SetInventoryVisibility"), [](UFunction* Function, uint8* Params)
+		{
+			int32 BoolIndex = 0;
+			for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+			{
+				if (const FBoolProperty* BoolParam = CastField<FBoolProperty>(*It))
+				{
+					BoolParam->SetPropertyValue_InContainer(Params, true); // show, animated
+					++BoolIndex;
+				}
+			}
+		});
+	}
+}
+
+void UAMAutomationTab::HideInventory()
+{
+	UObject* Frame = GetWindowFrame();
+	AMAT_Call(Frame, TEXT("SetInventoryVisibility"), [](UFunction* Function, uint8* Params)
+	{
+		// (bool mShowInventory, bool Animate): hide, animated.
+		int32 BoolIndex = 0;
+		for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			if (const FBoolProperty* BoolParam = CastField<FBoolProperty>(*It))
+			{
+				BoolParam->SetPropertyValue_InContainer(Params, BoolIndex != 0);
+				++BoolIndex;
+			}
+		}
+	});
 }
 
 void UAMAutomationTab::ShowThisTab()

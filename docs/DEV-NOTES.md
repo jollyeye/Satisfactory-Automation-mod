@@ -10,8 +10,8 @@ Notes for the next session working on this mod. The design (what the mod does an
 | This mod (git clone)      | `D:\SFMods\SML\Mods\AutomatedMachines`                                   |
 | Unreal Engine (CSS build) | `D:\UE-CSS` (or `D:\UE-CSS\Unreal Engine - CSS`)                         |
 | Game install              | `D:\games\Satisfactory`                                                  |
-| One-click update script   | `D:\SFMods\am-update-and-package.bat` (copy of `Tools/update-and-package.bat`) |
-| Script log                | `D:\SFMods\am-update-log.txt`                                            |
+| One-click update script   | `D:\SFMods\am-update-and-package.bat` (copy of `Tools/am-update-and-package.bat`: git pull, then runs `Tools/build-and-package.bat` from the repo) |
+| Script logs               | `D:\SFMods\am-update-log.txt`, `am-assets-log.txt` (our asset script), `am-assets-editor-log.txt` (editor output) |
 | Game log                  | `C:\Users\magikgpdwin4\AppData\Local\FactoryGame\Saved\Logs\FactoryGame.log` |
 
 GitHub: `jollyeye/Satisfactory-Automation-mod` (branch `main`). Use the capitalised URL `https://github.com/jollyeye/Satisfactory-Automation-mod.git`.
@@ -33,7 +33,10 @@ Claude cannot compile; keep edits careful (count braces, check renames). Unity b
 
 - `Source/AutomatedMachines/...` C++. Class prefix `AM`.
 - `Source/AutomatedMachines/.../Debug/AMWidgetDump.*`: development-only widget tree dump (see below). Remove before release.
-- `Tools/update-and-package.bat`: the one-click update script.
+- `Tools/am-update-and-package.bat`: the launcher the developer copies to `D:\SFMods` once (git pull, then calls the next one). Build steps can change without copying it again.
+- `Tools/build-and-package.bat`: build the editor, run `create_assets.py`, package into the game.
+- `Tools/create_assets.py`: editor script making the mod's assets: icon textures (from `Tools/Icons`), the marker material `M_AM_Marker` and mesh `SM_AM_Marker` (from `Tools/Marker/SM_AM_Marker.obj`).
+- `Tools/IconSource/make_icons.py`: draws the Wi-Fi icons (Python + Pillow) into `Tools/Icons` (committed).
 
 ## What we know about the machine window
 
@@ -97,6 +100,14 @@ Player-facing words differ from the code (see `DESIGN.md`, "Words the player see
 - `UAMRemoteCallObject`: clients send `ServerSetRules`; `RequestSetRules` calls the subsystem directly on the server / in single player.
 - UI: `UAMAutomationTab` keeps a copy of the machine's rules and sends them on every change; `UAMRuleRow` is one row (its widgets and click handlers); `UAMEventChoice` is one event-name button under a row (suggestions while typing, or the list of all events for a reaction). Buttons and fields use plain colour brushes (`AMUIHelpers`), no engine style textures.
 - Event names become uppercase when the field is committed (Enter or clicking elsewhere), not while typing (changing a field's text while typing can move the cursor).
+
+## Marker, tab icon, tab layout (4 Nov 2026, first try)
+
+- Marker: `AAMMarkers` (local actor spawned by the subsystem, transient, not on dedicated servers): one `UInstancedStaticMeshComponent`, one instance per machine with rules, rebuilt on `OnRulesChanged`. Position: top of the machine's colliding bounds + 1.5 m. Cull distance 300 m.
+- `M_AM_Marker`: unlit, masked, two-sided, `used_with_instanced_static_meshes`. World position offset = (instance origin + camera right * x + camera up * y) - vertex position, with x, y from the vertex UV (so the picture is always upright, whatever the OBJ importer does with V). Instance origin = TransformPosition(instance space -> world) of (0,0,0). Parameters: `Size` (cm, 100), `Color` (white), `Brightness` (2).
+- Tab icon: `AddTabEntry` sets the copied entry's texture variable to `T_AM_TabIcon`.
+- Tab layout: page 1230 wide = Production page + the inventory panel. Left: title; two tables side by side, ALARMS (ALARM NAME | MACHINE EVENT) and ACTIONS (DO | ON ALARM); right: an INFO panel. Cell buttons open a list of choices under the row; pointing at a choice explains it in the info panel (descriptions in `AMRules::GetConditionDescription` / `GetActionDescription`).
+- The window's inventory panel is hidden on our tab (frame `SetInventoryVisibility(false, true)`, one frame after the switch so it comes after the game's own handler) and shown again when going back to Production.
 
 ## The widget dump
 

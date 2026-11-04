@@ -1,0 +1,14 @@
+# Automated Machines: the marker, a flat 1 m square in the XZ plane, centred on the origin.
+# Its material turns it to the camera (in the shader), so the facing here does not matter.
+o SM_AM_Marker
+v -50.0 0.0 -50.0
+v 50.0 0.0 -50.0
+v 50.0 0.0 50.0
+v -50.0 0.0 50.0
+vt 0.0 0.0
+vt 1.0 0.0
+vt 1.0 1.0
+vt 0.0 1.0
+vn 0.0 -1.0 0.0
+f 1/1/1 2/2/1 3/3/1
+f 1/1/1 3/3/1 4/4/1
