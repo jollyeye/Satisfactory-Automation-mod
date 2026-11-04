@@ -4,6 +4,18 @@ A Satisfactory mod that lets the player automate the machines they already have.
 
 The name starts with "Automated" on purpose: players who come back after months away should recognise the mod in their mod list at once. It automates existing machines; it does not add new "automatic machines".
 
+## Words the player sees
+
+No programming words in the game. Decided 4 Nov 2026:
+
+| In the game | In the code and these notes |
+|-------------|-----------------------------|
+| **alarm** (e.g. `PLATES BACKED UP`) | event |
+| **ring** an alarm ("Ring PLATES BACKED UP when Output full") | fire an event (fire rule) |
+| **action** ("Pause when alarm PLATES BACKED UP") | reaction |
+
+Sections of the Automation tab: **ALARMS** and **ACTIONS**; buttons **+ Add alarm**, **+ Add action**.
+
 ## Decisions so far
 
 ### Events

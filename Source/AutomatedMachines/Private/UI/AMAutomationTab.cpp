@@ -264,17 +264,17 @@ void UAMAutomationTab::BuildLayout()
 	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
 	AddRow(mNoticeText, 12.f);
 
-	AddRow(MakeText(TEXT("FIRE EVENTS"), 18, AMUI::White), 26.f);
-	AddRow(MakeText(TEXT("This machine fires an event when its status changes."), 13, AMUI::Grey), 4.f);
+	AddRow(MakeText(TEXT("ALARMS"), 18, AMUI::White), 26.f);
+	AddRow(MakeText(TEXT("This machine rings an alarm when its status changes."), 13, AMUI::Grey), 4.f);
 	mFireRowsBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMFireRows"));
 	AddRow(mFireRowsBox, 6.f);
-	AddButton(TEXT("+ Add event"), 10.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
+	AddButton(TEXT("+ Add alarm"), 10.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
 
-	AddRow(MakeText(TEXT("REACTIONS"), 18, AMUI::White), 30.f);
-	AddRow(MakeText(TEXT("This machine acts when an event is fired, by any machine."), 13, AMUI::Grey), 4.f);
+	AddRow(MakeText(TEXT("ACTIONS"), 18, AMUI::White), 30.f);
+	AddRow(MakeText(TEXT("This machine does something when an alarm rings, on any machine."), 13, AMUI::Grey), 4.f);
 	mReactionRowsBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMReactionRows"));
 	AddRow(mReactionRowsBox, 6.f);
-	AddButton(TEXT("+ Add reaction"), 10.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+	AddButton(TEXT("+ Add action"), 10.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
 }
 
 void UAMAutomationTab::LoadRules()
@@ -334,7 +334,7 @@ void UAMAutomationTab::RebuildRows()
 	}
 	if (mFires.Num() == 0)
 	{
-		AddRowWidget(mFireRowsBox, AMUI::MakeText(WidgetTree, TEXT("No events yet."), HintFont, AMUI::Grey));
+		AddRowWidget(mFireRowsBox, AMUI::MakeText(WidgetTree, TEXT("No alarms yet."), HintFont, AMUI::Grey));
 	}
 
 	for (int32 Index = 0; Index < mReactions.Num(); ++Index)
@@ -346,7 +346,7 @@ void UAMAutomationTab::RebuildRows()
 	}
 	if (mReactions.Num() == 0)
 	{
-		AddRowWidget(mReactionRowsBox, AMUI::MakeText(WidgetTree, TEXT("No reactions yet."), HintFont, AMUI::Grey));
+		AddRowWidget(mReactionRowsBox, AMUI::MakeText(WidgetTree, TEXT("No actions yet."), HintFont, AMUI::Grey));
 	}
 }
 

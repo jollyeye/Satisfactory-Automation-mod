@@ -82,7 +82,11 @@ Widget_Manufacturing_C
   - Logs every step (`Automation tab: ...`).
 
 
-## Rules, saving and the engine (version 0.1, first try)
+## Rules, saving and the engine (version 0.1, works: tested 4 Nov 2026)
+
+Tested: Constructor rings PLATES BACKED UP / PLATES FLOWING, Smelter pauses / resumes; rules survive save and load; typing E in a name field does not close the window.
+
+Player-facing words differ from the code (see `DESIGN.md`, "Words the player sees"): event = **alarm**, fire = **ring**, reaction = **action**. Code names stay as they are.
 
 - `AMTypes.h`: `FAMFireRule` (event name + `EAMCondition`), `FAMReactionRule` (`EAMAction` + event name), `FAMMachineRules` (machine + both lists). Event names are uppercase (`AMRules::NormalizeEventName`).
 - `AAMAutomationSubsystem` (SML `AModSubsystem` + `IFGSaveInterface`, `SpawnOnServer_Replicate`): `mMachines` is `SaveGame` and replicated. Registered from C++ on `FWorldDelegates::OnWorldInitializedActors` with `USubsystemActorManager::RegisterSubsystemActor`, the same moment SML registers world-module subsystems, so the saved actor is found and reused.

@@ -64,7 +64,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsFire, int32 InIndex)
 	if (bIsFire)
 	{
 		// Fire [EVENT NAME] when [condition]
-		Add(AMUI::MakeText(Tree, TEXT("Fire"), Font, AMUI::Grey), 0.f);
+		Add(AMUI::MakeText(Tree, TEXT("Ring"), Font, AMUI::Grey), 0.f);
 
 		UBorder* Field = AMUI::MakeBox(Tree, AMUI::FieldBackground, FMargin(8.f, 5.f));
 		USizeBox* FieldSize = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
@@ -72,7 +72,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsFire, int32 InIndex)
 		FieldSize->AddChild(Field);
 		mEventText = Tree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
 		mEventText->SetFont(Font);
-		mEventText->SetHintText(FText::FromString(TEXT("EVENT NAME")));
+		mEventText->SetHintText(FText::FromString(TEXT("ALARM NAME")));
 		mEventText->OnTextChanged.AddDynamic(this, &UAMRuleRow::OnEventTextChanged);
 		mEventText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnEventTextCommitted);
 		Field->AddChild(mEventText);
@@ -85,7 +85,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsFire, int32 InIndex)
 	{
 		// [action] when event [EVENT]
 		Add(CycleButton, 0.f);
-		Add(AMUI::MakeText(Tree, TEXT("when event"), Font, AMUI::Grey), 10.f);
+		Add(AMUI::MakeText(Tree, TEXT("when alarm"), Font, AMUI::Grey), 10.f);
 		UButton* PickButton = AMUI::MakeButton(Tree, TEXT(""), Font, false, nullptr);
 		mPickLabel = Cast<UTextBlock>(PickButton->GetChildAt(0));
 		PickButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnPickEventClicked);
@@ -93,7 +93,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsFire, int32 InIndex)
 	}
 
 	UButton* RemoveButton = AMUI::MakeButton(Tree, TEXT("X"), Font, false, nullptr);
-	RemoveButton->SetToolTipText(FText::FromString(TEXT("Remove this rule")));
+	RemoveButton->SetToolTipText(FText::FromString(TEXT("Remove")));
 	RemoveButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnRemoveClicked);
 	Add(RemoveButton, 14.f);
 
@@ -129,7 +129,7 @@ void UAMRuleRow::UpdateLabels()
 		}
 		if (mPickLabel)
 		{
-			mPickLabel->SetText(FText::FromString(Rule->Event.IsEmpty() ? TEXT("choose an event") : Rule->Event));
+			mPickLabel->SetText(FText::FromString(Rule->Event.IsEmpty() ? TEXT("choose an alarm") : Rule->Event));
 			mPickLabel->SetColorAndOpacity(FSlateColor(Rule->Event.IsEmpty() ? AMUI::Grey : AMUI::White));
 		}
 	}
@@ -292,7 +292,7 @@ void UAMRuleRow::OnPickEventClicked()
 		HideChoices();
 		return;
 	}
-	ShowChoices(mTab->GetEventNames(), TEXT("No events yet: give a machine a fire rule first."));
+	ShowChoices(mTab->GetEventNames(), TEXT("No alarms yet: give a machine an alarm first."));
 }
 
 void UAMRuleRow::OnRemoveClicked()
