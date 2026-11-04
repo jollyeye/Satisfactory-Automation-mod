@@ -33,6 +33,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::ProductivityBelow: return AMTY_Text(TEXT("Productivity below"));
 	case EAMCondition::ProductivityAbove: return AMTY_Text(TEXT("Productivity above"));
 	case EAMCondition::RecipeChanged:     return AMTY_Text(TEXT("Recipe changed"));
+	case EAMCondition::InputFull:         return AMTY_Text(TEXT("Input full"));
+	case EAMCondition::InputNotFull:      return AMTY_Text(TEXT("Input not full"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -48,6 +50,7 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::DeleteOutput:  return AMTY_Text(TEXT("Delete output"));
 	case EAMAction::DeleteInput:   return AMTY_Text(TEXT("Delete input"));
 	case EAMAction::ChangeRecipe:  return AMTY_Text(TEXT("Change recipe"));
+	case EAMAction::ShowMessage:   return AMTY_Text(TEXT("Show message"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -81,7 +84,11 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	case EAMCondition::ProductivityAbove:
 		return AMTY_Text(TEXT("Rings when the productivity shown in the machine's window rises above the percentage you set."));
 	case EAMCondition::RecipeChanged:
-		return AMTY_Text(TEXT("Rings when someone picks another recipe for this machine."));
+		return AMTY_Text(TEXT("Rings when someone picks another recipe for this machine (also when an action changes it)."));
+	case EAMCondition::InputFull:
+		return AMTY_Text(TEXT("Rings when an input slot is full and cannot take more of its ingredient: more arrives than the machine uses, so the belt or pipe feeding it backs up.\n\nUse it to slow down or pause the machines that supply this one."));
+	case EAMCondition::InputNotFull:
+		return AMTY_Text(TEXT("Rings when every input slot has room again for more of its ingredient."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -103,6 +110,8 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Destroys everything in the machine's output slots. The items are gone for good: no points, no refund.\n\nWith \"Output full\" on the same machine, it never stops for a full output: what nobody takes away is thrown away."));
 	case EAMAction::DeleteInput:
 		return AMTY_Text(TEXT("Destroys everything in the machine's input slots, including fluids. The items are gone for good: no points, no refund.\n\nHandy to clear out leftovers, e.g. after the recipe was changed."));
+	case EAMAction::ShowMessage:
+		return AMTY_Text(TEXT("Shows a message on the screen of every player, in the game's notifications.\n\nType your own text, or leave it empty to show the machine and the alarm, e.g. \"Constructor: PLATES BACKED UP\"."));
 	case EAMAction::ChangeRecipe:
 		return AMTY_Text(TEXT("Switches the machine to the recipe you choose.\n\nThe game only allows this with empty slots, so everything in the input and output slots is destroyed first (no refund). Does nothing if the machine already makes this recipe."));
 	default:
@@ -141,6 +150,11 @@ AMRules::FValueInfo AMRules::GetActionValueInfo(EAMAction Action)
 bool AMRules::ActionNeedsRecipe(EAMAction Action)
 {
 	return Action == EAMAction::ChangeRecipe;
+}
+
+bool AMRules::ActionNeedsMessage(EAMAction Action)
+{
+	return Action == EAMAction::ShowMessage;
 }
 
 FText AMRules::DescribeRecipe(const UObject* WorldContext, TSubclassOf<UFGRecipe> Recipe)

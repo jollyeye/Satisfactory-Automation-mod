@@ -100,6 +100,10 @@ public:
 	UFUNCTION()
 	void OnRecipeCellClicked();
 
+	/** Action row with Show message: the text field under the row. */
+	UFUNCTION()
+	void OnMessageCommitted(const FText& Text, ETextCommit::Type CommitMethod);
+
 	UFUNCTION()
 	void OnRemoveClicked();
 
@@ -169,6 +173,13 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mRecipeLabel;
+
+	/** The line with the message text field, under the row (Show message only). */
+	UPROPERTY()
+	TObjectPtr<UWidget> mMessageLine;
+
+	UPROPERTY()
+	TObjectPtr<UAMUppercaseText> mMessageText;
 
 	/** On Alarm label (action row). */
 	UPROPERTY()

@@ -31,6 +31,8 @@ enum class EAMCondition : uint8
 	ProductivityBelow  UMETA(DisplayName = "Productivity below"),
 	ProductivityAbove  UMETA(DisplayName = "Productivity above"),
 	RecipeChanged      UMETA(DisplayName = "Recipe changed"),
+	InputFull          UMETA(DisplayName = "Input full"),
+	InputNotFull       UMETA(DisplayName = "Input not full"),
 	Count              UMETA(Hidden)
 };
 
@@ -45,6 +47,7 @@ enum class EAMAction : uint8
 	DeleteOutput   UMETA(DisplayName = "Delete output"),
 	DeleteInput    UMETA(DisplayName = "Delete input"),
 	ChangeRecipe   UMETA(DisplayName = "Change recipe"),
+	ShowMessage    UMETA(DisplayName = "Show message"),
 	Count          UMETA(Hidden)
 };
 
@@ -84,6 +87,10 @@ struct AUTOMATEDMACHINES_API FAMReactionRule
 	/** The recipe of "Change recipe", else unused. */
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	TSubclassOf<UFGRecipe> Recipe;
+
+	/** The text of "Show message" (empty: machine and alarm), else unused. */
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
+	FString Message;
 };
 
 /** All rules of one machine. Machines without rules have no entry at all. */
@@ -134,6 +141,12 @@ namespace AMRules
 
 	/** Actions that need a recipe (Change recipe). */
 	AUTOMATEDMACHINES_API bool ActionNeedsRecipe(EAMAction Action);
+
+	/** Actions that have a text (Show message). */
+	AUTOMATEDMACHINES_API bool ActionNeedsMessage(EAMAction Action);
+
+	/** Longest message text kept. */
+	constexpr int32 MaxMessageLength = 120;
 
 	/** "2 Iron Ingot -> 1 Iron Plate" (fluids in m3). */
 	AUTOMATEDMACHINES_API FText DescribeRecipe(const UObject* WorldContext, TSubclassOf<UFGRecipe> Recipe);

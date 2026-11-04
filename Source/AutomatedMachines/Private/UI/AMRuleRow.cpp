@@ -179,6 +179,30 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		{
 			RecipeSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 		}
+
+		// "Message [ your text ]" for Show message (normal letters, not capitals).
+		UHorizontalBox* MessageLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		mMessageLine = MessageLine;
+		if (UHorizontalBoxSlot* LabelSlot = MessageLine->AddChildToHorizontalBox(AMUI::MakeText(Tree, TEXT("Message"), Font, AMUI::Grey)))
+		{
+			LabelSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		UBorder* MessageField = AMUI::MakeBox(Tree, AMUI::Field, FMargin(8.f, 5.f));
+		mMessageText = Tree->ConstructWidget<UAMUppercaseText>(UAMUppercaseText::StaticClass());
+		mMessageText->SetFont(Font);
+		mMessageText->SetHintText(FText::FromString(TEXT("empty: machine and alarm")));
+		mMessageText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnMessageCommitted);
+		MessageField->AddChild(mMessageText);
+		if (UHorizontalBoxSlot* FieldSlot = MessageLine->AddChildToHorizontalBox(
+			AMRR_Cell(Tree, AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm - 70.f, MessageField)))
+		{
+			FieldSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		}
+		MessageLine->SetVisibility(ESlateVisibility::Collapsed);
+		if (UVerticalBoxSlot* MessageSlot = mRoot->AddChildToVerticalBox(MessageLine))
+		{
+			MessageSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
 	}
 
 	mChoices = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
@@ -226,6 +250,17 @@ void UAMRuleRow::UpdateLabels()
 		{
 			mRecipeLabel->SetText(Rule->Recipe ? UFGRecipe::GetRecipeName(Rule->Recipe) : FText::FromString(TEXT("choose a recipe")));
 			mRecipeLabel->SetColorAndOpacity(FSlateColor(Rule->Recipe ? AMUI::White : AMUI::Grey));
+		}
+	}
+
+	if (!bIsAlarm && mMessageLine && mMessageText)
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		const bool bNeedsMessage = Rule && AMRules::ActionNeedsMessage(Rule->Action);
+		mMessageLine->SetVisibility(bNeedsMessage ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		if (bNeedsMessage)
+		{
+			mMessageText->ShowText(Rule->Message);
 		}
 	}
 
@@ -550,6 +585,7 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 				const AMRules::FValueInfo Info = AMRules::GetActionValueInfo(Action);
 				Rule->Value = Info.bNeeded ? Info.Default : 0.f;
 				Rule->Recipe = nullptr;
+				Rule->Message.Reset();
 				mTab->OnRulesEdited();
 			}
 		}
@@ -644,6 +680,23 @@ void UAMRuleRow::OnRecipeCellClicked()
 		mTab->ShowInfo(AMRules::GetActionText(Rule->Action), AMRules::GetActionDescription(Rule->Action));
 	}
 	ShowChoices(EAMChoiceKind::Recipe, {}, FString());
+}
+
+void UAMRuleRow::OnMessageCommitted(const FText& Text, ETextCommit::Type CommitMethod)
+{
+	FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+	if (!Rule)
+	{
+		return;
+	}
+	const FString NewMessage = Text.ToString().TrimStartAndEnd().Left(AMRules::MaxMessageLength);
+	if (Rule->Message != NewMessage)
+	{
+		Rule->Message = NewMessage;
+		mTab->OnRulesEdited();
+	}
+	mTab->ShowInfo(AMRules::GetActionText(Rule->Action), FText::FromString(FString::Printf(
+		TEXT("Every player will see:\n\n%s"), Rule->Message.IsEmpty() ? TEXT("<machine>: <alarm>") : *Rule->Message)));
 }
 
 void UAMRuleRow::OnRemoveClicked()

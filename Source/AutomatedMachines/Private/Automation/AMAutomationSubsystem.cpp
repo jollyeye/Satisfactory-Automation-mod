@@ -7,8 +7,12 @@
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
 #include "Subsystem/SubsystemActorManager.h"
+#include "FGHUD.h"
+#include "UI/FGGameUI.h"
+#include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
 #include "EngineUtils.h"
+#include "UObject/UnrealType.h"
 #include "Engine/World.h"
 
 namespace
@@ -143,6 +147,7 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 		{
 			Clean.Recipe = nullptr;
 		}
+		Clean.Message = AMRules::ActionNeedsMessage(Rule.Action) ? Rule.Message.TrimStartAndEnd().Left(AMRules::MaxMessageLength) : FString();
 		if (!Clean.Event.IsEmpty() && Clean.Action < EAMAction::Count)
 		{
 			NewRules.Reactions.Add(Clean);
@@ -357,8 +362,28 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::ProductivityBelow: return Factory->GetProductivity() * 100.f < Rule.Value;
 	case EAMCondition::ProductivityAbove: return Factory->GetProductivity() * 100.f > Rule.Value;
 	case EAMCondition::RecipeChanged:     return bRecipeChanged;
+	case EAMCondition::InputFull:         return IsInputFull(Factory);
+	case EAMCondition::InputNotFull:      return !IsInputFull(Factory);
 	default:                              return false;
 	}
+}
+
+bool AAMAutomationSubsystem::IsInputFull(const AFGBuildableFactory* Factory)
+{
+	// Full = some ingredient's input slot has no room for even one more.
+	const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
+	if (!Manufacturer || !Manufacturer->GetCurrentRecipe() || !Manufacturer->GetInputInventory())
+	{
+		return false;
+	}
+	for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(Manufacturer, Manufacturer->GetCurrentRecipe()))
+	{
+		if (!Manufacturer->GetInputInventory()->HasEnoughSpaceForStack(FInventoryStack(1, Ingredient.ItemClass)))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 bool AAMAutomationSubsystem::IsInputMissing(const AFGBuildableFactory* Factory)
@@ -463,8 +488,45 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			UE_LOG(LogAutomatedMachines, Log, TEXT("%s recipe changed to %s"), *AMAS_Describe(Factory), *Rule.Recipe->GetName());
 		}
 		break;
+	case EAMAction::ShowMessage:
+	{
+		const FString Message = Rule.Message.IsEmpty()
+			? FString::Printf(TEXT("%s: %s"), *GetMachineName(Factory), *Rule.Event)
+			: Rule.Message;
+		MulticastShowMessage(Message);
+		break;
+	}
 	default:
 		break;
+	}
+}
+
+FString AAMAutomationSubsystem::GetMachineName(const AActor* Machine)
+{
+	// AFGBuildable::mDisplayName is protected: read it by name.
+	const FTextProperty* NameProperty = Machine ? FindFProperty<FTextProperty>(Machine->GetClass(), TEXT("mDisplayName")) : nullptr;
+	return NameProperty ? NameProperty->GetPropertyValue_InContainer(Machine).ToString() : AMAS_Describe(Machine);
+}
+
+void AAMAutomationSubsystem::MulticastShowMessage_Implementation(const FString& Message)
+{
+	if (IsRunningDedicatedServer() || !GetWorld())
+	{
+		return;
+	}
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Message: %s"), *Message);
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* Player = It->Get();
+		if (!Player || !Player->IsLocalController())
+		{
+			continue;
+		}
+		const AFGHUD* HUD = Cast<AFGHUD>(Player->GetHUD());
+		if (UFGGameUI* GameUI = HUD ? HUD->GetGameUI() : nullptr)
+		{
+			GameUI->ShowTextNotification(FText::FromString(Message));
+		}
 	}
 }
 

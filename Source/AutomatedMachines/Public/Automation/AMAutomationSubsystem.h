@@ -79,7 +79,15 @@ private:
 	static bool IsConditionTrue(const AFGBuildableFactory* Factory, const FAMFireRule& Rule, bool bRecipeChanged);
 	static bool IsOutputFull(const AFGBuildableFactory* Factory);
 	static bool IsInputMissing(const AFGBuildableFactory* Factory);
-	static void ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule);
+	static bool IsInputFull(const AFGBuildableFactory* Factory);
+	void ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule);
+
+	/** Shows a message on the screen of every player (runs on the server and on every client). */
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastShowMessage(const FString& Message);
+
+	/** The machine's name, e.g. "Constructor". */
+	static FString GetMachineName(const AActor* Machine);
 
 	/** Destroys every item in an inventory, slot by slot (the slots keep their settings). Returns how many slots had items. */
 	static int32 DeleteAllItems(class UFGInventoryComponent* Inventory);
