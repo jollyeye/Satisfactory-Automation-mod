@@ -61,8 +61,18 @@ Everything that has a switch or an internal state that can change:
 
 ### UI
 
-- Adding a tab to the game's machine window is probably not possible, or too fragile (the game's UI is Blueprint widgets). So the mod gets **its own Automation window** (a modal), opened for the machine the player is looking at or from its normal window.
-- **Visual marker:** it must be visible in the world that a machine is automated (e.g. a small indicator on the machine, possibly showing its state: idle, fired, reacting). Design to decide.
+- **No new windows.** The Automation section is **added to the game's existing window** of the machine (a new tab, or a panel inside the window, whichever the game's widget allows).
+- Only buildings that have **no window at all** (possibly rail signals, power switches...) get a small window of our own.
+- How: SML widget hooks can insert our widget into a named panel of a game widget. The game's widget trees are not visible in the editor (placeholder assets, like the textures in Road Maker), so first we **dump the widget tree of an open machine window to the log** in game, find the right panel, then hook into it.
+
+### 3D model: seeing what is automated
+
+In a crowd of machines the player must see at a glance which ones are automated. So automated machines get a **new 3D model attached to them**:
+
+- It appears automatically when a machine has at least one fire event or reaction, and disappears when it has none.
+- It should be readable from a distance (a distinct shape and a light), and it can show the state: e.g. steady light = automated and idle, flash = it just fired an event, other colour = it is reacting / paused by automation.
+- It sits in the same place on every machine of a type (position per machine type, e.g. on the roof).
+- Built like Road Maker's meshes: generated in code (procedural mesh), so no external 3D tools are needed.
 
 ### Code approach (inspired by Road Maker, not copied)
 
@@ -74,9 +84,9 @@ Everything that has a switch or an internal state that can change:
 ## Open questions
 
 1. **First machine:** which machine do we start with? Suggestion: the **Smelter** (one input, one output, simple statuses).
-2. **Opening the Automation window:** a key while looking at the machine, a button added to the game's machine window (if a widget hook allows it), or both?
+2. **Where in the machine window:** a new tab, or a panel inside the existing window? Depends on what the game's widget allows (see UI).
 3. **Multiple events:** when a reaction lists several events, does it act on **any** of them, or only when **all** of them are true? (Possibly both, chosen per reaction.)
-4. **Visual marker:** what it looks like and where it sits on the machine.
+4. **3D model:** shape (antenna, beacon, small box with lights...), size, and where it sits on each machine.
 5. **MAM research:** which research tree, which node, what cost.
 6. **Statuses and actions for the first machine:** the exact list (see below, to confirm against the game's code).
 
