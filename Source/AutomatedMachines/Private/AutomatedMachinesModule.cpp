@@ -23,6 +23,7 @@ void FAutomatedMachinesModule::StartupModule()
 	// Development only: writes the widget tree of open machine windows to the log, so we can find
 	// where the Automation section can be inserted. Removed before release.
 	AMWidgetDump::Install();
+	AMWidgetDump::InstallSoundDump();
 #endif
 }
 

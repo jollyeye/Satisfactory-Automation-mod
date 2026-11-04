@@ -190,7 +190,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		UBorder* MessageField = AMUI::MakeBox(Tree, AMUI::Field, FMargin(8.f, 5.f));
 		mMessageText = Tree->ConstructWidget<UAMUppercaseText>(UAMUppercaseText::StaticClass());
 		mMessageText->SetFont(Font);
-		mMessageText->SetHintText(FText::FromString(TEXT("empty: machine and alarm")));
+		mMessageText->SetHintText(FText::FromString(TEXT("empty: which machine rang")));
 		mMessageText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnMessageCommitted);
 		MessageField->AddChild(mMessageText);
 		if (UHorizontalBoxSlot* FieldSlot = MessageLine->AddChildToHorizontalBox(
@@ -701,7 +701,7 @@ void UAMRuleRow::OnMessageCommitted(const FText& Text, ETextCommit::Type CommitM
 		mTab->OnRulesEdited();
 	}
 	mTab->ShowInfo(AMRules::GetActionText(Rule->Action), FText::FromString(FString::Printf(
-		TEXT("Every player will see:\n\n%s"), Rule->Message.IsEmpty() ? TEXT("<machine>: <alarm>") : *Rule->Message)));
+		TEXT("Every player will see:\n\n%s\n%s"), *Rule->Event, Rule->Message.IsEmpty() ? TEXT("Rung by <machine>") : *Rule->Message)));
 }
 
 void UAMRuleRow::OnRemoveClicked()

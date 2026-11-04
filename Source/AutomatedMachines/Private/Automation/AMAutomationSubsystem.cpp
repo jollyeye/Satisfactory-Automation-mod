@@ -9,6 +9,7 @@
 #include "Subsystem/SubsystemActorManager.h"
 #include "FGHUD.h"
 #include "UI/FGGameUI.h"
+#include "UI/AMNotification.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
 #include "EngineUtils.h"
@@ -570,12 +571,13 @@ void AAMAutomationSubsystem::ApplyWorldAction(const FAMReactionRule& Rule, const
 	{
 	case EAMAction::ShowMessage:
 	{
-		FString Message = Rule.Message;
-		if (Message.IsEmpty())
+		// Title: the alarm. Text: the player's own, or the machine that rang it.
+		FString Body = Rule.Message;
+		if (Body.IsEmpty())
 		{
-			Message = Ringer ? FString::Printf(TEXT("%s: %s"), *GetMachineName(Ringer), *Rule.Event) : Rule.Event;
+			Body = Ringer ? FString::Printf(TEXT("Rung by %s"), *GetMachineName(Ringer)) : FString(TEXT("Rang"));
 		}
-		MulticastShowMessage(Message);
+		MulticastShowMessage(Rule.Event, Body);
 		break;
 	}
 	default:
@@ -590,24 +592,19 @@ FString AAMAutomationSubsystem::GetMachineName(const AActor* Machine)
 	return NameProperty ? NameProperty->GetPropertyValue_InContainer(Machine).ToString() : AMAS_Describe(Machine);
 }
 
-void AAMAutomationSubsystem::MulticastShowMessage_Implementation(const FString& Message)
+void AAMAutomationSubsystem::MulticastShowMessage_Implementation(const FString& Title, const FString& Body)
 {
 	if (IsRunningDedicatedServer() || !GetWorld())
 	{
 		return;
 	}
-	UE_LOG(LogAutomatedMachines, Log, TEXT("Message: %s"), *Message);
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Message: %s: %s"), *Title, *Body);
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
-		const APlayerController* Player = It->Get();
-		if (!Player || !Player->IsLocalController())
+		APlayerController* Player = It->Get();
+		if (Player && Player->IsLocalController())
 		{
-			continue;
-		}
-		const AFGHUD* HUD = Cast<AFGHUD>(Player->GetHUD());
-		if (UFGGameUI* GameUI = HUD ? HUD->GetGameUI() : nullptr)
-		{
-			GameUI->ShowTextNotification(FText::FromString(Message));
+			UAMNotification::Show(Player, Title, Body);
 		}
 	}
 }

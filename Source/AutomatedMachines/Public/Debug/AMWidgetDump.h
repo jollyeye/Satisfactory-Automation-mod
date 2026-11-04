@@ -12,4 +12,10 @@ namespace AMWidgetDump
 {
 	/** Starts a ticker that checks for new top-level widgets twice a second. */
 	void Install();
+
+	/**
+	 * Once, when the first game world starts: writes the game's Wwise sound events whose names look
+	 * like UI / alert sounds, and the signatures of AkGameplayStatics' PostEvent functions.
+	 */
+	void InstallSoundDump();
 }

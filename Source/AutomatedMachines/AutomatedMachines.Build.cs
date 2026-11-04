@@ -15,6 +15,7 @@ public class AutomatedMachines : ModuleRules
 			"Engine",
 			"InputCore",
 			"NetCore",
+			"AssetRegistry",
 			"UMG",
 			"Slate",
 			"SlateCore",

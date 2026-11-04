@@ -338,6 +338,16 @@ void UAMAutomationTab::BuildLayout()
 		OutRows = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Scroll->AddChild(OutRows);
 
+		if (AddLabel.IsEmpty())
+		{
+			// No add button: a note instead (the HUB's alarms, until there are world events).
+			UTextBlock* Note = MakeText(TEXT("World events come here later, e.g. night falls or a power fuse blows. Until then, alarms are rung by machines."), 13, AMUI::Grey);
+			if (UVerticalBoxSlot* NoteSlot = Inside->AddChildToVerticalBox(Note))
+			{
+				NoteSlot->SetPadding(FMargin(2.f, 8.f, 2.f, 4.f));
+			}
+			return nullptr;
+		}
 		UButton* AddButton = AMUI::MakeButton(WidgetTree, AddLabel, GetGameFont(), AMUI::Button, nullptr);
 		mAddLabels.Add(Cast<UTextBlock>(AddButton->GetChildAt(0)));
 		if (UVerticalBoxSlot* AddSlot = Inside->AddChildToVerticalBox(AddButton))
@@ -348,13 +358,19 @@ void UAMAutomationTab::BuildLayout()
 		return AddButton;
 	};
 
-	if (!bWorldMode)
+	if (bWorldMode)
+	{
+		// The HUB rings no alarms yet (world events come later), so no add button.
+		MakePanel(TEXT("Alarms"), TEXT("Alarm Name"), AMRowLayout::AlarmName, TEXT("World Event"), AMRowLayout::MachineEvent,
+			FString(), mFireRowsBox, 0.f, AMAT_AlarmsWidth);
+	}
+	else
 	{
 		MakePanel(TEXT("Alarms"), TEXT("Alarm Name"), AMRowLayout::AlarmName, TEXT("Machine Event"), AMRowLayout::MachineEvent,
 			TEXT("+ Add alarm"), mFireRowsBox, 0.f, AMAT_AlarmsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
 	}
-	MakePanel(bWorldMode ? TEXT("World Actions") : TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
-		TEXT("+ Add action"), mReactionRowsBox, bWorldMode ? 0.f : AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+	MakePanel(TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
+		TEXT("+ Add action"), mReactionRowsBox, AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
 
 	// Side panel, full height on the right like the recipe tab's: explains the machine event,
 	// action or alarm last picked or pointed at.
@@ -499,7 +515,7 @@ void UAMAutomationTab::RebuildRows()
 			AddRowWidget(mFireRowsBox, Row->GetRootWidget());
 		}
 	}
-	if (mFires.Num() == 0)
+	if (mFires.Num() == 0 && !bWorldMode)
 	{
 		if (mFireRowsBox)
 		{

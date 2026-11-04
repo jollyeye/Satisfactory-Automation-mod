@@ -90,7 +90,7 @@ private:
 
 	/** Shows a message on the screen of every player (runs on the server and on every client). */
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastShowMessage(const FString& Message);
+	void MulticastShowMessage(const FString& Title, const FString& Body);
 
 	/** The machine's name, e.g. "Constructor". */
 	static FString GetMachineName(const AActor* Machine);

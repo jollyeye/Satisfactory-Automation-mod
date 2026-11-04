@@ -138,7 +138,10 @@ Not offered: production boost (Somersloops are items, not a setting).
 - The HUB terminal (`/Game/FactoryGame/Buildable/Factory/TradingPost/UI/BPW_Hub.BPW_Hub_C`) uses the same window frame and sliding tabs as the machine window: tabs "Select Milestone" / "Active Milestone", pages in `HorizontalBox_25` (offsets 0, -1310). A second widget hook puts `UAMAutomationTab` there.
 - `UAMAutomationTab` is in world mode when its host window is `BPW_Hub_C`: no Alarms panel, a "World Actions" panel offering only world actions (`AMRules::IsWorldAction`: Show message), rules read from / sent to `AAMAutomationSubsystem::mWorldActions` (saved, replicated; `UAMRemoteCallObject::RequestSetWorldActions`).
 - Machines no longer accept world actions (`SetRules` drops them); `MoveWorldActionsFromMachines` moves them from older saves on load.
-- `FireEvent(Event, Ringer)` also runs the world actions; Show message without text shows "<machine that rang>: <alarm>".
+- `FireEvent(Event, Ringer)` also runs the world actions.
+- The HUB page also has the Alarms panel ("Alarm Name | World Event"), without an add button for now: world events (night, fuse blown...) come later.
+- Show message: `MulticastShowMessage(Title = alarm, Body = own text or "Rung by <machine>")`; each game instance creates `UAMNotification` (a `UFGPushNotificationWidget`: Wi-Fi icon, orange alarm name, text size 19, removed after 7 s) and gives it to `UFGGameUI::PushNotificationWidget`, the game's notification list. If it is not on screen a frame later, `ShowTextNotification` is used instead (logged: "Notification shown in the game's list" / "not taken").
+- Sounds: the game uses Wwise. The starter project has no sound events (placeholders drop them), so a development dump (`AMWidgetDump::InstallSoundDump`, `[SoundDump]` lines) lists the game's `AkAudioEvent` assets with UI / alert-like names from the asset registry, and the `PostEvent` functions of `AkGameplayStatics`, to pick 5 sounds for a Play sound action.
 
 ## The widget dump
 

@@ -12,6 +12,9 @@
 #include "Engine/World.h"
 #include "UObject/UnrealType.h"
 #include "UObject/PropertyPortFlags.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
+#include "Modules/ModuleManager.h"
 
 namespace
 {
@@ -282,4 +285,85 @@ void AMWidgetDump::Install()
 		}
 		return true;
 	}), 0.5f);
+}
+
+namespace
+{
+	const TCHAR* const AMWD_SoundKeywords[] = {
+		TEXT("UI"), TEXT("Notif"), TEXT("Alarm"), TEXT("Alert"), TEXT("Beep"), TEXT("Ping"), TEXT("Click"),
+		TEXT("Siren"), TEXT("Horn"), TEXT("Bell"), TEXT("Warning"), TEXT("Error"), TEXT("Success"), TEXT("Unlock"),
+		TEXT("Complete"), TEXT("Ding"), TEXT("Chime"), TEXT("Hub"), TEXT("Milestone"), TEXT("Scanner"), TEXT("Radar"),
+	};
+	constexpr int32 AMWD_MaxSoundLines = 1500;
+	bool AMWD_SoundsDumped = false;
+
+	void AMWD_DumpSounds()
+	{
+		IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+		TArray<FAssetData> Assets;
+		Registry.GetAssetsByClass(FTopLevelAssetPath(TEXT("/Script/AkAudio"), TEXT("AkAudioEvent")), Assets, true);
+		UE_LOG(LogAutomatedMachines, Log, TEXT("[SoundDump] %d sound events in the game"), Assets.Num());
+
+		int32 Lines = 0;
+		for (const FAssetData& Asset : Assets)
+		{
+			const FString Path = Asset.GetObjectPathString();
+			bool bMatch = false;
+			for (const TCHAR* Keyword : AMWD_SoundKeywords)
+			{
+				if (Asset.AssetName.ToString().Contains(Keyword, ESearchCase::IgnoreCase))
+				{
+					bMatch = true;
+					break;
+				}
+			}
+			if (bMatch && Lines++ < AMWD_MaxSoundLines)
+			{
+				UE_LOG(LogAutomatedMachines, Log, TEXT("[SoundDump] %s"), *Path);
+			}
+		}
+		UE_LOG(LogAutomatedMachines, Log, TEXT("[SoundDump] %d matching events"), Lines);
+
+		// How to play one: the PostEvent functions of AkGameplayStatics, with their parameters.
+		if (const UClass* Statics = FindObject<UClass>(nullptr, TEXT("/Script/AkAudio.AkGameplayStatics")))
+		{
+			for (TFieldIterator<UFunction> It(Statics, EFieldIteratorFlags::ExcludeSuper); It; ++It)
+			{
+				const UFunction* Function = *It;
+				if (Function->GetName().Contains(TEXT("PostEvent")) || Function->GetName().Contains(TEXT("PostAkEvent")))
+				{
+					FString Params;
+					FString Return = TEXT("void");
+					AMWD_DescribeParams(Function, Params, Return);
+					UE_LOG(LogAutomatedMachines, Log, TEXT("[SoundDump] func %s %s(%s)"), *Return, *Function->GetName(), *Params);
+				}
+			}
+		}
+		else
+		{
+			UE_LOG(LogAutomatedMachines, Log, TEXT("[SoundDump] AkGameplayStatics not found"));
+		}
+		if (const UClass* EventClass = FindObject<UClass>(nullptr, TEXT("/Script/AkAudio.AkAudioEvent")))
+		{
+			for (TFieldIterator<UFunction> It(EventClass, EFieldIteratorFlags::ExcludeSuper); It; ++It)
+			{
+				FString Params;
+				FString Return = TEXT("void");
+				AMWD_DescribeParams(*It, Params, Return);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("[SoundDump] AkAudioEvent func %s %s(%s)"), *Return, *It->GetName(), *Params);
+			}
+		}
+	}
+}
+
+void AMWidgetDump::InstallSoundDump()
+{
+	FWorldDelegates::OnWorldInitializedActors.AddLambda([](const UWorld::FActorsInitializedParams& Params)
+	{
+		if (!AMWD_SoundsDumped && Params.World && Params.World->IsGameWorld())
+		{
+			AMWD_SoundsDumped = true;
+			AMWD_DumpSounds();
+		}
+	});
 }
