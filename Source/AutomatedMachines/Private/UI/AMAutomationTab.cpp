@@ -241,11 +241,11 @@ void UAMAutomationTab::BuildLayout()
 	WidgetTree->RootWidget = Root;
 
 	mContentBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMContent"));
-	UBorder* Padding = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AMPadding"));
-	Padding->SetBrushColor(FLinearColor::Transparent);
-	Padding->SetPadding(FMargin(16.f, 14.f));
-	Padding->AddChild(mContentBox);
-	Root->AddChild(Padding);
+	UBorder* PageBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AMPadding"));
+	PageBorder->SetBrushColor(FLinearColor::Transparent);
+	PageBorder->SetPadding(FMargin(16.f, 14.f));
+	PageBorder->AddChild(mContentBox);
+	Root->AddChild(PageBorder);
 
 	auto AddTo = [](UVerticalBox* Box, UWidget* Widget, float TopPadding, bool bFill = false)
 	{
