@@ -180,8 +180,8 @@ const TArray<AMRules::FSound>& AMRules::GetSounds()
 			TEXT("The ping of the resource scanner.") },
 		{ TEXT("Warning"), TEXT("/Game/WwiseAudio/Events/Character/Player/TakeDamage/Play_P_Suit_Damage_Warning.Play_P_Suit_Damage_Warning"),
 			TEXT("The warning of your suit when you take damage: for things that need you now.") },
-		{ TEXT("Error"), TEXT("/Game/WwiseAudio/Events/Buildable/Factory/TrainSignals/Play_Train_Signals_Error.Play_Train_Signals_Error"),
-			TEXT("The error sound of a train signal.") },
+		{ TEXT("Alert"), TEXT("/Game/WwiseAudio/Events/Buildable/Factory/Fracker/Play_FrackerSmasher_Alarm.Play_FrackerSmasher_Alarm"),
+			TEXT("The alarm of the Resource Well Pressurizer: loud, made to be heard over running machines.") },
 		{ TEXT("Success"), TEXT("/Game/WwiseAudio/Events/Buildable/Factory/MAM/Play_MAM_Scanner_Complete_Fanfare.Play_MAM_Scanner_Complete_Fanfare"),
 			TEXT("The fanfare of a finished MAM research: for good news.") },
 	};
