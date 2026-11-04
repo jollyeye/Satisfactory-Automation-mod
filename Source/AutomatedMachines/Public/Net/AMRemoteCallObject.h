@@ -17,7 +17,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	UFUNCTION(Server, Reliable)
-	void ServerSetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions);
+	void ServerSetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options);
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetWorldActions(const TArray<FAMReactionRule>& Actions);
@@ -29,7 +29,7 @@ public:
 	 * Changes a machine's rules: directly on the server (single player, host), through the server
 	 * on a client.
 	 */
-	static void RequestSetRules(APlayerController* Player, AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions);
+	static void RequestSetRules(APlayerController* Player, AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options);
 
 	/** Changes the world actions (HUB terminal): directly on the server, through the server on a client. */
 	static void RequestSetWorldActions(APlayerController* Player, const TArray<FAMReactionRule>& Actions);

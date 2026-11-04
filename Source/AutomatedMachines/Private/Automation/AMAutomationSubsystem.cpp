@@ -6,6 +6,9 @@
 #include "Buildables/FGBuildableManufacturer.h"
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
+#include "FGFactoryConnectionComponent.h"
+#include "FGPipeConnectionComponent.h"
+#include "Resources/FGItemDescriptor.h"
 #include "Subsystem/SubsystemActorManager.h"
 #include "FGHUD.h"
 #include "UI/FGGameUI.h"
@@ -123,7 +126,7 @@ const FAMMachineRules* AAMAutomationSubsystem::FindRules(const AFGBuildable* Mac
 	return mMachines.FindByPredicate([Machine](const FAMMachineRules& Entry) { return Entry.Machine == Machine; });
 }
 
-void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions)
+void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options)
 {
 	if (!HasAuthority() || !CanAutomate(Machine))
 	{
@@ -132,6 +135,7 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 
 	FAMMachineRules NewRules;
 	NewRules.Machine = Machine;
+	NewRules.Options = Options;
 	for (const FAMFireRule& Rule : Fires)
 	{
 		FAMFireRule Clean = Rule;
@@ -172,8 +176,8 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	// Conditions of the new rules start unknown: one that is already true fires at the next check.
 	mLastConditionValues.Remove(TWeakObjectPtr<AFGBuildable>(Machine));
 
-	UE_LOG(LogAutomatedMachines, Log, TEXT("Rules of %s: %d fire rules, %d reactions"),
-		*AMAS_Describe(Machine), NewRules.Fires.Num(), NewRules.Reactions.Num());
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Rules of %s: %d fire rules, %d reactions, pass wrong items %s"),
+		*AMAS_Describe(Machine), NewRules.Fires.Num(), NewRules.Reactions.Num(), Options.bPassWrongItems ? TEXT("on") : TEXT("off"));
 
 	ForceNetUpdate();
 	OnRulesChanged.Broadcast();
@@ -333,6 +337,18 @@ void AAMAutomationSubsystem::Tick(float DeltaSeconds)
 		OnRulesChanged.Broadcast();
 	}
 	EvaluateFireRules();
+
+	// Options.
+	for (const FAMMachineRules& Entry : mMachines)
+	{
+		if (Entry.Options.bPassWrongItems)
+		{
+			if (AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Entry.Machine))
+			{
+				PassWrongItem(Factory);
+			}
+		}
+	}
 }
 
 void AAMAutomationSubsystem::EvaluateFireRules()
@@ -438,6 +454,8 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::RecipeChanged:     return bRecipeChanged;
 	case EAMCondition::InputFull:         return IsInputFull(Factory);
 	case EAMCondition::InputNotFull:      return !IsInputFull(Factory);
+	case EAMCondition::WrongInput:        return FindWrongInput(Factory, nullptr, nullptr);
+	case EAMCondition::InputCorrect:      return !FindWrongInput(Factory, nullptr, nullptr);
 	default:                              return false;
 	}
 }
@@ -458,6 +476,114 @@ bool AAMAutomationSubsystem::IsInputFull(const AFGBuildableFactory* Factory)
 		}
 	}
 	return false;
+}
+
+bool AAMAutomationSubsystem::FindWrongInput(const AFGBuildableFactory* Factory, UFGFactoryConnectionComponent** OutBelt, FInventoryItem* OutItem)
+{
+	const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
+	if (!Manufacturer || !Manufacturer->GetCurrentRecipe())
+	{
+		return false;
+	}
+	TArray<const UClass*> Ingredients;
+	for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(Manufacturer, Manufacturer->GetCurrentRecipe()))
+	{
+		Ingredients.Add(Ingredient.ItemClass.Get());
+	}
+
+	// Belts: the item waiting at the end of each input belt.
+	for (UFGFactoryConnectionComponent* Connection : Manufacturer->GetConnectionComponents())
+	{
+		if (!Connection || Connection->GetDirection() != EFactoryConnectionDirection::FCD_INPUT || !Connection->IsConnected())
+		{
+			continue;
+		}
+		UFGFactoryConnectionComponent* BeltEnd = Connection->GetConnection();
+		TArray<FInventoryItem> Waiting;
+		if (BeltEnd && BeltEnd->Factory_PeekOutput(Waiting) && Waiting.Num() > 0 && !Ingredients.Contains(static_cast<const UClass*>(Waiting[0].GetItemClass().Get())))
+		{
+			if (OutBelt)
+			{
+				*OutBelt = BeltEnd;
+			}
+			if (OutItem)
+			{
+				*OutItem = Waiting[0];
+			}
+			return true;
+		}
+	}
+
+	// Pipes: the fluid in each input pipe.
+	TArray<UFGPipeConnectionComponent*> Pipes;
+	Manufacturer->GetComponents<UFGPipeConnectionComponent>(Pipes);
+	for (const UFGPipeConnectionComponent* Pipe : Pipes)
+	{
+		if (Pipe && Pipe->GetPipeConnectionType() == EPipeConnectionType::PCT_CONSUMER && Pipe->IsConnected())
+		{
+			const UClass* Fluid = Pipe->GetFluidDescriptor().Get();
+			if (Fluid && !Ingredients.Contains(Fluid))
+			{
+				if (OutBelt)
+				{
+					*OutBelt = nullptr;
+				}
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+void AAMAutomationSubsystem::PassWrongItem(AFGBuildableFactory* Factory)
+{
+	AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
+	UFGInventoryComponent* Output = Manufacturer ? Manufacturer->GetOutputInventory() : nullptr;
+	UFGFactoryConnectionComponent* BeltEnd = nullptr;
+	FInventoryItem Wrong;
+	if (!Output || !FindWrongInput(Factory, &BeltEnd, &Wrong) || !BeltEnd)
+	{
+		return;
+	}
+
+	// The empty output slot for solid products (not a fluid slot).
+	int32 SlotIndex = INDEX_NONE;
+	for (int32 Index = 0; Index < Output->GetSizeLinear(); ++Index)
+	{
+		const TSubclassOf<UFGItemDescriptor> Allowed = Output->GetAllowedItemOnIndex(Index);
+		const EResourceForm Form = Allowed ? UFGItemDescriptor::GetForm(Allowed) : EResourceForm::RF_SOLID;
+		if (Output->IsIndexEmpty(Index) && Form == EResourceForm::RF_SOLID)
+		{
+			SlotIndex = Index;
+			break;
+		}
+	}
+	if (SlotIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	// The slot only takes the product: allow the wrong item for a moment, move it, set the filter
+	// back. The item stays until the output belt takes it.
+	const TSubclassOf<UFGItemDescriptor> Allowed = Output->GetAllowedItemOnIndex(SlotIndex);
+	Output->SetAllowedItemOnIndex(SlotIndex, Wrong.GetItemClass());
+	if (Output->IsItemAllowed(Wrong.GetItemClass(), SlotIndex))
+	{
+		FInventoryItem Grabbed;
+		float OffsetBeyond = 0.f;
+		if (BeltEnd->Factory_GrabOutput(Grabbed, OffsetBeyond, Wrong.GetItemClass()))
+		{
+			if (Output->AddStackToIndex(SlotIndex, FInventoryStack(Grabbed)) > 0)
+			{
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s passed %s through"), *AMAS_Describe(Factory), *GetNameSafe(Grabbed.GetItemClass().Get()));
+			}
+			else
+			{
+				UE_LOG(LogAutomatedMachines, Warning, TEXT("%s: %s taken off the belt but not into the output"), *AMAS_Describe(Factory), *GetNameSafe(Grabbed.GetItemClass().Get()));
+			}
+		}
+	}
+	Output->SetAllowedItemOnIndex(SlotIndex, Allowed);
 }
 
 bool AAMAutomationSubsystem::IsInputMissing(const AFGBuildableFactory* Factory)

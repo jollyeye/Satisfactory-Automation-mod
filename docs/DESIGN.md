@@ -130,8 +130,17 @@ In a crowd of machines the player must see at a glance which ones are automated,
 
 ## Machine events and actions for production machines (Smelter, Constructor, ...)
 
-Machine events (an alarm rings when one becomes true): Output full, Output not full, Starts producing, Stops producing, Loses power, Gets power, Input missing, Input available, Paused, Resumed, Productivity below N%, Productivity above N%, Recipe changed, Input full, Input not full.
+Machine events (an alarm rings when one becomes true): Output full, Output not full, Starts producing, Stops producing, Loses power, Gets power, Input missing, Input available, Paused, Resumed, Productivity below N%, Productivity above N%, Recipe changed, Input full, Input not full, Wrong input, Input correct.
 
 Actions: Pause, Resume, Pause or resume, Set clock speed N% (within what the machine's power shards allow), Delete output, Delete input (our own functions: the items are destroyed), Change recipe (empties the input and output slots, then switches to the chosen recipe; only recipes the machine can make and the player has unlocked), Show message and Play sound (world actions, in the HUB's Automation tab).
 
 Each one has an explanation in the tab's info panel.
+
+### Wrong items on a belt (decided 4 Nov 2026)
+
+A machine refuses an item that is not an ingredient of its recipe, so the belt stops behind it. Deleting that item was rejected: it would be a cheat. Instead:
+
+- **Machine events "Wrong input" / "Input correct":** the first item waiting at an input belt is not an ingredient, or an input pipe carries a fluid that is not one.
+- **Option "Pass wrong items through"** (section Options, at the bottom of the machine's tab; saved per machine; a machine with only this option on still gets the marker): the wrong item is taken off the belt and put in the machine's **empty** output slot, so the output belt carries it away. Nothing is created or destroyed. It costs throughput: while the output slot holds a wrong item, the machine's own products wait.
+- Belts only. A pipe with the wrong fluid stays stuck (the alarm can tell you).
+- This changes how factories can be built (mixed "sushi" belts, machines as filters). Idea, not decided: unlock the option together with the Smart Splitter.

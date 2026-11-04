@@ -41,8 +41,8 @@ public:
 	/** The rules of a machine, or null if it has none. */
 	const FAMMachineRules* FindRules(const AFGBuildable* Machine) const;
 
-	/** Replaces a machine's rules (server only). Empty event names are dropped, names are made uppercase. */
-	void SetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions);
+	/** Replaces a machine's rules and options (server only). Empty event names are dropped, names are made uppercase. */
+	void SetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options);
 
 	/** Every event name in use, sorted. */
 	TArray<FString> GetAllEventNames() const;
@@ -86,6 +86,15 @@ private:
 	static bool IsOutputFull(const AFGBuildableFactory* Factory);
 	static bool IsInputMissing(const AFGBuildableFactory* Factory);
 	static bool IsInputFull(const AFGBuildableFactory* Factory);
+
+	/**
+	 * A wrong item at the end of an input belt (OutBelt: that belt's end, OutItem: the item), or a
+	 * wrong fluid in an input pipe (OutBelt null). False if the machine has no recipe.
+	 */
+	static bool FindWrongInput(const AFGBuildableFactory* Factory, class UFGFactoryConnectionComponent** OutBelt, struct FInventoryItem* OutItem);
+
+	/** "Pass wrong items through": moves one wrong item from an input belt to the empty output slot. */
+	static void PassWrongItem(AFGBuildableFactory* Factory);
 	void ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule);
 
 	/** Shows a message on the screen of every player (runs on the server and on every client). */

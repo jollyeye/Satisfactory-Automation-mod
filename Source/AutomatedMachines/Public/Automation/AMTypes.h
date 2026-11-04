@@ -33,6 +33,8 @@ enum class EAMCondition : uint8
 	RecipeChanged      UMETA(DisplayName = "Recipe changed"),
 	InputFull          UMETA(DisplayName = "Input full"),
 	InputNotFull       UMETA(DisplayName = "Input not full"),
+	WrongInput         UMETA(DisplayName = "Wrong input"),
+	InputCorrect       UMETA(DisplayName = "Input correct"),
 	Count              UMETA(Hidden)
 };
 
@@ -94,6 +96,22 @@ struct AUTOMATEDMACHINES_API FAMReactionRule
 	FString Message;
 };
 
+/** Switches of a machine (the Options section of its Automation tab). */
+USTRUCT(BlueprintType)
+struct AUTOMATEDMACHINES_API FAMMachineOptions
+{
+	GENERATED_BODY()
+
+	/**
+	 * A wrong item blocking an input belt is taken off the belt and put in the empty output slot,
+	 * so the output belt carries it away and the input belt moves again.
+	 */
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
+	bool bPassWrongItems = false;
+
+	bool IsDefault() const { return !bPassWrongItems; }
+};
+
 /** All rules of one machine. Machines without rules have no entry at all. */
 USTRUCT(BlueprintType)
 struct AUTOMATEDMACHINES_API FAMMachineRules
@@ -109,7 +127,10 @@ struct AUTOMATEDMACHINES_API FAMMachineRules
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Automation")
 	TArray<FAMReactionRule> Reactions;
 
-	bool IsEmpty() const { return Fires.Num() == 0 && Reactions.Num() == 0; }
+	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Automation")
+	FAMMachineOptions Options;
+
+	bool IsEmpty() const { return Fires.Num() == 0 && Reactions.Num() == 0 && Options.IsDefault(); }
 };
 
 namespace AMRules

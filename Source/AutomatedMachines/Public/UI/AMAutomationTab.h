@@ -77,6 +77,12 @@ protected:
 	UFUNCTION()
 	void OnAddReactionClicked();
 
+	UFUNCTION()
+	void OnPassWrongClicked();
+
+	UFUNCTION()
+	void OnPassWrongHovered();
+
 private:
 	/** The machine window (Widget_Manufacturing_C) this page sits in. */
 	UUserWidget* GetHostWindow() const;
@@ -119,10 +125,23 @@ private:
 
 	UTextBlock* MakeText(const FString& Text, int32 FontSize, const FLinearColor& Color);
 
+	/** Shows the options' state (On / Off) on their buttons. */
+	void RefreshOptions();
+
+	/** Info panel text for "Pass wrong items through". */
+	void ShowPassWrongInfo();
+
 	/** This machine's rules as edited here (sent to the server on every change). */
 	TArray<FAMFireRule> mFires;
 	TArray<FAMReactionRule> mReactions;
+	FAMMachineOptions mOptions;
 	bool bRulesLoaded = false;
+
+	UPROPERTY()
+	TObjectPtr<class UButton> mPassWrongButton;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mPassWrongState;
 
 	FSlateFontInfo mGameFont;
 	bool bHasGameFont = false;

@@ -35,6 +35,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::RecipeChanged:     return AMTY_Text(TEXT("Recipe changed"));
 	case EAMCondition::InputFull:         return AMTY_Text(TEXT("Input full"));
 	case EAMCondition::InputNotFull:      return AMTY_Text(TEXT("Input not full"));
+	case EAMCondition::WrongInput:        return AMTY_Text(TEXT("Wrong input"));
+	case EAMCondition::InputCorrect:      return AMTY_Text(TEXT("Input correct"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -90,6 +92,10 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when an input slot is full and cannot take more of its ingredient: more arrives than the machine uses, so the belt or pipe feeding it backs up.\n\nUse it to slow down or pause the machines that supply this one."));
 	case EAMCondition::InputNotFull:
 		return AMTY_Text(TEXT("Rings when every input slot has room again for more of its ingredient."));
+	case EAMCondition::WrongInput:
+		return AMTY_Text(TEXT("Rings when a belt or pipe brings something that is not an ingredient of the recipe. The machine refuses it, so the belt stops behind it.\n\nUse it to get a message, or switch on \"Pass wrong items through\" in Options."));
+	case EAMCondition::InputCorrect:
+		return AMTY_Text(TEXT("Rings when no belt or pipe brings a wrong item any more."));
 	default:
 		return FText::GetEmpty();
 	}

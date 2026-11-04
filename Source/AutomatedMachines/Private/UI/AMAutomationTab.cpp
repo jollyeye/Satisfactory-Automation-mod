@@ -372,6 +372,38 @@ void UAMAutomationTab::BuildLayout()
 	MakePanel(TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
 		TEXT("+ Add action"), mReactionRowsBox, AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
 
+	// Options of the machine, at the bottom (the HUB has none).
+	if (!bWorldMode)
+	{
+		AddTo(mContentBox, MakeText(TEXT("Options"), 15, AMUI::White), 14.f);
+		UBorder* OptionsBody = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(AMAT_PanelPadding));
+		AddTo(mContentBox, OptionsBody, 8.f);
+		UHorizontalBox* OptionRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMOptionPassWrong"));
+		OptionsBody->AddChild(OptionRow);
+
+		UTextBlock* StateLabel = nullptr;
+		mPassWrongButton = AMUI::MakeButton(WidgetTree, TEXT("Off"), GetGameFont(), AMUI::Button, &StateLabel);
+		mPassWrongState = StateLabel;
+		mAddLabels.Add(StateLabel);
+		mPassWrongButton->OnClicked.AddDynamic(this, &UAMAutomationTab::OnPassWrongClicked);
+		mPassWrongButton->OnHovered.AddDynamic(this, &UAMAutomationTab::OnPassWrongHovered);
+		USizeBox* ToggleSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		ToggleSize->SetWidthOverride(64.f);
+		ToggleSize->AddChild(mPassWrongButton);
+		if (UHorizontalBoxSlot* ToggleSlot = OptionRow->AddChildToHorizontalBox(ToggleSize))
+		{
+			ToggleSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		UTextBlock* OptionName = MakeText(TEXT("Pass wrong items through"), 14, AMUI::White);
+		mAddLabels.Add(OptionName);
+		if (UHorizontalBoxSlot* NameSlot = OptionRow->AddChildToHorizontalBox(OptionName))
+		{
+			NameSlot->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
+			NameSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		RefreshOptions();
+	}
+
 	// Side panel, full height on the right like the recipe tab's: explains the machine event,
 	// action or alarm last picked or pointed at.
 	USizeBox* InfoSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMInfoSize"));
@@ -470,8 +502,10 @@ void UAMAutomationTab::LoadRules()
 	{
 		mFires = Rules->Fires;
 		mReactions = Rules->Reactions;
+		mOptions = Rules->Options;
 	}
 	bRulesLoaded = true;
+	RefreshOptions();
 	RebuildRows();
 }
 
@@ -570,8 +604,43 @@ void UAMAutomationTab::OnRulesEdited()
 	}
 	else if (AFGBuildable* Machine = Cast<AFGBuildable>(GetMachine()))
 	{
-		UAMRemoteCallObject::RequestSetRules(GetOwningPlayer(), Machine, mFires, mReactions);
+		UAMRemoteCallObject::RequestSetRules(GetOwningPlayer(), Machine, mFires, mReactions, mOptions);
 	}
+}
+
+void UAMAutomationTab::RefreshOptions()
+{
+	if (mPassWrongButton && mPassWrongState)
+	{
+		const bool bOn = mOptions.bPassWrongItems;
+		AMUI::SetButtonColor(mPassWrongButton, bOn ? AMUI::Orange : AMUI::Button);
+		mPassWrongState->SetText(FText::FromString(bOn ? TEXT("On") : TEXT("Off")));
+	}
+}
+
+void UAMAutomationTab::ShowPassWrongInfo()
+{
+	ShowInfo(FText::FromString(TEXT("Pass wrong items through")), FText::FromString(
+		TEXT("When a belt brings an item that is not an ingredient of the recipe, the machine takes it off the belt and puts it in its output, so the output belt carries it away and the input belt moves again.\n\n")
+		TEXT("It only works when the output slot is empty: the wrong item waits for the machine's own products to leave first. Each wrong item passed is a moment the output is not carrying products.\n\n")
+		TEXT("Only for belts: a pipe with the wrong fluid stays stuck (use the alarm \"Wrong input\" to hear about it).")));
+}
+
+void UAMAutomationTab::OnPassWrongClicked()
+{
+	if (!bRulesLoaded)
+	{
+		return;
+	}
+	mOptions.bPassWrongItems = !mOptions.bPassWrongItems;
+	RefreshOptions();
+	ShowPassWrongInfo();
+	OnRulesEdited();
+}
+
+void UAMAutomationTab::OnPassWrongHovered()
+{
+	ShowPassWrongInfo();
 }
 
 void UAMAutomationTab::RemoveRule(bool bFire, int32 Index)

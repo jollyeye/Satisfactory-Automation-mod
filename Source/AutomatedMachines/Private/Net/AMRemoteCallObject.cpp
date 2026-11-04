@@ -12,11 +12,11 @@ void UAMRemoteCallObject::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& 
 	DOREPLIFETIME(UAMRemoteCallObject, mDummy);
 }
 
-void UAMRemoteCallObject::ServerSetRules_Implementation(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions)
+void UAMRemoteCallObject::ServerSetRules_Implementation(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options)
 {
 	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Machine))
 	{
-		Subsystem->SetRules(Machine, Fires, Reactions);
+		Subsystem->SetRules(Machine, Fires, Reactions, Options);
 	}
 }
 
@@ -66,7 +66,7 @@ void UAMRemoteCallObject::InstallRegistration()
 		});
 }
 
-void UAMRemoteCallObject::RequestSetRules(APlayerController* Player, AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions)
+void UAMRemoteCallObject::RequestSetRules(APlayerController* Player, AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options)
 {
 	if (!Machine)
 	{
@@ -76,7 +76,7 @@ void UAMRemoteCallObject::RequestSetRules(APlayerController* Player, AFGBuildabl
 	{
 		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Machine))
 		{
-			Subsystem->SetRules(Machine, Fires, Reactions);
+			Subsystem->SetRules(Machine, Fires, Reactions, Options);
 		}
 		return;
 	}
@@ -84,7 +84,7 @@ void UAMRemoteCallObject::RequestSetRules(APlayerController* Player, AFGBuildabl
 	UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr;
 	if (RCO)
 	{
-		RCO->ServerSetRules(Machine, Fires, Reactions);
+		RCO->ServerSetRules(Machine, Fires, Reactions, Options);
 	}
 	else
 	{

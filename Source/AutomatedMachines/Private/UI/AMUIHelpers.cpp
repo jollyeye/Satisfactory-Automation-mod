@@ -94,6 +94,14 @@ UButton* AMUI::MakeButton(UWidgetTree* Tree, const FString& Label, const FSlateF
 	return Widget;
 }
 
+void AMUI::SetButtonColor(UButton* Button, const FLinearColor& Color)
+{
+	if (Button)
+	{
+		Button->SetStyle(AMUIH_ButtonStyle(Color));
+	}
+}
+
 UButton* AMUI::MakeDropdown(UWidgetTree* Tree, const FSlateFontInfo& Font, UTextBlock*& OutLabel)
 {
 	UButton* Widget = Tree->ConstructWidget<UButton>(UButton::StaticClass());

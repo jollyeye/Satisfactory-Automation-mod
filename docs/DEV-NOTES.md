@@ -145,6 +145,14 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Play sound: the event is loaded by path and played with its own UFUNCTION `UAkAudioEvent::PostOnActor(Actor, delegate, CallbackMask, bStop)`, called by name (`AMSound`), so the mod does not depend on the Wwise plugin. The server calls `MulticastPlaySound(index)`; each game instance plays it on its local players' pawns. The sound's number is stored in the rule's `Value`.
 - Show message tested 4 Nov 2026: our notifications stack at the side of the screen with the game's.
 
+## Wrong input and "Pass wrong items through" (4 Nov 2026, untested)
+
+- Wrong input (`AAMAutomationSubsystem::FindWrongInput`): for each `FCD_INPUT` connection of the machine (`GetConnectionComponents`), its connected belt end (`GetConnection`) is asked `Factory_PeekOutput`: the first item waiting. Wrong if its class is not in `UFGRecipe::GetIngredients`. Pipes: every `UFGPipeConnectionComponent` with `PCT_CONSUMER`, connected, whose `GetFluidDescriptor` is not an ingredient. No recipe: never wrong.
+- Options: `FAMMachineOptions` (SaveGame) inside `FAMMachineRules`; `IsEmpty()` counts it, so the entry and the marker stay while an option is on. `SetRules`, `ServerSetRules` and `RequestSetRules` carry it.
+- Pass through (`PassWrongItem`, server, every check = 4 times a second, one item per machine per check): find an empty output slot whose allowed item is solid (or none); remember its allowed item (`GetAllowedItemOnIndex`), allow the wrong item (`SetAllowedItemOnIndex`), `Factory_GrabOutput(item, offset, class)` from the belt end, `AddStackToIndex`, then set the allowed item **back at once**. `mAllowedItemDescriptors` is SaveGame, so the changed filter must never stay set. The item stays in the slot until the output belt takes it.
+- To test: does the manufacturer's own output connection hand out an item that the slot's filter does not allow (it was put in while allowed)? Does a save made while a wrong item sits in the output load fine?
+- UI: an Options strip at the bottom of the machine page (not in the HUB): an On/Off button (orange when on) and "Pass wrong items through"; hovering or clicking shows the explanation in the Info panel.
+
 ## The widget dump
 
 Now pointed at the HUB terminal (`BPW_Hub_C`): its tree, plus variables and functions of every widget in it whose class name contains Tab, Menu or Hub, to find where an Automation tab goes next to Milestones.
