@@ -1,5 +1,6 @@
 # Automated Machines: creates the mod's few assets from the files in Tools/.
 #   /AutomatedMachines/Icons/T_AM_TabIcon     the Automation tab button icon (UI texture)
+#   /AutomatedMachines/Icons/T_AM_DropArrow   dropdown arrow, T_AM_Trash: remove button (UI textures)
 #   /AutomatedMachines/Icons/T_AM_MarkerIcon  the Wi-Fi picture of the marker
 #   /AutomatedMachines/Marker/M_AM_Marker     marker material: unlit, turns to the camera in the shader
 #   /AutomatedMachines/Marker/SM_AM_Marker    marker mesh: a flat 1 m square
@@ -57,17 +58,19 @@ def save(asset):
 
 
 # --- Textures ----------------------------------------------------------------------------------
-import_file(os.path.join(TOOLS, "Icons", "T_AM_TabIcon.png"), ROOT + "/Icons")
-import_file(os.path.join(TOOLS, "Icons", "T_AM_MarkerIcon.png"), ROOT + "/Icons")
+UI_ICONS = ["T_AM_TabIcon", "T_AM_DropArrow", "T_AM_Trash"]
+for name in UI_ICONS + ["T_AM_MarkerIcon"]:
+    import_file(os.path.join(TOOLS, "Icons", name + ".png"), ROOT + "/Icons")
 
-tab_icon = load(ROOT + "/Icons/T_AM_TabIcon")
-if tab_icon:
-    tab_icon.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
-    tab_icon.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
-    tab_icon.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
-    tab_icon.set_editor_property("srgb", True)
-    save(tab_icon)
-    log("  tab icon: UI texture, no mips")
+for name in UI_ICONS:
+    icon = load(ROOT + "/Icons/" + name)
+    if icon:
+        icon.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
+        icon.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
+        icon.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        icon.set_editor_property("srgb", True)
+        save(icon)
+        log("  %s: UI texture, no mips" % name)
 
 marker_icon = load(ROOT + "/Icons/T_AM_MarkerIcon")
 if marker_icon:

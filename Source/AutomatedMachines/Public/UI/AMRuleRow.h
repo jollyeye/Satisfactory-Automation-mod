@@ -14,18 +14,18 @@ class UAMAutomationTab;
 class UEditableText;
 class UTextBlock;
 class UVerticalBox;
-class UWrapBox;
 class UWidget;
 
 /** Column widths of the two tables (the tab's header row uses them too). */
 namespace AMRowLayout
 {
-	constexpr float AlarmName = 210.f;
-	constexpr float MachineEvent = 180.f;
-	constexpr float Do = 120.f;
-	constexpr float OnAlarm = 210.f;
-	constexpr float Gap = 8.f;
-	constexpr int32 FontSize = 14;
+	constexpr float AlarmName = 200.f;
+	constexpr float MachineEvent = 190.f;
+	constexpr float Do = 130.f;
+	constexpr float OnAlarm = 200.f;
+	constexpr float Remove = 36.f;
+	constexpr float Gap = 6.f;
+	constexpr int32 FontSize = 15;
 }
 
 /** What a list under a row offers. */
@@ -134,8 +134,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mAlarmLabel;
 
+	/** The open dropdown list under the row. */
 	UPROPERTY()
-	TObjectPtr<UWrapBox> mChoices;
+	TObjectPtr<UVerticalBox> mChoices;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UAMChoice>> mChoiceHandlers;

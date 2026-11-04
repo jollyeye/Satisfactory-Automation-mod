@@ -109,6 +109,16 @@ Player-facing words differ from the code (see `DESIGN.md`, "Words the player see
 - Tab layout: page 1230 wide = Production page + the inventory panel. Left: title; two tables side by side, ALARMS (ALARM NAME | MACHINE EVENT) and ACTIONS (DO | ON ALARM); right: an INFO panel. Cell buttons open a list of choices under the row; pointing at a choice explains it in the info panel (descriptions in `AMRules::GetConditionDescription` / `GetActionDescription`).
 - The window's inventory panel is hidden on our tab (frame `SetInventoryVisibility(false, true)`, one frame after the switch so it comes after the game's own handler) and shown again when going back to Production.
 
+## Tab look (second version, 4 Nov 2026)
+
+Tested before: marker, tab icon, two tables, info panel and inventory hiding all work. The developer asked for the look of the game's own windows (train Stop Settings) and the see-through page of the other tabs:
+
+- No page background: the window's see-through background shows.
+- Panels "Alarms", "Actions", "Info": title above (white 15), body `AMUI::PanelBody` (sRGB 67,67,68, slightly see-through), column names inside (grey 13), rows scroll, full-width "+ Add ..." button (sRGB 102) at the bottom.
+- Rows: field and dropdowns sRGB 87 with a white arrow icon (`T_AM_DropArrow`), bin button (`T_AM_Trash`). Square corners everywhere (`FSlateColorBrush`).
+- Choices open as a dropdown list under the row (full width, sRGB 110); the current one is orange.
+- Colours are the game's sRGB values sampled from a screenshot, converted with `FLinearColor(FColor)`.
+
 ## The widget dump
 
 `AMWidgetDump` now writes, once per session:

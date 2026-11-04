@@ -1,6 +1,8 @@
 # Automated Machines: draws the Wi-Fi icon (white on transparent) used by the mod.
 #   Tools/Icons/T_AM_TabIcon.png     64 x 64, the Automation tab button (like the game's tab icons)
 #   Tools/Icons/T_AM_MarkerIcon.png  256 x 256, the marker above automated machines
+#   Tools/Icons/T_AM_DropArrow.png   32 x 32, the arrow of our dropdowns
+#   Tools/Icons/T_AM_Trash.png       32 x 32, the remove button
 # Run with normal Python (needs Pillow): python make_icons.py
 # The outputs are committed; Tools/create_assets.py imports them into the mod.
 import math
@@ -60,12 +62,38 @@ def fit_vertically(img):
     return out
 
 
+def drop_arrow(size):
+    """A downward triangle, like the game's dropdown arrows."""
+    big = size * SUPERSAMPLE
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.polygon([(big * 0.12, big * 0.28), (big * 0.88, big * 0.28), (big * 0.5, big * 0.78)], fill=(255, 255, 255, 255))
+    return img.resize((size, size), Image.LANCZOS)
+
+
+def trash(size):
+    """A bin: lid with a handle, and a body with three slots, like the game's delete icon."""
+    big = size * SUPERSAMPLE
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    white = (255, 255, 255, 255)
+    s = big / 32.0
+    draw.rectangle([12 * s, 3 * s, 20 * s, 6 * s], fill=white)              # handle
+    draw.rectangle([5 * s, 6 * s, 27 * s, 9 * s], fill=white)               # lid
+    draw.polygon([(7 * s, 11 * s), (25 * s, 11 * s), (23.5 * s, 29 * s), (8.5 * s, 29 * s)], fill=white)  # body
+    for x in (11.5, 15, 18.5):                                              # slots
+        draw.rectangle([x * s, 14 * s, (x + 2) * s, 26 * s], fill=(0, 0, 0, 0))
+    return img.resize((size, size), Image.LANCZOS)
+
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     tab = fit_vertically(wifi(64, margin=0.06, stroke=0.085, gap=0.075))
     tab.save(os.path.join(OUT_DIR, "T_AM_TabIcon.png"))
     marker = fit_vertically(wifi(256, margin=0.08, stroke=0.075, gap=0.07, outline=0.018))
     marker.save(os.path.join(OUT_DIR, "T_AM_MarkerIcon.png"))
+    drop_arrow(32).save(os.path.join(OUT_DIR, "T_AM_DropArrow.png"))
+    trash(32).save(os.path.join(OUT_DIR, "T_AM_Trash.png"))
     print("written to", os.path.abspath(OUT_DIR))
 
 

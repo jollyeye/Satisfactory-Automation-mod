@@ -13,13 +13,10 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
-#include "Components/WrapBox.h"
-#include "Components/WrapBoxSlot.h"
 
 namespace
 {
 	constexpr int32 AMRR_MaxSuggestions = 6;
-	constexpr float AMRR_RemoveWidth = 34.f;
 
 	/** A fixed-width cell. */
 	USizeBox* AMRR_Cell(UWidgetTree* Tree, float Width, UWidget* Content)
@@ -30,16 +27,19 @@ namespace
 		return Cell;
 	}
 
-	/** A flat button whose label sits on the left, like a table cell. */
-	UButton* AMRR_CellButton(UWidgetTree* Tree, const FSlateFontInfo& Font, UTextBlock*& OutLabel)
+	/** A button of an open dropdown list: full width, label on the left (orange = the current one). */
+	UButton* AMRR_OptionButton(UWidgetTree* Tree, const FString& Label, const FSlateFontInfo& Font, bool bCurrent)
 	{
-		UTextBlock* Label = nullptr;
-		UButton* Button = AMUI::MakeButton(Tree, TEXT(""), Font, false, &Label);
-		if (UButtonSlot* LabelSlot = Label ? Cast<UButtonSlot>(Label->Slot) : nullptr)
+		UTextBlock* LabelText = nullptr;
+		UButton* Button = AMUI::MakeButton(Tree, Label, Font, AMUI::Option, &LabelText);
+		if (UButtonSlot* LabelSlot = LabelText ? Cast<UButtonSlot>(LabelText->Slot) : nullptr)
 		{
 			LabelSlot->SetHorizontalAlignment(HAlign_Left);
 		}
-		OutLabel = Label;
+		if (LabelText && bCurrent)
+		{
+			LabelText->SetColorAndOpacity(FSlateColor(AMUI::Orange));
+		}
 		return Button;
 	}
 }
@@ -88,14 +88,15 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 	};
 
 	UTextBlock* SecondLabel = nullptr;
-	UButton* SecondButton = AMRR_CellButton(Tree, Font, SecondLabel);
+	UButton* SecondButton = AMUI::MakeDropdown(Tree, Font, SecondLabel);
 	mSecondLabel = SecondLabel;
 	SecondButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnSecondCellClicked);
 
 	if (bIsAlarm)
 	{
 		// | ALARM NAME | MACHINE EVENT |
-		UBorder* Field = AMUI::MakeBox(Tree, AMUI::FieldBackground, FMargin(8.f, 5.f));
+		UBorder* Field = AMUI::MakeBox(Tree, AMUI::Field, FMargin(10.f, 7.f));
+		Field->SetVerticalAlignment(VAlign_Center);
 		mAlarmNameText = Tree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
 		mAlarmNameText->SetFont(Font);
 		mAlarmNameText->SetHintText(FText::FromString(TEXT("ALARM NAME")));
@@ -110,23 +111,21 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		// | DO | ON ALARM |
 		Add(AMRR_Cell(Tree, AMRowLayout::Do, SecondButton), 0.f);
 		UTextBlock* AlarmLabel = nullptr;
-		UButton* AlarmButton = AMRR_CellButton(Tree, Font, AlarmLabel);
+		UButton* AlarmButton = AMUI::MakeDropdown(Tree, Font, AlarmLabel);
 		mAlarmLabel = AlarmLabel;
 		AlarmButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnAlarmCellClicked);
 		Add(AMRR_Cell(Tree, AMRowLayout::OnAlarm, AlarmButton), AMRowLayout::Gap);
 	}
 
-	UButton* RemoveButton = AMUI::MakeButton(Tree, TEXT("X"), Font, false, nullptr);
-	RemoveButton->SetToolTipText(FText::FromString(TEXT("Remove")));
+	UButton* RemoveButton = AMUI::MakeRemoveButton(Tree, Font);
 	RemoveButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnRemoveClicked);
-	Add(AMRR_Cell(Tree, AMRR_RemoveWidth, RemoveButton), AMRowLayout::Gap);
+	Add(AMRR_Cell(Tree, AMRowLayout::Remove, RemoveButton), AMRowLayout::Gap);
 
-	mChoices = Tree->ConstructWidget<UWrapBox>(UWrapBox::StaticClass());
-	mChoices->SetInnerSlotPadding(FVector2D(6.f, 6.f));
+	mChoices = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	mChoices->SetVisibility(ESlateVisibility::Collapsed);
 	if (UVerticalBoxSlot* ChoicesSlot = mRoot->AddChildToVerticalBox(mChoices))
 	{
-		ChoicesSlot->SetPadding(FMargin(0.f, 6.f, 0.f, 4.f));
+		ChoicesSlot->SetPadding(FMargin(0.f, 2.f, 0.f, 4.f));
 	}
 
 	UpdateLabels();
@@ -175,10 +174,13 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 		Handler->Value = Value;
 		mChoiceHandlers.Add(Handler);
 
-		UButton* Button = AMUI::MakeButton(Tree, Label, Font, bCurrent, nullptr);
+		UButton* Button = AMRR_OptionButton(Tree, Label, Font, bCurrent);
 		Button->OnClicked.AddDynamic(Handler, &UAMChoice::OnClicked);
 		Button->OnHovered.AddDynamic(Handler, &UAMChoice::OnHovered);
-		mChoices->AddChildToWrapBox(Button);
+		if (UVerticalBoxSlot* OptionSlot = mChoices->AddChildToVerticalBox(Button))
+		{
+			OptionSlot->SetPadding(FMargin(0.f, 1.f, 0.f, 0.f));
+		}
 	};
 
 	if (Kind == EAMChoiceKind::MachineEvent)
@@ -208,11 +210,14 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 				HideChoices();
 				return;
 			}
-			mChoices->AddChildToWrapBox(AMUI::MakeText(Tree, EmptyMessage, Font, AMUI::Grey));
+			UBorder* Message = AMUI::MakeBox(Tree, AMUI::Option, FMargin(12.f, 7.f));
+			Message->AddChild(AMUI::MakeText(Tree, EmptyMessage, Font, AMUI::Grey));
+			mChoices->AddChildToVerticalBox(Message);
 		}
+		const FAMReactionRule* Rule = bIsAlarm ? nullptr : mTab->GetReactionRule(mIndex);
 		for (const FString& Alarm : Alarms)
 		{
-			AddChoice(Alarm, Alarm, 0, false);
+			AddChoice(Alarm, Alarm, 0, Rule && Rule->Event == Alarm);
 		}
 	}
 

@@ -1,37 +1,57 @@
 #include "UI/AMUIHelpers.h"
 #include "Blueprint/WidgetTree.h"
-#include "Brushes/SlateRoundedBoxBrush.h"
+#include "Brushes/SlateColorBrush.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
+#include "Components/HorizontalBox.h"
+#include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
 #include "Components/TextBlock.h"
+#include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
 
-const FLinearColor AMUI::Orange(0.98f, 0.55f, 0.13f, 1.f);
-const FLinearColor AMUI::White(1.f, 1.f, 1.f, 1.f);
-const FLinearColor AMUI::Grey(0.6f, 0.6f, 0.6f, 1.f);
-const FLinearColor AMUI::PageBackground(0.018f, 0.018f, 0.02f, 1.f);
-const FLinearColor AMUI::FieldBackground(0.06f, 0.06f, 0.065f, 1.f);
+// FColor values are the game's sRGB greys; FLinearColor(FColor) converts them.
+const FLinearColor AMUI::Orange(FColor(250, 149, 73));
+const FLinearColor AMUI::White(FColor(255, 255, 255));
+const FLinearColor AMUI::Grey(FColor(170, 170, 170));
+const FLinearColor AMUI::PanelBody(FColor(67, 67, 68, 215));
+const FLinearColor AMUI::Field(FColor(87, 87, 87));
+const FLinearColor AMUI::Button(FColor(102, 102, 103));
+const FLinearColor AMUI::Option(FColor(110, 110, 111));
 
 namespace
 {
-	const FLinearColor AMUIH_Button(0.11f, 0.11f, 0.115f, 1.f);
-	const FLinearColor AMUIH_ButtonHovered(0.2f, 0.2f, 0.21f, 1.f);
-	const FLinearColor AMUIH_ButtonPressed(0.07f, 0.07f, 0.075f, 1.f);
-	const FLinearColor AMUIH_Accent(0.55f, 0.28f, 0.05f, 1.f);
-	const FLinearColor AMUIH_AccentHovered(0.75f, 0.4f, 0.08f, 1.f);
-	const FLinearColor AMUIH_AccentPressed(0.4f, 0.2f, 0.04f, 1.f);
-	constexpr float AMUIH_Radius = 3.f;
+	const TCHAR* const AMUIH_DropArrowPath = TEXT("/AutomatedMachines/Icons/T_AM_DropArrow.T_AM_DropArrow");
+	const TCHAR* const AMUIH_TrashPath = TEXT("/AutomatedMachines/Icons/T_AM_Trash.T_AM_Trash");
 
-	FButtonStyle AMUIH_ButtonStyle(bool bAccent)
+	/** Lighter / darker shade of a grey for hover / press. */
+	FLinearColor AMUIH_Shade(const FLinearColor& Color, float Factor)
+	{
+		return FLinearColor(Color.R * Factor, Color.G * Factor, Color.B * Factor, Color.A);
+	}
+
+	FButtonStyle AMUIH_ButtonStyle(const FLinearColor& Color)
 	{
 		FButtonStyle Style;
-		Style.SetNormal(FSlateRoundedBoxBrush(bAccent ? AMUIH_Accent : AMUIH_Button, AMUIH_Radius));
-		Style.SetHovered(FSlateRoundedBoxBrush(bAccent ? AMUIH_AccentHovered : AMUIH_ButtonHovered, AMUIH_Radius));
-		Style.SetPressed(FSlateRoundedBoxBrush(bAccent ? AMUIH_AccentPressed : AMUIH_ButtonPressed, AMUIH_Radius));
-		Style.SetDisabled(FSlateRoundedBoxBrush(AMUIH_ButtonPressed, AMUIH_Radius));
-		Style.SetNormalPadding(FMargin(10.f, 4.f));
-		Style.SetPressedPadding(FMargin(10.f, 5.f, 10.f, 3.f));
+		Style.SetNormal(FSlateColorBrush(Color));
+		Style.SetHovered(FSlateColorBrush(AMUIH_Shade(Color, 1.6f)));
+		Style.SetPressed(FSlateColorBrush(AMUIH_Shade(Color, 0.7f)));
+		Style.SetDisabled(FSlateColorBrush(AMUIH_Shade(Color, 0.6f)));
+		Style.SetNormalPadding(FMargin(12.f, 7.f));
+		Style.SetPressedPadding(FMargin(12.f, 8.f, 12.f, 6.f));
 		return Style;
+	}
+
+	UImage* AMUIH_Icon(UWidgetTree* Tree, const TCHAR* Path, float Size)
+	{
+		UImage* Image = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, Path))
+		{
+			Image->SetBrushFromTexture(Texture, false);
+		}
+		Image->SetDesiredSizeOverride(FVector2D(Size, Size));
+		return Image;
 	}
 }
 
@@ -51,23 +71,60 @@ UTextBlock* AMUI::MakeText(UWidgetTree* Tree, const FString& Text, const FSlateF
 	return TextBlock;
 }
 
-UButton* AMUI::MakeButton(UWidgetTree* Tree, const FString& Label, const FSlateFontInfo& Font, bool bAccent, UTextBlock** OutLabel)
+UButton* AMUI::MakeButton(UWidgetTree* Tree, const FString& Label, const FSlateFontInfo& Font, const FLinearColor& Color, UTextBlock** OutLabel)
 {
-	UButton* Button = Tree->ConstructWidget<UButton>(UButton::StaticClass());
-	Button->SetStyle(AMUIH_ButtonStyle(bAccent));
+	UButton* Widget = Tree->ConstructWidget<UButton>(UButton::StaticClass());
+	Widget->SetStyle(AMUIH_ButtonStyle(Color));
 	UTextBlock* LabelText = MakeText(Tree, Label, Font, White);
-	Button->AddChild(LabelText);
+	Widget->AddChild(LabelText);
 	if (OutLabel)
 	{
 		*OutLabel = LabelText;
 	}
-	return Button;
+	return Widget;
+}
+
+UButton* AMUI::MakeDropdown(UWidgetTree* Tree, const FSlateFontInfo& Font, UTextBlock*& OutLabel)
+{
+	UButton* Widget = Tree->ConstructWidget<UButton>(UButton::StaticClass());
+	Widget->SetStyle(AMUIH_ButtonStyle(Field));
+
+	UHorizontalBox* Content = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	OutLabel = MakeText(Tree, TEXT(""), Font, White);
+	if (UHorizontalBoxSlot* LabelSlot = Content->AddChildToHorizontalBox(OutLabel))
+	{
+		LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		LabelSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UHorizontalBoxSlot* ArrowSlot = Content->AddChildToHorizontalBox(AMUIH_Icon(Tree, AMUIH_DropArrowPath, 14.f)))
+	{
+		ArrowSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		ArrowSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(Widget->AddChild(Content)))
+	{
+		ContentSlot->SetHorizontalAlignment(HAlign_Fill);
+		ContentSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	return Widget;
+}
+
+UButton* AMUI::MakeRemoveButton(UWidgetTree* Tree, const FSlateFontInfo& Font)
+{
+	UButton* Widget = Tree->ConstructWidget<UButton>(UButton::StaticClass());
+	FButtonStyle Style = AMUIH_ButtonStyle(Field);
+	Style.SetNormalPadding(FMargin(8.f, 7.f));
+	Style.SetPressedPadding(FMargin(8.f, 8.f, 8.f, 6.f));
+	Widget->SetStyle(Style);
+	Widget->AddChild(AMUIH_Icon(Tree, AMUIH_TrashPath, 16.f));
+	Widget->SetToolTipText(FText::FromString(TEXT("Remove")));
+	return Widget;
 }
 
 UBorder* AMUI::MakeBox(UWidgetTree* Tree, const FLinearColor& Color, const FMargin& Padding)
 {
 	UBorder* Box = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
-	Box->SetBrush(FSlateRoundedBoxBrush(Color, AMUIH_Radius));
+	Box->SetBrush(FSlateColorBrush(Color));
 	Box->SetPadding(Padding);
 	return Box;
 }

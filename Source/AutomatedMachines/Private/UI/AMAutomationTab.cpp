@@ -234,116 +234,113 @@ void UAMAutomationTab::BuildLayout()
 		return;
 	}
 
+	// No background of our own: the window's see-through background shows, like on the other tabs.
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMRoot"));
 	Root->SetWidthOverride(AMAT_PageWidth);
-	Root->SetMinDesiredHeight(520.f);
-	Root->SetMaxDesiredHeight(700.f);
+	Root->SetMinDesiredHeight(560.f);
 	WidgetTree->RootWidget = Root;
 
-	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AMBackground"));
-	Background->SetBrushColor(AMUI::PageBackground);
-	Background->SetPadding(FMargin(24.f, 20.f));
-	Root->AddChild(Background);
-
-	// [ title, the two tables ] [ info panel ]
-	UHorizontalBox* Main = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMMain"));
-	Background->AddChild(Main);
-
 	mContentBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMContent"));
-	if (UHorizontalBoxSlot* ContentSlot = Main->AddChildToHorizontalBox(mContentBox))
-	{
-		ContentSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-	}
+	UBorder* Padding = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AMPadding"));
+	Padding->SetBrushColor(FLinearColor::Transparent);
+	Padding->SetPadding(FMargin(16.f, 14.f));
+	Padding->AddChild(mContentBox);
+	Root->AddChild(Padding);
 
-	auto AddTo = [](UVerticalBox* Box, UWidget* Widget, float TopPadding)
+	auto AddTo = [](UVerticalBox* Box, UWidget* Widget, float TopPadding, bool bFill = false)
 	{
 		if (UVerticalBoxSlot* RowSlot = Box->AddChildToVerticalBox(Widget))
 		{
 			RowSlot->SetPadding(FMargin(0.f, TopPadding, 0.f, 0.f));
-			RowSlot->SetHorizontalAlignment(HAlign_Left);
+			RowSlot->SetHorizontalAlignment(bFill ? HAlign_Fill : HAlign_Left);
+			if (bFill)
+			{
+				RowSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			}
 		}
 	};
 
-	AddTo(mContentBox, MakeText(TEXT("AUTOMATION"), 26, AMUI::Orange), 0.f);
-	mMachineText = MakeText(TEXT(""), 16, AMUI::Grey);
-	AddTo(mContentBox, mMachineText, 2.f);
+	// One line on top, like "Locomotive should stay at the station until..."
+	mMachineText = MakeText(TEXT(""), 15, AMUI::White);
+	AddTo(mContentBox, mMachineText, 0.f);
 	mNoticeText = MakeText(TEXT(""), 14, AMUI::Orange);
 	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
-	AddTo(mContentBox, mNoticeText, 10.f);
+	AddTo(mContentBox, mNoticeText, 6.f);
 
-	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("AMScroll"));
-	if (UVerticalBoxSlot* ScrollSlot = mContentBox->AddChildToVerticalBox(Scroll))
-	{
-		ScrollSlot->SetPadding(FMargin(0.f, 18.f, 0.f, 0.f));
-		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-	}
-	UHorizontalBox* Tables = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMTables"));
-	Scroll->AddChild(Tables);
+	UHorizontalBox* Panels = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMPanels"));
+	AddTo(mContentBox, Panels, 14.f, true);
 
-	// One table: title, explanation, column names, rows, add button.
-	auto MakeTable = [this, &AddTo](const FString& Title, const FString& Explanation,
-		const FString& FirstColumn, float FirstWidth, const FString& SecondColumn, float SecondWidth,
-		const FString& AddLabel, TObjectPtr<UVerticalBox>& OutRows) -> UVerticalBox*
+	// A panel: title above; inside, column names, the rows (scrolling), and the add button at the bottom.
+	auto MakePanel = [this, &AddTo, Panels](const FString& Title, const FString& FirstColumn, float FirstWidth,
+		const FString& SecondColumn, float SecondWidth, const FString& AddLabel, TObjectPtr<UVerticalBox>& OutRows,
+		float LeftPadding) -> UButton*
 	{
-		UVerticalBox* Table = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		AddTo(Table, MakeText(Title, 18, AMUI::White), 0.f);
-		AddTo(Table, MakeText(Explanation, 12, AMUI::Grey), 2.f);
+		UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		if (UHorizontalBoxSlot* ColumnSlot = Panels->AddChildToHorizontalBox(Column))
+		{
+			ColumnSlot->SetPadding(FMargin(LeftPadding, 0.f, 0.f, 0.f));
+			ColumnSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+		AddTo(Column, MakeText(Title, 15, AMUI::White), 0.f);
+
+		UBorder* Body = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(8.f));
+		AddTo(Column, Body, 8.f, true);
+		UVerticalBox* Inside = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		Body->AddChild(Inside);
 
 		UHorizontalBox* Header = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		auto AddHeader = [this, Header](const FString& Name, float Width, float LeftPadding)
+		auto AddHeader = [this, Header](const FString& Name, float Width, float HeaderLeft)
 		{
 			USizeBox* Cell = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 			Cell->SetWidthOverride(Width);
-			Cell->AddChild(MakeText(Name, 12, AMUI::Grey));
+			Cell->AddChild(MakeText(Name, 13, AMUI::Grey));
 			if (UHorizontalBoxSlot* CellSlot = Header->AddChildToHorizontalBox(Cell))
 			{
-				CellSlot->SetPadding(FMargin(LeftPadding, 0.f, 0.f, 0.f));
+				CellSlot->SetPadding(FMargin(HeaderLeft, 0.f, 0.f, 0.f));
 			}
 		};
-		AddHeader(FirstColumn, FirstWidth, 0.f);
-		AddHeader(SecondColumn, SecondWidth, AMRowLayout::Gap);
-		AddTo(Table, Header, 14.f);
+		AddHeader(FirstColumn, FirstWidth, 2.f);
+		AddHeader(SecondColumn, SecondWidth, AMRowLayout::Gap - 2.f);
+		AddTo(Inside, Header, 0.f);
 
+		UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+		AddTo(Inside, Scroll, 6.f, true);
 		OutRows = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		AddTo(Table, OutRows, 0.f);
+		Scroll->AddChild(OutRows);
 
-		UButton* AddButton = AMUI::MakeButton(WidgetTree, AddLabel, GetGameFont(), false, nullptr);
-		TrackText(Cast<UTextBlock>(AddButton->GetChildAt(0)), 14);
-		AddTo(Table, AddButton, 12.f);
-		return Table;
+		UButton* AddButton = AMUI::MakeButton(WidgetTree, AddLabel, GetGameFont(), AMUI::Button, nullptr);
+		TrackText(Cast<UTextBlock>(AddButton->GetChildAt(0)), 15);
+		if (UVerticalBoxSlot* AddSlot = Inside->AddChildToVerticalBox(AddButton))
+		{
+			AddSlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+			AddSlot->SetHorizontalAlignment(HAlign_Fill);
+		}
+		return AddButton;
 	};
 
-	UVerticalBox* Alarms = MakeTable(TEXT("ALARMS"), TEXT("This machine rings an alarm when its status changes."),
-		TEXT("ALARM NAME"), AMRowLayout::AlarmName, TEXT("MACHINE EVENT"), AMRowLayout::MachineEvent,
-		TEXT("+ Add alarm"), mFireRowsBox);
-	Cast<UButton>(Alarms->GetChildAt(Alarms->GetChildrenCount() - 1))->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
-	Tables->AddChildToHorizontalBox(Alarms);
-
-	UVerticalBox* Actions = MakeTable(TEXT("ACTIONS"), TEXT("What this machine does when an alarm rings."),
-		TEXT("DO"), AMRowLayout::Do, TEXT("ON ALARM"), AMRowLayout::OnAlarm,
-		TEXT("+ Add action"), mReactionRowsBox);
-	Cast<UButton>(Actions->GetChildAt(Actions->GetChildrenCount() - 1))->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
-	if (UHorizontalBoxSlot* ActionsSlot = Tables->AddChildToHorizontalBox(Actions))
-	{
-		ActionsSlot->SetPadding(FMargin(28.f, 0.f, 0.f, 0.f));
-	}
+	MakePanel(TEXT("Alarms"), TEXT("Alarm Name"), AMRowLayout::AlarmName, TEXT("Machine Event"), AMRowLayout::MachineEvent,
+		TEXT("+ Add alarm"), mFireRowsBox, 0.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
+	MakePanel(TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
+		TEXT("+ Add action"), mReactionRowsBox, 12.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
 
 	// Info panel: explains the machine event, action or alarm last picked or pointed at.
+	UVerticalBox* InfoColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMInfoColumn"));
 	USizeBox* InfoSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMInfoSize"));
 	InfoSize->SetWidthOverride(AMAT_InfoWidth);
-	if (UHorizontalBoxSlot* InfoSlot = Main->AddChildToHorizontalBox(InfoSize))
+	InfoSize->AddChild(InfoColumn);
+	if (UHorizontalBoxSlot* InfoSlot = Panels->AddChildToHorizontalBox(InfoSize))
 	{
-		InfoSlot->SetPadding(FMargin(20.f, 0.f, 0.f, 0.f));
+		InfoSlot->SetPadding(FMargin(12.f, 0.f, 0.f, 0.f));
 		InfoSlot->SetVerticalAlignment(VAlign_Fill);
 	}
-	UBorder* InfoBox = AMUI::MakeBox(WidgetTree, AMUI::FieldBackground, FMargin(16.f, 14.f));
-	InfoSize->AddChild(InfoBox);
+	AddTo(InfoColumn, MakeText(TEXT("Info"), 15, AMUI::White), 0.f);
+	UBorder* InfoBox = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(14.f, 12.f));
+	AddTo(InfoColumn, InfoBox, 8.f, true);
 	UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMInfo"));
 	InfoBox->AddChild(Info);
-	AddTo(Info, MakeText(TEXT("INFO"), 12, AMUI::Grey), 0.f);
 	mInfoTitle = MakeText(TEXT(""), 17, AMUI::Orange);
-	AddTo(Info, mInfoTitle, 6.f);
-	mInfoBody = MakeText(TEXT(""), 13, AMUI::White);
+	AddTo(Info, mInfoTitle, 0.f);
+	mInfoBody = MakeText(TEXT(""), 14, AMUI::White);
 	if (UVerticalBoxSlot* BodySlot = Info->AddChildToVerticalBox(mInfoBody))
 	{
 		BodySlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
@@ -427,11 +424,11 @@ void UAMAutomationTab::RebuildRows()
 	{
 		if (UVerticalBoxSlot* RowSlot = Box->AddChildToVerticalBox(Widget))
 		{
-			RowSlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+			RowSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 			RowSlot->SetHorizontalAlignment(HAlign_Left);
 		}
 	};
-	const FSlateFontInfo HintFont = AMUI::SizedFont(GetGameFont(), 13);
+	const FSlateFontInfo HintFont = AMUI::SizedFont(GetGameFont(), 14);
 
 	for (int32 Index = 0; Index < mFires.Num(); ++Index)
 	{
@@ -592,7 +589,9 @@ void UAMAutomationTab::UpdateMachineName()
 	const FTextProperty* NameProperty = Machine ? FindFProperty<FTextProperty>(Machine->GetClass(), AMAT_MachineNameProperty) : nullptr;
 	if (mMachineText && NameProperty)
 	{
-		mMachineText->SetText(NameProperty->GetPropertyValue_InContainer(Machine));
+		const FString Name = NameProperty->GetPropertyValue_InContainer(Machine).ToString();
+		mMachineText->SetText(FText::FromString(FString::Printf(
+			TEXT("This %s rings alarms when its status changes, and does actions when alarms ring."), *Name)));
 	}
 }
 
