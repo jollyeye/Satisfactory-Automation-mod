@@ -34,6 +34,12 @@ private:
 	/** The window frame inside it (Widget_Window_DarkMode_C), which owns the tab list. */
 	UObject* GetWindowFrame() const;
 
+	/** The machine this window is for (the window's mInteractObject), e.g. a Smelter. */
+	UObject* GetMachine() const;
+
+	/** Shows the machine's name under the title. */
+	void UpdateMachineName();
+
 	/** Builds the page's widgets (placeholder content for now). */
 	void BuildLayout();
 

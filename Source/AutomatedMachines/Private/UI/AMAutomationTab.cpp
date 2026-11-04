@@ -19,7 +19,8 @@ namespace
 	const FName AMAT_SlidingTabsProperty(TEXT("Widget_SlidingTabs"));
 	const FName AMAT_TabsProperty(TEXT("mTabs"));
 	const FName AMAT_TabClickedProperty(TEXT("OnTabButtonClicked"));
-	const FName AMAT_TitleProperty(TEXT("mTitleText"));
+	const FName AMAT_MachineProperty(TEXT("mInteractObject"));
+	const FName AMAT_MachineNameProperty(TEXT("mDisplayName"));
 	const FName AMAT_TabsContainerProperty(TEXT("Widget_TabsContainer"));
 	const FName AMAT_ButtonsPanelProperty(TEXT("mContainer"));
 	const FName AMAT_IndexOffsetProperty(TEXT("mIndexOffset"));
@@ -209,7 +210,7 @@ void UAMAutomationTab::BuildLayout()
 	WidgetTree->RootWidget = Root;
 
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AMBackground"));
-	Background->SetBrushColor(FLinearColor(0.015f, 0.015f, 0.018f, 0.92f));
+	Background->SetBrushColor(FLinearColor(0.018f, 0.018f, 0.02f, 1.f));
 	Background->SetPadding(FMargin(28.f, 24.f));
 	Root->AddChild(Background);
 
@@ -279,8 +280,26 @@ void UAMAutomationTab::AddTabEntry()
 		TabIndex, PageIndex, GetParent() ? *GetParent()->GetName() : TEXT("nothing"));
 }
 
+UObject* UAMAutomationTab::GetMachine() const
+{
+	return AMAT_GetObject(GetHostWindow(), AMAT_MachineProperty);
+}
+
+void UAMAutomationTab::UpdateMachineName()
+{
+	const UObject* Machine = GetMachine();
+	const FTextProperty* NameProperty = Machine ? FindFProperty<FTextProperty>(Machine->GetClass(), AMAT_MachineNameProperty) : nullptr;
+	if (mMachineText && NameProperty)
+	{
+		mMachineText->SetText(NameProperty->GetPropertyValue_InContainer(Machine));
+	}
+}
+
 void UAMAutomationTab::EnsureTabButtonExists()
 {
+	// Also a good moment to read the machine: the window has it by now.
+	UpdateMachineName();
+
 	UObject* Frame = GetWindowFrame();
 	UObject* TabsContainer = AMAT_GetObject(Frame, AMAT_TabsContainerProperty);
 	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
@@ -351,14 +370,7 @@ void UAMAutomationTab::NativeConstruct()
 	}
 
 	ApplyGameFonts();
-
-	if (mMachineText && Frame)
-	{
-		if (const FTextProperty* TitleProperty = FindFProperty<FTextProperty>(Frame->GetClass(), AMAT_TitleProperty))
-		{
-			mMachineText->SetText(TitleProperty->GetPropertyValue_InContainer(Frame));
-		}
-	}
+	UpdateMachineName();
 }
 
 void UAMAutomationTab::NativeDestruct()
