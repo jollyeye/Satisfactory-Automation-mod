@@ -157,6 +157,16 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	}
 
 	const int32 Index = mMachines.IndexOfByPredicate([Machine](const FAMMachineRules& Entry) { return Entry.Machine == Machine; });
+
+	// Did the alarms change? (Editing only actions or options must not ring the alarms again.)
+	bool bFiresChanged = Index == INDEX_NONE || mMachines[Index].Fires.Num() != NewRules.Fires.Num();
+	for (int32 RuleIndex = 0; !bFiresChanged && RuleIndex < NewRules.Fires.Num(); ++RuleIndex)
+	{
+		const FAMFireRule& Old = mMachines[Index].Fires[RuleIndex];
+		const FAMFireRule& New = NewRules.Fires[RuleIndex];
+		bFiresChanged = Old.Event != New.Event || Old.Condition != New.Condition || Old.Value != New.Value;
+	}
+
 	if (NewRules.IsEmpty())
 	{
 		if (Index != INDEX_NONE)
@@ -173,8 +183,11 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 		mMachines.Add(NewRules);
 	}
 
-	// Conditions of the new rules start unknown: one that is already true fires at the next check.
-	mLastConditionValues.Remove(TWeakObjectPtr<AFGBuildable>(Machine));
+	// Conditions of new alarms start unknown: one that is already true rings at the next check.
+	if (bFiresChanged)
+	{
+		mLastConditionValues.Remove(TWeakObjectPtr<AFGBuildable>(Machine));
+	}
 
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Rules of %s: %d fire rules, %d reactions, pass wrong items %s"),
 		*AMAS_Describe(Machine), NewRules.Fires.Num(), NewRules.Reactions.Num(), Options.bPassWrongItems ? TEXT("on") : TEXT("off"));
@@ -612,12 +625,25 @@ bool AAMAutomationSubsystem::IsOutputFull(const AFGBuildableFactory* Factory)
 	{
 		return false;
 	}
-	TArray<FInventoryStack> Products;
+	// Each product goes in its own slot. A slot holding a wrong item that is passing through
+	// ("Pass wrong items through") counts as empty: it leaves on the next item the belt takes.
+	const UFGInventoryComponent* Output = Manufacturer->GetOutputInventory();
 	for (const FItemAmount& Product : UFGRecipe::GetProducts(Manufacturer->GetCurrentRecipe()))
 	{
-		Products.Emplace(Product.Amount, Product.ItemClass);
+		for (int32 SlotIndex = 0; SlotIndex < Output->GetSizeLinear(); ++SlotIndex)
+		{
+			FInventoryStack Stack;
+			if (Output->GetStackFromIndex(SlotIndex, Stack) && Stack.HasItems() && Stack.Item.GetItemClass() == Product.ItemClass)
+			{
+				if (Stack.NumItems + Product.Amount > Output->GetSlotSize(SlotIndex, Product.ItemClass))
+				{
+					return true;
+				}
+				break;
+			}
+		}
 	}
-	return Products.Num() > 0 && !Manufacturer->GetOutputInventory()->HasEnoughSpaceForStacks(Products);
+	return false;
 }
 
 void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule)
