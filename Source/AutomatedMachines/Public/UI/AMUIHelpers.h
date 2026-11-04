@@ -20,7 +20,11 @@ namespace AMUI
 	extern const FLinearColor Orange;
 	extern const FLinearColor White;
 	extern const FLinearColor Grey;
-	/** List areas (slightly see-through, like the game's pages). */
+	/** Page background, like the recipe tab's list area (dark, a little see-through). */
+	extern const FLinearColor PageBackground;
+	/** Side panel, like the recipe tab's info panel (lighter, a little see-through). */
+	extern const FLinearColor SidePanel;
+	/** List areas. */
 	extern const FLinearColor PanelBody;
 	/** Fields and dropdowns. */
 	extern const FLinearColor Field;

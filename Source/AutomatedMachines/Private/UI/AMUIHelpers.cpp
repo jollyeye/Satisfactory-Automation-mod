@@ -7,6 +7,7 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
+#include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
@@ -15,7 +16,9 @@
 const FLinearColor AMUI::Orange(FColor(250, 149, 73));
 const FLinearColor AMUI::White(FColor(255, 255, 255));
 const FLinearColor AMUI::Grey(FColor(170, 170, 170));
-const FLinearColor AMUI::PanelBody(FColor(67, 67, 68, 215));
+const FLinearColor AMUI::PageBackground(FColor(15, 15, 15, 240));
+const FLinearColor AMUI::SidePanel(FColor(56, 57, 61, 235));
+const FLinearColor AMUI::PanelBody(FColor(67, 67, 68, 230));
 const FLinearColor AMUI::Field(FColor(87, 87, 87));
 const FLinearColor AMUI::Button(FColor(102, 102, 103));
 const FLinearColor AMUI::Option(FColor(110, 110, 111));
@@ -116,7 +119,15 @@ UButton* AMUI::MakeRemoveButton(UWidgetTree* Tree, const FSlateFontInfo& Font)
 	Style.SetNormalPadding(FMargin(8.f, 7.f));
 	Style.SetPressedPadding(FMargin(8.f, 8.f, 8.f, 6.f));
 	Widget->SetStyle(Style);
-	Widget->AddChild(AMUIH_Icon(Tree, AMUIH_TrashPath, 16.f));
+	USizeBox* IconSize = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	IconSize->SetWidthOverride(16.f);
+	IconSize->SetHeightOverride(16.f);
+	IconSize->AddChild(AMUIH_Icon(Tree, AMUIH_TrashPath, 16.f));
+	if (UButtonSlot* IconSlot = Cast<UButtonSlot>(Widget->AddChild(IconSize)))
+	{
+		IconSlot->SetHorizontalAlignment(HAlign_Center);
+		IconSlot->SetVerticalAlignment(VAlign_Center);
+	}
 	Widget->SetToolTipText(FText::FromString(TEXT("Remove")));
 	return Widget;
 }

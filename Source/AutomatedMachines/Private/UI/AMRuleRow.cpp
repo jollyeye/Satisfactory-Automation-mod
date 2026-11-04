@@ -13,6 +13,8 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 namespace
 {
@@ -302,7 +304,19 @@ void UAMRuleRow::CommitAlarmName(const FString& Typed)
 	const FString Name = AMRules::NormalizeEventName(Typed);
 	if (mAlarmNameText && mAlarmNameText->GetText().ToString() != Name)
 	{
+		// Not now: while the field is still committing it ignores a new text. One frame later.
 		SetAlarmNameText(Name);
+		if (UWorld* World = mTab->GetWorld())
+		{
+			TWeakObjectPtr<UAMRuleRow> WeakThis(this);
+			World->GetTimerManager().SetTimerForNextTick([WeakThis, Name]()
+			{
+				if (UAMRuleRow* Row = WeakThis.Get())
+				{
+					Row->SetAlarmNameText(Name);
+				}
+			});
+		}
 	}
 	if (Rule->Event != Name)
 	{

@@ -42,9 +42,15 @@ namespace
 	/** Made by Tools/create_assets.py. */
 	const TCHAR* const AMAT_TabIconPath = TEXT("/AutomatedMachines/Icons/T_AM_TabIcon.T_AM_TabIcon");
 
-	/** Width of our page: about the Production page plus the inventory panel it replaces. */
-	constexpr float AMAT_PageWidth = 1230.f;
-	constexpr float AMAT_InfoWidth = 300.f;
+	/** Our page: about the Production page plus the inventory panel it replaces. */
+	constexpr float AMAT_PagePadding = 16.f;
+	constexpr float AMAT_PanelGap = 12.f;
+	constexpr float AMAT_PanelPadding = 8.f;
+	/** Fixed panel widths (the rows' cells plus padding), so adding a row never moves anything. */
+	constexpr float AMAT_AlarmsWidth = AMRowLayout::AlarmName + AMRowLayout::MachineEvent + AMRowLayout::Remove + 2 * AMRowLayout::Gap + 2 * AMAT_PanelPadding;
+	constexpr float AMAT_ActionsWidth = AMRowLayout::Do + AMRowLayout::OnAlarm + AMRowLayout::Remove + 2 * AMRowLayout::Gap + 2 * AMAT_PanelPadding;
+	/** The side panel, like the recipe tab's info panel. */
+	constexpr float AMAT_InfoWidth = 340.f;
 
 	const TCHAR* const AMAT_TabTitle = TEXT("Automation");
 
@@ -234,18 +240,20 @@ void UAMAutomationTab::BuildLayout()
 		return;
 	}
 
-	// No background of our own: the window's see-through background shows, like on the other tabs.
+	// Like the recipe tab: a dark, slightly see-through page with a lighter side panel on the right.
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMRoot"));
-	Root->SetWidthOverride(AMAT_PageWidth);
 	Root->SetMinDesiredHeight(560.f);
 	WidgetTree->RootWidget = Root;
+	UHorizontalBox* Page = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMPage"));
+	Root->AddChild(Page);
 
 	mContentBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMContent"));
-	UBorder* PageBorder = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AMPadding"));
-	PageBorder->SetBrushColor(FLinearColor::Transparent);
-	PageBorder->SetPadding(FMargin(16.f, 14.f));
+	UBorder* PageBorder = AMUI::MakeBox(WidgetTree, AMUI::PageBackground, FMargin(AMAT_PagePadding, 14.f));
 	PageBorder->AddChild(mContentBox);
-	Root->AddChild(PageBorder);
+	if (UHorizontalBoxSlot* PageSlot = Page->AddChildToHorizontalBox(PageBorder))
+	{
+		PageSlot->SetVerticalAlignment(VAlign_Fill);
+	}
 
 	auto AddTo = [](UVerticalBox* Box, UWidget* Widget, float TopPadding, bool bFill = false)
 	{
@@ -273,17 +281,20 @@ void UAMAutomationTab::BuildLayout()
 	// A panel: title above; inside, column names, the rows (scrolling), and the add button at the bottom.
 	auto MakePanel = [this, &AddTo, Panels](const FString& Title, const FString& FirstColumn, float FirstWidth,
 		const FString& SecondColumn, float SecondWidth, const FString& AddLabel, TObjectPtr<UVerticalBox>& OutRows,
-		float LeftPadding) -> UButton*
+		float LeftPadding, float PanelWidth) -> UButton*
 	{
 		UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		if (UHorizontalBoxSlot* ColumnSlot = Panels->AddChildToHorizontalBox(Column))
+		USizeBox* ColumnSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		ColumnSize->SetWidthOverride(PanelWidth);
+		ColumnSize->AddChild(Column);
+		if (UHorizontalBoxSlot* ColumnSlot = Panels->AddChildToHorizontalBox(ColumnSize))
 		{
 			ColumnSlot->SetPadding(FMargin(LeftPadding, 0.f, 0.f, 0.f));
 			ColumnSlot->SetVerticalAlignment(VAlign_Fill);
 		}
 		AddTo(Column, MakeText(Title, 15, AMUI::White), 0.f);
 
-		UBorder* Body = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(8.f));
+		UBorder* Body = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(AMAT_PanelPadding));
 		AddTo(Column, Body, 8.f, true);
 		UVerticalBox* Inside = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Body->AddChild(Inside);
@@ -319,32 +330,38 @@ void UAMAutomationTab::BuildLayout()
 	};
 
 	MakePanel(TEXT("Alarms"), TEXT("Alarm Name"), AMRowLayout::AlarmName, TEXT("Machine Event"), AMRowLayout::MachineEvent,
-		TEXT("+ Add alarm"), mFireRowsBox, 0.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
+		TEXT("+ Add alarm"), mFireRowsBox, 0.f, AMAT_AlarmsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
 	MakePanel(TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
-		TEXT("+ Add action"), mReactionRowsBox, 12.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+		TEXT("+ Add action"), mReactionRowsBox, AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
 
-	// Info panel: explains the machine event, action or alarm last picked or pointed at.
-	UVerticalBox* InfoColumn = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMInfoColumn"));
+	// Side panel, full height on the right like the recipe tab's: explains the machine event,
+	// action or alarm last picked or pointed at.
 	USizeBox* InfoSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMInfoSize"));
 	InfoSize->SetWidthOverride(AMAT_InfoWidth);
-	InfoSize->AddChild(InfoColumn);
-	if (UHorizontalBoxSlot* InfoSlot = Panels->AddChildToHorizontalBox(InfoSize))
+	if (UHorizontalBoxSlot* InfoSlot = Page->AddChildToHorizontalBox(InfoSize))
 	{
-		InfoSlot->SetPadding(FMargin(12.f, 0.f, 0.f, 0.f));
 		InfoSlot->SetVerticalAlignment(VAlign_Fill);
 	}
-	AddTo(InfoColumn, MakeText(TEXT("Info"), 15, AMUI::White), 0.f);
-	UBorder* InfoBox = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(14.f, 12.f));
-	AddTo(InfoColumn, InfoBox, 8.f, true);
+	UBorder* InfoBox = AMUI::MakeBox(WidgetTree, AMUI::SidePanel, FMargin(18.f, 16.f));
+	InfoSize->AddChild(InfoBox);
 	UVerticalBox* Info = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMInfo"));
 	InfoBox->AddChild(Info);
-	mInfoTitle = MakeText(TEXT(""), 17, AMUI::Orange);
-	AddTo(Info, mInfoTitle, 0.f);
-	mInfoBody = MakeText(TEXT(""), 14, AMUI::White);
-	if (UVerticalBoxSlot* BodySlot = Info->AddChildToVerticalBox(mInfoBody))
+	auto AddInfo = [Info](UWidget* Widget, float TopPadding)
 	{
-		BodySlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
-	}
+		if (UVerticalBoxSlot* InfoRowSlot = Info->AddChildToVerticalBox(Widget))
+		{
+			InfoRowSlot->SetPadding(FMargin(0.f, TopPadding, 0.f, 0.f));
+			InfoRowSlot->SetHorizontalAlignment(HAlign_Fill);
+		}
+	};
+	UTextBlock* InfoLabel = MakeText(TEXT("Info"), 13, AMUI::White);
+	InfoLabel->SetJustification(ETextJustify::Center);
+	AddInfo(InfoLabel, 0.f);
+	AddInfo(AMUI::MakeBox(WidgetTree, AMUI::Grey, FMargin(0.f, 0.5f)), 6.f);
+	mInfoTitle = MakeText(TEXT(""), 20, AMUI::White);
+	AddInfo(mInfoTitle, 14.f);
+	mInfoBody = MakeText(TEXT(""), 14, AMUI::White);
+	AddInfo(mInfoBody, 12.f);
 	ShowDefaultInfo();
 }
 
