@@ -61,7 +61,7 @@ Everything that has a switch or an internal state that can change:
 - railway signals
 - power switches and other switchable buildings
 
-**We build one machine type at a time.** The first one proves the whole system (events, UI, save, multiplayer); the others then reuse it.
+**We build one machine type at a time**, starting with **the Smelter and the Constructor**. Both are the same kind of building in the game's code (manufacturers), so one implementation proves the whole system (events, UI, save, multiplayer) on two machines, and a Smelter → Constructor chain can be tested at once. The others then reuse it.
 
 ### UI
 
@@ -84,10 +84,12 @@ If a player stops using the mod, **their machines must stay exactly where they a
 In a crowd of machines the player must see at a glance which ones are automated, cheaply:
 
 - The marker is **never saved**. It is created when the world loads, from our own data, and removed when a machine loses its last rule. Without the mod there is simply no marker.
+- **Look: a flat Wi-Fi icon** that always faces the camera, on every axis (also when looking from above or below). **White for now**; the colours come later.
 - **One shared instanced mesh** for all markers (one instance per automated machine), not one actor per machine. Thousands of markers then cost about one draw call.
-- It sits in the same place on every machine of a type (position per machine type, e.g. on the roof), and should be readable from a distance.
+- How it stays cheap: the mesh is a single flat square; the material turns it towards the camera in the vertex shader (camera-facing billboard), so it works with instancing and nothing moves on the CPU. The Wi-Fi shape is a texture with transparency on that square, unlit so it reads in the dark.
+- It floats in the same place above every machine of a type (position per machine type), and should be readable from a distance.
 - Optional later: the instance colour shows the state (idle, just fired, paused by automation), through per-instance data, still without saving anything.
-- The mesh is made in code or by our asset script, so no external 3D tools are needed.
+- The square mesh and the Wi-Fi texture are made by our scripts (Python, like Road Maker's icons), so no external 3D tools are needed.
 
 ### Code approach (inspired by Road Maker, not copied)
 
@@ -98,12 +100,12 @@ In a crowd of machines the player must see at a glance which ones are automated,
 
 ## Open questions
 
-1. **First machine:** which machine do we start with? Suggestion: the **Smelter** (one input, one output, simple statuses).
+1. ~~First machine~~ — decided: the Smelter and the Constructor.
 2. **Where in the machine window:** a new tab, or a panel inside the existing window? Depends on what the game's widget allows (see UI).
 3. ~~Multiple events~~ — decided: every row acts on its own (see "On a machine").
-4. **3D model:** shape (antenna, beacon, small box with lights...), size, and where it sits on each machine.
+4. **Marker:** shape decided (flat Wi-Fi icon facing the camera, white). Still open: size, height above each machine, and the state colours.
 5. **MAM research:** which research tree, which node, what cost.
-6. **Statuses and actions for the first machine:** the exact list (see below, to confirm against the game's code).
+6. **Statuses and actions for the Smelter and Constructor:** the exact list (see below, to confirm against the game's code).
 
 ## Candidate statuses and actions for production machines
 
