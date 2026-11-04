@@ -10,6 +10,8 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "UObject/UnrealType.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 namespace
 {
@@ -316,7 +318,8 @@ void UAMAutomationTab::NativeOnInitialized()
 {
 	Super::NativeOnInitialized();
 	BuildLayout();
-	AddTabEntry();
+	// The tab entry is added in NativeConstruct: while the window is still being initialized, its
+	// variables (the frame) are not set yet.
 }
 
 void UAMAutomationTab::NativeConstruct()
@@ -335,7 +338,18 @@ void UAMAutomationTab::NativeConstruct()
 		}
 	}
 
-	EnsureTabButtonExists();
+	if (TabIndex == INDEX_NONE)
+	{
+		AddTabEntry();
+	}
+
+	// The frame may make its buttons after us (then it picks up our entry by itself) or may have made
+	// them already: check one frame later, when all of the window has been constructed.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::EnsureTabButtonExists));
+	}
+
 	ApplyGameFonts();
 
 	if (mMachineText && Frame)

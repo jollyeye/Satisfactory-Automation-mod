@@ -75,8 +75,9 @@ Widget_Manufacturing_C
 
 - `AMWidgetHooks` registers an SML widget blueprint hook (from C++, no asset): `UAMAutomationTab` is added to `HorizontalBox_1` of `Widget_Manufacturing_C`, so it is the third page. Registered on the first world initialization.
 - `UAMAutomationTab` (C++ `UUserWidget`, widgets built in code):
-  - on initialize: builds its page and appends a copy of the last `mTabs` entry titled "Automation" (so the frame makes a third button);
-  - on construct: binds to the frame's `OnTabButtonClicked`; if the buttons were already made without ours, calls `InitTabs()` again; copies the game font from `mRecipeName`;
+  - on initialize: builds its page (the window's variables are not set yet at this point, so nothing else);
+  - on construct: appends a copy of the last `mTabs` entry titled "Automation"; binds to the frame's `OnTabButtonClicked`; one frame later, if the buttons were made without ours, calls `InitTabs()` again; copies the game font from `mRecipeName`;
+  - first test: the page is the third child of `HorizontalBox_1` and `SetupIndexOffset` gives it an offset by itself (2 -> -1805).
   - on its button: if `mIndexOffset` has no entry for our page, calls `SetupIndexOffset()`, else computes it from the previous page; then `SetActiveIndex(ours, true)` unless the game's handler already did.
   - Logs every step (`Automation tab: ...`).
 
