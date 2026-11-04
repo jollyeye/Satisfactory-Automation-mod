@@ -64,9 +64,24 @@ Widget_Manufacturing_C
             mInventorySizeBox                     the player inventory on the right
 ```
 
-- So a third tab is plausible: one more `Widget_SlidingTabs_Button_C` and one more page in `HorizontalBox_1`. How the Blueprint registers tabs and slides between them is not known yet; the second dump writes the variables and functions of the tab classes.
+- How the tabs work (second dump):
+  - The window frame `Widget_Window_DarkMode_C` has `mTabs`: an array of structs `{Texture_4_..., Text_5_...}` (icon + title). `InitTabs()` hands it to `Widget_TabsContainer_C` (`mButtons`), whose `GenerateButtons()` makes one `Widget_SlidingTabs_Button_C` per entry in `mContainer`.
+  - A click goes button `OnClicked` -> `TabsContainer.IfButtonClicked` -> `TabsContainer.OnButtonClicked(index)` -> frame `OnTabButtonClicked(index)` -> the window's handler.
+  - `Widget_SlidingTabs_C` holds the pages (`mHorizontalBox` = `HorizontalBox_1`), `mIndexOffset` (TMap page index -> x offset, e.g. 0 -> 0, 1 -> -956, made by `SetupIndexOffset()`), `mActiveIndex`, and `SetActiveIndex(Index, Animate)` slides.
+  - `Widget_Manufacturing_C` derives from `Widget_UseableBase_C` -> `UFGInteractWidget`; `mInteractObject` / `mBuildableManufacturer` is the machine. The frame's `mTitleText` is the machine name.
+  - Asset path: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Manufacturing.Widget_Manufacturing_C`.
 
-## Current step: learn how the tabs work
+## The Automation tab (first version)
+
+- `AMWidgetHooks` registers an SML widget blueprint hook (from C++, no asset): `UAMAutomationTab` is added to `HorizontalBox_1` of `Widget_Manufacturing_C`, so it is the third page. Registered on the first world initialization.
+- `UAMAutomationTab` (C++ `UUserWidget`, widgets built in code):
+  - on initialize: builds its page and appends a copy of the last `mTabs` entry titled "Automation" (so the frame makes a third button);
+  - on construct: binds to the frame's `OnTabButtonClicked`; if the buttons were already made without ours, calls `InitTabs()` again; copies the game font from `mRecipeName`;
+  - on its button: if `mIndexOffset` has no entry for our page, calls `SetupIndexOffset()`, else computes it from the previous page; then `SetActiveIndex(ours, true)` unless the game's handler already did.
+  - Logs every step (`Automation tab: ...`).
+
+
+## The widget dump
 
 `AMWidgetDump` now writes, once per session:
 
@@ -74,4 +89,4 @@ Widget_Manufacturing_C
 - for `Widget_Manufacturing_C`, `Widget_Window_DarkMode_C`, `Widget_TabsContainer_C`, `Widget_SlidingTabs_C` and `Widget_SlidingTabs_Button_C`: every Blueprint variable with its value, and every function with its parameters (between `===== reflection` and `===== end reflection`);
 - one line per new widget class seen (`new widget class: ...`), useful later for other buildings.
 
-Test: load a save, open a Smelter, switch between its two tabs once, close it, quit, and let Claude read the log.
+Test of the Automation tab: open a Smelter and a Constructor, click Automation, Production, Automation, check that the other tabs still work, quit, and let Claude read the log (`Automation tab:` lines).
