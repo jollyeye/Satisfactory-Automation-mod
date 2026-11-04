@@ -17,30 +17,34 @@ The name starts with "Automated" on purpose: players who come back after months 
 
 ### On a machine: two lists
 
-**Fire events (when... fire...)** — the machine watches its own status and fires an event when the status changes:
+Every row reads as a plain sentence: **what happens first, the cause second.** That reads more naturally for non-programmers than "when X, do Y".
+
+**Fire events (fire... when...)** — the machine watches its own status and fires an event when the status changes:
 
 ```
 AUTOMATION — Constructor (Iron Plate)
 
-When...                  Fire event
-[Output full      ▼]     [PLATES BACKED UP      ]
-[Output not full  ▼]     [PLATES FLOWING        ]
+Fire event                     when
+[PLATES BACKED UP      ]       [Output full      ▼]
+[PLATES FLOWING        ]       [Output not full  ▼]
 [+ add]
 ```
 
-**Reactions (on event... do...)** — the machine listens to events and acts:
+**Reactions (do... when...)** — the machine listens to events and acts:
 
 ```
 AUTOMATION — Smelter (Iron Ingot)
 
-On event                     Do
-[PLATES BACKED UP    ▼]      [Pause            ▼]
-[PLATES FLOWING      ▼]      [Resume           ▼]
+Do                     when event
+[Pause         ▼]      [PLATES BACKED UP    ▼]
+[Resume        ▼]      [PLATES FLOWING      ▼]
+[Pause         ▼]      [POWER LOW           ▼]
 [+ add]
 ```
 
-- A machine can have **any number** of fire events and reactions, and can react to **multiple events**.
-- No limit for now. If many automated machines cause lag, we add a limit or optimise later.
+- **Every row acts on its own.** In the example the Smelter pauses when `PLATES BACKED UP` fires *or* when `POWER LOW` fires; each row simply tries to pause it. Pausing a machine that is already paused does nothing.
+- No "all of these at once" combinations for now.
+- A machine can have **any number** of rows. No limit for now; if many automated machines cause lag, we add a limit or optimise later.
 
 ### Unlock
 
@@ -96,7 +100,7 @@ In a crowd of machines the player must see at a glance which ones are automated,
 
 1. **First machine:** which machine do we start with? Suggestion: the **Smelter** (one input, one output, simple statuses).
 2. **Where in the machine window:** a new tab, or a panel inside the existing window? Depends on what the game's widget allows (see UI).
-3. **Multiple events:** when a reaction lists several events, does it act on **any** of them, or only when **all** of them are true? (Possibly both, chosen per reaction.)
+3. ~~Multiple events~~ — decided: every row acts on its own (see "On a machine").
 4. **3D model:** shape (antenna, beacon, small box with lights...), size, and where it sits on each machine.
 5. **MAM research:** which research tree, which node, what cost.
 6. **Statuses and actions for the first machine:** the exact list (see below, to confirm against the game's code).
