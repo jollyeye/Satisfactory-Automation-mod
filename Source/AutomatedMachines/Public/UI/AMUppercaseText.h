@@ -16,4 +16,7 @@ public:
 	 * end (where the player was typing). Returns true if it changed the text. Call from OnTextChanged.
 	 */
 	bool MakeUppercase();
+
+	/** Shows this text now (on the Slate widget: works also right after the field was committed). */
+	void ShowText(const FString& Text);
 };

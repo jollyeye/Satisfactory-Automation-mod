@@ -1,5 +1,13 @@
 #include "Automation/AMTypes.h"
 
+namespace
+{
+	FText AMTY_Text(const TCHAR* Text)
+	{
+		return FText::FromString(Text);
+	}
+}
+
 FString AMRules::NormalizeEventName(const FString& Name)
 {
 	return Name.TrimStartAndEnd().ToUpper();
@@ -9,11 +17,20 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 {
 	switch (Condition)
 	{
-	case EAMCondition::OutputFull:      return FText::FromString(TEXT("Output full"));
-	case EAMCondition::OutputNotFull:   return FText::FromString(TEXT("Output not full"));
-	case EAMCondition::StartsProducing: return FText::FromString(TEXT("Starts producing"));
-	case EAMCondition::StopsProducing:  return FText::FromString(TEXT("Stops producing"));
-	default:                            return FText::GetEmpty();
+	case EAMCondition::OutputFull:        return AMTY_Text(TEXT("Output full"));
+	case EAMCondition::OutputNotFull:     return AMTY_Text(TEXT("Output not full"));
+	case EAMCondition::StartsProducing:   return AMTY_Text(TEXT("Starts producing"));
+	case EAMCondition::StopsProducing:    return AMTY_Text(TEXT("Stops producing"));
+	case EAMCondition::LosesPower:        return AMTY_Text(TEXT("Loses power"));
+	case EAMCondition::GetsPower:         return AMTY_Text(TEXT("Gets power"));
+	case EAMCondition::InputMissing:      return AMTY_Text(TEXT("Input missing"));
+	case EAMCondition::InputAvailable:    return AMTY_Text(TEXT("Input available"));
+	case EAMCondition::Paused:            return AMTY_Text(TEXT("Paused"));
+	case EAMCondition::Resumed:           return AMTY_Text(TEXT("Resumed"));
+	case EAMCondition::ProductivityBelow: return AMTY_Text(TEXT("Productivity below"));
+	case EAMCondition::ProductivityAbove: return AMTY_Text(TEXT("Productivity above"));
+	case EAMCondition::RecipeChanged:     return AMTY_Text(TEXT("Recipe changed"));
+	default:                              return FText::GetEmpty();
 	}
 }
 
@@ -21,9 +38,11 @@ FText AMRules::GetActionText(EAMAction Action)
 {
 	switch (Action)
 	{
-	case EAMAction::Pause:  return FText::FromString(TEXT("Pause"));
-	case EAMAction::Resume: return FText::FromString(TEXT("Resume"));
-	default:                return FText::GetEmpty();
+	case EAMAction::Pause:         return AMTY_Text(TEXT("Pause"));
+	case EAMAction::Resume:        return AMTY_Text(TEXT("Resume"));
+	case EAMAction::TogglePause:   return AMTY_Text(TEXT("Pause or resume"));
+	case EAMAction::SetClockSpeed: return AMTY_Text(TEXT("Set clock speed"));
+	default:                       return FText::GetEmpty();
 	}
 }
 
@@ -32,13 +51,31 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	switch (Condition)
 	{
 	case EAMCondition::OutputFull:
-		return FText::FromString(TEXT("Rings when the output slot fills up: there is no room for the next batch, so the machine is about to stop.\n\nUse it to pause the machines that feed this one, so they stop wasting power and resources."));
+		return AMTY_Text(TEXT("Rings when the output slot fills up: there is no room for the next batch, so the machine is about to stop.\n\nUse it to pause the machines that feed this one, so they stop wasting power and resources."));
 	case EAMCondition::OutputNotFull:
-		return FText::FromString(TEXT("Rings when the output slot has room again, for example after a belt or a player took items out.\n\nPair it with Output full to resume the machines you paused."));
+		return AMTY_Text(TEXT("Rings when the output slot has room again, for example after a belt or a player took items out.\n\nPair it with Output full to resume the machines you paused."));
 	case EAMCondition::StartsProducing:
-		return FText::FromString(TEXT("Rings when the machine starts making items: after it was paused, had no power, no input or a full output."));
+		return AMTY_Text(TEXT("Rings when the machine starts making items: after it was paused, had no power, no input or a full output."));
 	case EAMCondition::StopsProducing:
-		return FText::FromString(TEXT("Rings when the machine stops making items, for any reason: no input, full output, no power, or paused."));
+		return AMTY_Text(TEXT("Rings when the machine stops making items, for any reason: no input, full output, no power, or paused."));
+	case EAMCondition::LosesPower:
+		return AMTY_Text(TEXT("Rings when the machine has no power any more: its power circuit is down (a fuse blew, the generators stopped) or it was disconnected."));
+	case EAMCondition::GetsPower:
+		return AMTY_Text(TEXT("Rings when the machine has power again, e.g. after you reset a blown fuse or connected it."));
+	case EAMCondition::InputMissing:
+		return AMTY_Text(TEXT("Rings when the input slots do not have enough of an ingredient for the next batch, so the machine has to wait.\n\nUse it to start the machines that supply this one."));
+	case EAMCondition::InputAvailable:
+		return AMTY_Text(TEXT("Rings when the input slots have every ingredient for the next batch again."));
+	case EAMCondition::Paused:
+		return AMTY_Text(TEXT("Rings when the machine is put on standby: with its standby button, or by an action of an alarm."));
+	case EAMCondition::Resumed:
+		return AMTY_Text(TEXT("Rings when the machine is taken off standby: with its standby button, or by an action of an alarm."));
+	case EAMCondition::ProductivityBelow:
+		return AMTY_Text(TEXT("Rings when the productivity shown in the machine's window drops below the percentage you set: the machine spent too much time waiting for input, for room in the output, or for power."));
+	case EAMCondition::ProductivityAbove:
+		return AMTY_Text(TEXT("Rings when the productivity shown in the machine's window rises above the percentage you set."));
+	case EAMCondition::RecipeChanged:
+		return AMTY_Text(TEXT("Rings when someone picks another recipe for this machine."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -49,10 +86,55 @@ FText AMRules::GetActionDescription(EAMAction Action)
 	switch (Action)
 	{
 	case EAMAction::Pause:
-		return FText::FromString(TEXT("Puts the machine on standby, like its own standby button: it makes nothing and uses no power until it is resumed."));
+		return AMTY_Text(TEXT("Puts the machine on standby, like its own standby button: it makes nothing and uses no power until it is resumed."));
 	case EAMAction::Resume:
-		return FText::FromString(TEXT("Takes the machine off standby, so it works again. Does nothing if it is already running."));
+		return AMTY_Text(TEXT("Takes the machine off standby, so it works again. Does nothing if it is already running."));
+	case EAMAction::TogglePause:
+		return AMTY_Text(TEXT("Switches standby: a running machine is paused, a paused machine is resumed. Handy for one alarm that turns something on and off."));
+	case EAMAction::SetClockSpeed:
+		return AMTY_Text(TEXT("Sets the machine's clock speed to the percentage you choose, like the clock speed slider in its window. Above 100% needs Power Shards in the machine; the speed is limited to what its shards allow."));
 	default:
 		return FText::GetEmpty();
 	}
+}
+
+AMRules::FValueInfo AMRules::GetConditionValueInfo(EAMCondition Condition)
+{
+	FValueInfo Info;
+	if (Condition == EAMCondition::ProductivityBelow || Condition == EAMCondition::ProductivityAbove)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Productivity");
+		Info.Min = 0.f;
+		Info.Max = 100.f;
+		Info.Default = 50.f;
+	}
+	return Info;
+}
+
+AMRules::FValueInfo AMRules::GetActionValueInfo(EAMAction Action)
+{
+	FValueInfo Info;
+	if (Action == EAMAction::SetClockSpeed)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Clock speed");
+		Info.Min = 1.f;
+		Info.Max = 250.f;
+		Info.Default = 100.f;
+	}
+	return Info;
+}
+
+float AMRules::CleanValue(const FValueInfo& Info, float Value)
+{
+	if (!Info.bNeeded)
+	{
+		return 0.f;
+	}
+	if (Value <= 0.f && Info.Min > 0.f)
+	{
+		return Info.Default;
+	}
+	return FMath::Clamp(Value, Info.Min, Info.Max);
 }

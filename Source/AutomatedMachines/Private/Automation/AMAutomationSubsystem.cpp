@@ -128,6 +128,7 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	{
 		FAMFireRule Clean = Rule;
 		Clean.Event = AMRules::NormalizeEventName(Rule.Event);
+		Clean.Value = AMRules::CleanValue(AMRules::GetConditionValueInfo(Rule.Condition), Rule.Value);
 		if (!Clean.Event.IsEmpty() && Clean.Condition < EAMCondition::Count)
 		{
 			NewRules.Fires.Add(Clean);
@@ -137,6 +138,7 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	{
 		FAMReactionRule Clean = Rule;
 		Clean.Event = AMRules::NormalizeEventName(Rule.Event);
+		Clean.Value = AMRules::CleanValue(AMRules::GetActionValueInfo(Rule.Action), Rule.Value);
 		if (!Clean.Event.IsEmpty() && Clean.Action < EAMAction::Count)
 		{
 			NewRules.Reactions.Add(Clean);
@@ -224,6 +226,13 @@ bool AAMAutomationSubsystem::RemoveInvalidEntries()
 			It.RemoveCurrent();
 		}
 	}
+	for (auto It = mLastRecipes.CreateIterator(); It; ++It)
+	{
+		if (!It->Key.IsValid())
+		{
+			It.RemoveCurrent();
+		}
+	}
 	return Removed > 0;
 }
 
@@ -260,15 +269,33 @@ void AAMAutomationSubsystem::EvaluateFireRules()
 		{
 			continue;
 		}
-		TArray<int8>& LastValues = mLastConditionValues.FindOrAdd(TWeakObjectPtr<AFGBuildable>(Entry.Machine.Get()));
+		const TWeakObjectPtr<AFGBuildable> MachineKey(Entry.Machine.Get());
+		TArray<int8>& LastValues = mLastConditionValues.FindOrAdd(MachineKey);
 		if (LastValues.Num() != Entry.Fires.Num())
 		{
 			LastValues.Init(-1, Entry.Fires.Num());
 		}
+
+		// Recipe changed: compared with the last check (the first check only remembers it).
+		bool bRecipeChanged = false;
+		if (const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory))
+		{
+			UClass* Recipe = Manufacturer->GetCurrentRecipe().Get();
+			if (TWeakObjectPtr<UClass>* LastRecipe = mLastRecipes.Find(MachineKey))
+			{
+				bRecipeChanged = LastRecipe->Get() != Recipe;
+				*LastRecipe = Recipe;
+			}
+			else
+			{
+				mLastRecipes.Add(MachineKey, Recipe);
+			}
+		}
+
 		for (int32 Index = 0; Index < Entry.Fires.Num(); ++Index)
 		{
 			const FAMFireRule& Rule = Entry.Fires[Index];
-			const bool bNow = IsConditionTrue(Factory, Rule.Condition);
+			const bool bNow = IsConditionTrue(Factory, Rule, bRecipeChanged);
 			const bool bBecameTrue = bNow && LastValues[Index] != 1;
 			LastValues[Index] = bNow ? 1 : 0;
 			if (bBecameTrue)
@@ -303,22 +330,49 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event)
 		{
 			if (Rule.Event == Event)
 			{
-				ApplyAction(Factory, Rule.Action);
+				ApplyAction(Factory, Rule);
 			}
 		}
 	}
 }
 
-bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory, EAMCondition Condition)
+bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory, const FAMFireRule& Rule, bool bRecipeChanged)
 {
-	switch (Condition)
+	switch (Rule.Condition)
 	{
-	case EAMCondition::OutputFull:      return IsOutputFull(Factory);
-	case EAMCondition::OutputNotFull:   return !IsOutputFull(Factory);
-	case EAMCondition::StartsProducing: return Factory->IsProducing();
-	case EAMCondition::StopsProducing:  return !Factory->IsProducing();
-	default:                            return false;
+	case EAMCondition::OutputFull:        return IsOutputFull(Factory);
+	case EAMCondition::OutputNotFull:     return !IsOutputFull(Factory);
+	case EAMCondition::StartsProducing:   return Factory->IsProducing();
+	case EAMCondition::StopsProducing:    return !Factory->IsProducing();
+	case EAMCondition::LosesPower:        return !Factory->HasPower();
+	case EAMCondition::GetsPower:         return Factory->HasPower();
+	case EAMCondition::InputMissing:      return IsInputMissing(Factory);
+	case EAMCondition::InputAvailable:    return !IsInputMissing(Factory);
+	case EAMCondition::Paused:            return Factory->IsProductionPaused();
+	case EAMCondition::Resumed:           return !Factory->IsProductionPaused();
+	case EAMCondition::ProductivityBelow: return Factory->GetProductivity() * 100.f < Rule.Value;
+	case EAMCondition::ProductivityAbove: return Factory->GetProductivity() * 100.f > Rule.Value;
+	case EAMCondition::RecipeChanged:     return bRecipeChanged;
+	default:                              return false;
 	}
+}
+
+bool AAMAutomationSubsystem::IsInputMissing(const AFGBuildableFactory* Factory)
+{
+	// Missing = the input slots do not have one batch of every ingredient of the recipe.
+	const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
+	if (!Manufacturer || !Manufacturer->GetCurrentRecipe() || !Manufacturer->GetInputInventory())
+	{
+		return false;
+	}
+	for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(Manufacturer, Manufacturer->GetCurrentRecipe()))
+	{
+		if (!Manufacturer->GetInputInventory()->HasItems(Ingredient.ItemClass, Ingredient.Amount))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 bool AAMAutomationSubsystem::IsOutputFull(const AFGBuildableFactory* Factory)
@@ -337,9 +391,9 @@ bool AAMAutomationSubsystem::IsOutputFull(const AFGBuildableFactory* Factory)
 	return Products.Num() > 0 && !Manufacturer->GetOutputInventory()->HasEnoughSpaceForStacks(Products);
 }
 
-void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, EAMAction Action)
+void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule)
 {
-	switch (Action)
+	switch (Rule.Action)
 	{
 	case EAMAction::Pause:
 		if (!Factory->IsProductionPaused())
@@ -353,6 +407,22 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, EAMAction
 		{
 			Factory->SetIsProductionPaused(false);
 			UE_LOG(LogAutomatedMachines, Log, TEXT("%s resumed"), *AMAS_Describe(Factory));
+		}
+		break;
+	case EAMAction::TogglePause:
+		Factory->SetIsProductionPaused(!Factory->IsProductionPaused());
+		UE_LOG(LogAutomatedMachines, Log, TEXT("%s %s"), *AMAS_Describe(Factory), Factory->IsProductionPaused() ? TEXT("paused") : TEXT("resumed"));
+		break;
+	case EAMAction::SetClockSpeed:
+		if (Factory->GetCanChangePotential())
+		{
+			// Within what the machine allows (above 100% only with power shards in it).
+			const float Target = FMath::Clamp(Rule.Value / 100.f, Factory->GetCurrentMinPotential(), Factory->GetCurrentMaxPotential());
+			if (!FMath::IsNearlyEqual(Factory->GetPendingPotential(), Target, 0.0001f))
+			{
+				Factory->SetPendingPotential(Target);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s clock speed %.1f%%"), *AMAS_Describe(Factory), Target * 100.f);
+			}
 		}
 		break;
 	default:

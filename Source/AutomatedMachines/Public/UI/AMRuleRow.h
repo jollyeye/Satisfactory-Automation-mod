@@ -8,6 +8,7 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "Types/SlateEnums.h"
+#include "Automation/AMTypes.h"
 #include "AMRuleRow.generated.h"
 
 class UAMAutomationTab;
@@ -21,8 +22,9 @@ namespace AMRowLayout
 {
 	constexpr float AlarmName = 200.f;
 	constexpr float MachineEvent = 190.f;
-	constexpr float Do = 130.f;
-	constexpr float OnAlarm = 200.f;
+	constexpr float Do = 150.f;
+	constexpr float OnAlarm = 180.f;
+	constexpr float ValueField = 64.f;
 	constexpr float Remove = 36.f;
 	constexpr float Gap = 6.f;
 	/** Used only if the tab buttons' font cannot be read. */
@@ -92,6 +94,10 @@ public:
 	UFUNCTION()
 	void OnRemoveClicked();
 
+	/** The percentage field (for machine events / actions that need a number). */
+	UFUNCTION()
+	void OnValueCommitted(const FText& Text, ETextCommit::Type CommitMethod);
+
 private:
 	/** Fills the list under the row (or shows a message if empty). */
 	void ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, const FString& EmptyMessage);
@@ -130,6 +136,23 @@ private:
 	/** Machine Event (alarm row) or Do (action row) label. */
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mSecondLabel;
+
+	/** The line with the percentage field, under the row (shown only when needed). */
+	UPROPERTY()
+	TObjectPtr<UWidget> mValueLine;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mValueLabel;
+
+	UPROPERTY()
+	TObjectPtr<UAMUppercaseText> mValueText;
+
+	/** The number info of this row's current machine event / action. */
+	AMRules::FValueInfo GetValueInfo() const;
+
+	/** Reads / writes this row's rule's number. */
+	float GetRuleValue() const;
+	void SetRuleValue(float Value);
 
 	/** On Alarm label (action row). */
 	UPROPERTY()

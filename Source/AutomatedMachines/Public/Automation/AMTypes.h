@@ -9,24 +9,38 @@
 
 class AFGBuildable;
 
-/** A status of a machine. A fire rule fires its event when the status becomes true. */
+/**
+ * A status of a machine (a "machine event" in the game). A fire rule fires its event when the status
+ * becomes true. New values go at the end only: the values are saved.
+ */
 UENUM(BlueprintType)
 enum class EAMCondition : uint8
 {
-	OutputFull       UMETA(DisplayName = "Output full"),
-	OutputNotFull    UMETA(DisplayName = "Output not full"),
-	StartsProducing  UMETA(DisplayName = "Starts producing"),
-	StopsProducing   UMETA(DisplayName = "Stops producing"),
-	Count            UMETA(Hidden)
+	OutputFull         UMETA(DisplayName = "Output full"),
+	OutputNotFull      UMETA(DisplayName = "Output not full"),
+	StartsProducing    UMETA(DisplayName = "Starts producing"),
+	StopsProducing     UMETA(DisplayName = "Stops producing"),
+	LosesPower         UMETA(DisplayName = "Loses power"),
+	GetsPower          UMETA(DisplayName = "Gets power"),
+	InputMissing       UMETA(DisplayName = "Input missing"),
+	InputAvailable     UMETA(DisplayName = "Input available"),
+	Paused             UMETA(DisplayName = "Paused"),
+	Resumed            UMETA(DisplayName = "Resumed"),
+	ProductivityBelow  UMETA(DisplayName = "Productivity below"),
+	ProductivityAbove  UMETA(DisplayName = "Productivity above"),
+	RecipeChanged      UMETA(DisplayName = "Recipe changed"),
+	Count              UMETA(Hidden)
 };
 
-/** What a machine does when it hears an event. */
+/** What a machine does when it hears an event. New values go at the end only: the values are saved. */
 UENUM(BlueprintType)
 enum class EAMAction : uint8
 {
-	Pause   UMETA(DisplayName = "Pause"),
-	Resume  UMETA(DisplayName = "Resume"),
-	Count   UMETA(Hidden)
+	Pause          UMETA(DisplayName = "Pause"),
+	Resume         UMETA(DisplayName = "Resume"),
+	TogglePause    UMETA(DisplayName = "Pause or resume"),
+	SetClockSpeed  UMETA(DisplayName = "Set clock speed"),
+	Count          UMETA(Hidden)
 };
 
 /** "Fire <Event> when <Condition>" */
@@ -40,6 +54,10 @@ struct AUTOMATEDMACHINES_API FAMFireRule
 
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	EAMCondition Condition = EAMCondition::OutputFull;
+
+	/** The number of conditions that need one (productivity %), else unused. */
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
+	float Value = 0.f;
 };
 
 /** "<Action> when event <Event>" */
@@ -53,6 +71,10 @@ struct AUTOMATEDMACHINES_API FAMReactionRule
 
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	FString Event;
+
+	/** The number of actions that need one (clock speed %), else unused. */
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
+	float Value = 0.f;
 };
 
 /** All rules of one machine. Machines without rules have no entry at all. */
@@ -85,4 +107,22 @@ namespace AMRules
 	/** Explanations for the info panel of the Automation tab. */
 	AUTOMATEDMACHINES_API FText GetConditionDescription(EAMCondition Condition);
 	AUTOMATEDMACHINES_API FText GetActionDescription(EAMAction Action);
+
+	/**
+	 * Conditions / actions that need a number (a percentage). Their label for the number field, its
+	 * allowed range and the value a new rule starts with.
+	 */
+	struct FValueInfo
+	{
+		bool bNeeded = false;
+		const TCHAR* Label = TEXT("");
+		float Min = 0.f;
+		float Max = 100.f;
+		float Default = 0.f;
+	};
+	AUTOMATEDMACHINES_API FValueInfo GetConditionValueInfo(EAMCondition Condition);
+	AUTOMATEDMACHINES_API FValueInfo GetActionValueInfo(EAMAction Action);
+
+	/** The value clamped to the allowed range (or the default if it is not set yet). */
+	AUTOMATEDMACHINES_API float CleanValue(const FValueInfo& Info, float Value);
 }

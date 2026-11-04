@@ -18,3 +18,12 @@ bool UAMUppercaseText::MakeUppercase()
 	MyEditableText->GoTo(ETextLocation::EndOfDocument);
 	return true;
 }
+
+void UAMUppercaseText::ShowText(const FString& Text)
+{
+	SetText(FText::FromString(Text));
+	if (MyEditableText.IsValid())
+	{
+		MyEditableText->SetText(FText::FromString(Text));
+	}
+}

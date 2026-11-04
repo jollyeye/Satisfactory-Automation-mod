@@ -120,23 +120,10 @@ In a crowd of machines the player must see at a glance which ones are automated,
 5. **MAM research:** which research tree, which node, what cost.
 6. **Statuses and actions for the Smelter and Constructor:** the exact list (see below, to confirm against the game's code).
 
-## Candidate statuses and actions for production machines
+## Machine events and actions for production machines (Smelter, Constructor, ...)
 
-To check against the game's headers before we commit to them.
+Machine events (an alarm rings when one becomes true): Output full, Output not full, Starts producing, Stops producing, Loses power, Gets power, Input missing, Input available, Paused, Resumed, Productivity below N%, Productivity above N%, Recipe changed.
 
-Statuses (fire an event when it changes):
+Actions: Pause, Resume, Pause or resume, Set clock speed N% (within what the machine's power shards allow).
 
-- starts / stops producing
-- power lost / power back
-- output full / output not full
-- input missing / input available
-- paused / resumed (by the player or by an action)
-- productivity below / above a threshold
-- recipe changed
-
-Actions:
-
-- pause / resume
-- toggle pause
-- set clock speed (a percentage)
-- later: change recipe
+Each one has an explanation in the tab's info panel. Not offered: changing the recipe (the game needs the machine emptied first, items would be lost).

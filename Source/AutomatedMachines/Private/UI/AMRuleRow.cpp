@@ -123,6 +123,37 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 	RemoveButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnRemoveClicked);
 	Add(AMRR_Cell(Tree, AMRowLayout::Remove, RemoveButton), AMRowLayout::Gap);
 
+	// "Productivity [ 50 ] %" / "Clock speed [ 100 ] %", under the cell it belongs to.
+	{
+		UHorizontalBox* ValueLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		mValueLine = ValueLine;
+		mValueLabel = AMUI::MakeText(Tree, TEXT(""), Font, AMUI::Grey);
+		if (UHorizontalBoxSlot* LabelSlot = ValueLine->AddChildToHorizontalBox(mValueLabel))
+		{
+			LabelSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		UBorder* ValueField = AMUI::MakeBox(Tree, AMUI::Field, FMargin(8.f, 5.f));
+		mValueText = Tree->ConstructWidget<UAMUppercaseText>(UAMUppercaseText::StaticClass());
+		mValueText->SetFont(Font);
+		mValueText->SetJustification(ETextJustify::Right);
+		mValueText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnValueCommitted);
+		ValueField->AddChild(mValueText);
+		if (UHorizontalBoxSlot* FieldSlot = ValueLine->AddChildToHorizontalBox(AMRR_Cell(Tree, AMRowLayout::ValueField, ValueField)))
+		{
+			FieldSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		}
+		if (UHorizontalBoxSlot* UnitSlot = ValueLine->AddChildToHorizontalBox(AMUI::MakeText(Tree, TEXT("%"), Font, AMUI::Grey)))
+		{
+			UnitSlot->SetPadding(FMargin(6.f, 0.f, 0.f, 0.f));
+			UnitSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		ValueLine->SetVisibility(ESlateVisibility::Collapsed);
+		if (UVerticalBoxSlot* ValueSlot = mRoot->AddChildToVerticalBox(ValueLine))
+		{
+			ValueSlot->SetPadding(FMargin(bIsAlarm ? AMRowLayout::AlarmName + AMRowLayout::Gap : 0.f, 4.f, 0.f, 0.f));
+		}
+	}
+
 	mChoices = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	mChoices->SetVisibility(ESlateVisibility::Collapsed);
 	if (UVerticalBoxSlot* ChoicesSlot = mRoot->AddChildToVerticalBox(mChoices))
@@ -158,6 +189,85 @@ void UAMRuleRow::UpdateLabels()
 			mAlarmLabel->SetColorAndOpacity(FSlateColor(Rule->Event.IsEmpty() ? AMUI::Grey : AMUI::White));
 		}
 	}
+
+	const AMRules::FValueInfo Info = GetValueInfo();
+	if (mValueLine)
+	{
+		mValueLine->SetVisibility(Info.bNeeded ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
+	if (Info.bNeeded && mValueLabel && mValueText)
+	{
+		mValueLabel->SetText(FText::FromString(Info.Label));
+		mValueText->ShowText(FString::Printf(TEXT("%.0f"), GetRuleValue()));
+	}
+}
+
+AMRules::FValueInfo UAMRuleRow::GetValueInfo() const
+{
+	if (bIsAlarm)
+	{
+		const FAMFireRule* Rule = mTab->GetFireRule(mIndex);
+		return Rule ? AMRules::GetConditionValueInfo(Rule->Condition) : AMRules::FValueInfo();
+	}
+	const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+	return Rule ? AMRules::GetActionValueInfo(Rule->Action) : AMRules::FValueInfo();
+}
+
+float UAMRuleRow::GetRuleValue() const
+{
+	if (bIsAlarm)
+	{
+		const FAMFireRule* Rule = mTab->GetFireRule(mIndex);
+		return Rule ? Rule->Value : 0.f;
+	}
+	const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+	return Rule ? Rule->Value : 0.f;
+}
+
+void UAMRuleRow::SetRuleValue(float Value)
+{
+	if (bIsAlarm)
+	{
+		if (FAMFireRule* Rule = mTab->GetFireRule(mIndex))
+		{
+			Rule->Value = Value;
+		}
+	}
+	else if (FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
+	{
+		Rule->Value = Value;
+	}
+}
+
+void UAMRuleRow::OnValueCommitted(const FText& Text, ETextCommit::Type CommitMethod)
+{
+	const AMRules::FValueInfo Info = GetValueInfo();
+	if (!Info.bNeeded)
+	{
+		return;
+	}
+	const FString Typed = Text.ToString().Replace(TEXT("%"), TEXT("")).TrimStartAndEnd();
+	const float NewValue = Typed.IsNumeric() ? AMRules::CleanValue(Info, FCString::Atof(*Typed)) : GetRuleValue();
+	if (!FMath::IsNearlyEqual(NewValue, GetRuleValue()))
+	{
+		SetRuleValue(NewValue);
+		mTab->OnRulesEdited();
+	}
+	// What is kept, e.g. 300 -> 250.
+	const FString Shown = FString::Printf(TEXT("%.0f"), NewValue);
+	if (UWorld* World = mTab->GetWorld())
+	{
+		TWeakObjectPtr<UAMUppercaseText> WeakField(mValueText);
+		World->GetTimerManager().SetTimerForNextTick([WeakField, Shown]()
+		{
+			if (UAMUppercaseText* Field = WeakField.Get())
+			{
+				Field->ShowText(Shown);
+			}
+		});
+	}
+	mTab->ShowInfo(FText::FromString(Info.Label), FText::FromString(FString::Printf(
+		TEXT("Set to %s%%. Allowed: %.0f%% to %.0f%%."), *Shown, Info.Min, Info.Max)));
 }
 
 void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, const FString& EmptyMessage)
@@ -355,6 +465,8 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 			if (Rule->Condition != Condition)
 			{
 				Rule->Condition = Condition;
+				const AMRules::FValueInfo Info = AMRules::GetConditionValueInfo(Condition);
+				Rule->Value = Info.bNeeded ? Info.Default : 0.f;
 				mTab->OnRulesEdited();
 			}
 		}
@@ -366,6 +478,8 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 			if (Rule->Action != Action)
 			{
 				Rule->Action = Action;
+				const AMRules::FValueInfo Info = AMRules::GetActionValueInfo(Action);
+				Rule->Value = Info.bNeeded ? Info.Default : 0.f;
 				mTab->OnRulesEdited();
 			}
 		}

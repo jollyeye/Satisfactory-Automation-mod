@@ -75,9 +75,11 @@ private:
 	/** Checks every fire rule; fires the events whose condition just became true. */
 	void EvaluateFireRules();
 
-	static bool IsConditionTrue(const AFGBuildableFactory* Factory, EAMCondition Condition);
+	/** bRecipeChanged: the machine's recipe changed since the last check. */
+	static bool IsConditionTrue(const AFGBuildableFactory* Factory, const FAMFireRule& Rule, bool bRecipeChanged);
 	static bool IsOutputFull(const AFGBuildableFactory* Factory);
-	static void ApplyAction(AFGBuildableFactory* Factory, EAMAction Action);
+	static bool IsInputMissing(const AFGBuildableFactory* Factory);
+	static void ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule);
 
 	UPROPERTY(SaveGame, ReplicatedUsing = OnRep_Machines)
 	TArray<FAMMachineRules> mMachines;
@@ -88,6 +90,9 @@ private:
 	 * -1 = unknown, 0 = false, 1 = true.
 	 */
 	TMap<TWeakObjectPtr<AFGBuildable>, TArray<int8>> mLastConditionValues;
+
+	/** Recipe of each machine at the last check (for "Recipe changed"; not saved). */
+	TMap<TWeakObjectPtr<AFGBuildable>, TWeakObjectPtr<UClass>> mLastRecipes;
 
 	float mTimeSinceEvaluation = 0.f;
 

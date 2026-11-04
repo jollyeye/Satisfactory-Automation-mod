@@ -47,11 +47,13 @@ namespace
 	constexpr float AMAT_PagePadding = 16.f;
 	constexpr float AMAT_PanelGap = 12.f;
 	constexpr float AMAT_PanelPadding = 8.f;
+	/** Room for the scroll bar at the right of the rows (without it, the rows' last cell got squeezed). */
+	constexpr float AMAT_ScrollbarRoom = 14.f;
 	/** Fixed panel widths (the rows' cells plus padding), so adding a row never moves anything. */
-	constexpr float AMAT_AlarmsWidth = AMRowLayout::AlarmName + AMRowLayout::MachineEvent + AMRowLayout::Remove + 2 * AMRowLayout::Gap + 2 * AMAT_PanelPadding;
-	constexpr float AMAT_ActionsWidth = AMRowLayout::Do + AMRowLayout::OnAlarm + AMRowLayout::Remove + 2 * AMRowLayout::Gap + 2 * AMAT_PanelPadding;
+	constexpr float AMAT_AlarmsWidth = AMRowLayout::AlarmName + AMRowLayout::MachineEvent + AMRowLayout::Remove + 2 * AMRowLayout::Gap + 2 * AMAT_PanelPadding + AMAT_ScrollbarRoom;
+	constexpr float AMAT_ActionsWidth = AMRowLayout::Do + AMRowLayout::OnAlarm + AMRowLayout::Remove + 2 * AMRowLayout::Gap + 2 * AMAT_PanelPadding + AMAT_ScrollbarRoom;
 	/** The side panel, like the recipe tab's info panel. */
-	constexpr float AMAT_InfoWidth = 340.f;
+	constexpr float AMAT_InfoWidth = 312.f;
 
 	const TCHAR* const AMAT_TabTitle = TEXT("Automation");
 
@@ -330,6 +332,7 @@ void UAMAutomationTab::BuildLayout()
 		AddTo(Inside, Header, 0.f);
 
 		UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+		Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
 		AddTo(Inside, Scroll, 6.f, true);
 		OutRows = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Scroll->AddChild(OutRows);
