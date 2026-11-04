@@ -1,5 +1,12 @@
 #include "UI/AMAutomationTab.h"
 #include "AutomatedMachinesModule.h"
+#include "UI/AMRuleRow.h"
+#include "UI/AMUIHelpers.h"
+#include "Automation/AMAutomationSubsystem.h"
+#include "Net/AMRemoteCallObject.h"
+#include "Buildables/FGBuildable.h"
+#include "Components/Button.h"
+#include "Components/ScrollBox.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/HorizontalBox.h"
@@ -30,9 +37,6 @@ namespace
 
 	const TCHAR* const AMAT_TabTitle = TEXT("Automation");
 
-	const FLinearColor AMAT_White(1.f, 1.f, 1.f, 1.f);
-	const FLinearColor AMAT_Grey(0.6f, 0.6f, 0.6f, 1.f);
-	const FLinearColor AMAT_Orange(0.98f, 0.55f, 0.13f, 1.f);
 
 	/** An object variable of a Blueprint object, by name. */
 	UObject* AMAT_GetObject(const UObject* Owner, FName Name)
@@ -197,6 +201,21 @@ UTextBlock* UAMAutomationTab::MakeText(const FString& Text, int32 FontSize, cons
 	return TextBlock;
 }
 
+void UAMAutomationTab::TrackText(UTextBlock* Text, int32 FontSize)
+{
+	if (Text)
+	{
+		Text->SetFont(AMUI::SizedFont(GetGameFont(), FontSize));
+		mTexts.Add(Text);
+		mTextSizes.Add(FontSize);
+	}
+}
+
+FSlateFontInfo UAMAutomationTab::GetGameFont() const
+{
+	return bHasGameFont ? mGameFont : GetDefault<UTextBlock>()->GetFont();
+}
+
 void UAMAutomationTab::BuildLayout()
 {
 	if (!WidgetTree || WidgetTree->RootWidget)
@@ -207,35 +226,196 @@ void UAMAutomationTab::BuildLayout()
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMRoot"));
 	Root->SetWidthOverride(760.f);
 	Root->SetMinDesiredHeight(520.f);
+	Root->SetMaxDesiredHeight(680.f);
 	WidgetTree->RootWidget = Root;
 
 	UBorder* Background = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("AMBackground"));
-	Background->SetBrushColor(FLinearColor(0.018f, 0.018f, 0.02f, 1.f));
+	Background->SetBrushColor(AMUI::PageBackground);
 	Background->SetPadding(FMargin(28.f, 24.f));
 	Root->AddChild(Background);
 
+	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass(), TEXT("AMScroll"));
+	Background->AddChild(Scroll);
+
 	mContentBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMContent"));
-	Background->AddChild(mContentBox);
+	Scroll->AddChild(mContentBox);
 
 	auto AddRow = [this](UWidget* Widget, float TopPadding)
 	{
 		if (UVerticalBoxSlot* RowSlot = mContentBox->AddChildToVerticalBox(Widget))
 		{
 			RowSlot->SetPadding(FMargin(0.f, TopPadding, 0.f, 0.f));
+			RowSlot->SetHorizontalAlignment(HAlign_Left);
 		}
 	};
+	auto AddButton = [this, &AddRow](const FString& Label, float TopPadding) -> UButton*
+	{
+		UButton* Button = AMUI::MakeButton(WidgetTree, Label, GetGameFont(), false, nullptr);
+		TrackText(Cast<UTextBlock>(Button->GetChildAt(0)), 14);
+		AddRow(Button, TopPadding);
+		return Button;
+	};
 
-	AddRow(MakeText(TEXT("AUTOMATION"), 26, AMAT_Orange), 0.f);
-	mMachineText = MakeText(TEXT(""), 16, AMAT_Grey);
+	AddRow(MakeText(TEXT("AUTOMATION"), 26, AMUI::Orange), 0.f);
+	mMachineText = MakeText(TEXT(""), 16, AMUI::Grey);
 	AddRow(mMachineText, 4.f);
 
-	AddRow(MakeText(TEXT("FIRE EVENTS"), 18, AMAT_White), 28.f);
-	AddRow(MakeText(TEXT("This machine fires no events yet."), 14, AMAT_Grey), 6.f);
+	mNoticeText = MakeText(TEXT(""), 14, AMUI::Orange);
+	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
+	AddRow(mNoticeText, 12.f);
 
-	AddRow(MakeText(TEXT("REACTIONS"), 18, AMAT_White), 28.f);
-	AddRow(MakeText(TEXT("This machine reacts to no events yet."), 14, AMAT_Grey), 6.f);
+	AddRow(MakeText(TEXT("FIRE EVENTS"), 18, AMUI::White), 26.f);
+	AddRow(MakeText(TEXT("This machine fires an event when its status changes."), 13, AMUI::Grey), 4.f);
+	mFireRowsBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMFireRows"));
+	AddRow(mFireRowsBox, 6.f);
+	AddButton(TEXT("+ Add event"), 10.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
 
-	AddRow(MakeText(TEXT("Coming soon: add rules here, e.g. \"Pause, when event PLATES BACKED UP\"."), 13, AMAT_Grey), 36.f);
+	AddRow(MakeText(TEXT("REACTIONS"), 18, AMUI::White), 30.f);
+	AddRow(MakeText(TEXT("This machine acts when an event is fired, by any machine."), 13, AMUI::Grey), 4.f);
+	mReactionRowsBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMReactionRows"));
+	AddRow(mReactionRowsBox, 6.f);
+	AddButton(TEXT("+ Add reaction"), 10.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+}
+
+void UAMAutomationTab::LoadRules()
+{
+	if (bRulesLoaded)
+	{
+		return;
+	}
+	AFGBuildable* Machine = Cast<AFGBuildable>(GetMachine());
+	if (!Machine)
+	{
+		return;
+	}
+	const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this);
+	if (!Subsystem)
+	{
+		mNoticeText->SetText(FText::FromString(TEXT("Automation is not available right now (the mod's save object is missing).")));
+		mNoticeText->SetVisibility(ESlateVisibility::Visible);
+		return;
+	}
+	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
+	if (const FAMMachineRules* Rules = Subsystem->FindRules(Machine))
+	{
+		mFires = Rules->Fires;
+		mReactions = Rules->Reactions;
+	}
+	bRulesLoaded = true;
+	RebuildRows();
+}
+
+void UAMAutomationTab::RebuildRows()
+{
+	if (!mFireRowsBox || !mReactionRowsBox)
+	{
+		return;
+	}
+	mFireRowsBox->ClearChildren();
+	mReactionRowsBox->ClearChildren();
+	mRows.Reset();
+
+	auto AddRowWidget = [](UVerticalBox* Box, UWidget* Widget)
+	{
+		if (UVerticalBoxSlot* RowSlot = Box->AddChildToVerticalBox(Widget))
+		{
+			RowSlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+			RowSlot->SetHorizontalAlignment(HAlign_Left);
+		}
+	};
+	const FSlateFontInfo HintFont = AMUI::SizedFont(GetGameFont(), 13);
+
+	for (int32 Index = 0; Index < mFires.Num(); ++Index)
+	{
+		UAMRuleRow* Row = NewObject<UAMRuleRow>(this);
+		Row->Build(this, true, Index);
+		mRows.Add(Row);
+		AddRowWidget(mFireRowsBox, Row->GetRootWidget());
+	}
+	if (mFires.Num() == 0)
+	{
+		AddRowWidget(mFireRowsBox, AMUI::MakeText(WidgetTree, TEXT("No events yet."), HintFont, AMUI::Grey));
+	}
+
+	for (int32 Index = 0; Index < mReactions.Num(); ++Index)
+	{
+		UAMRuleRow* Row = NewObject<UAMRuleRow>(this);
+		Row->Build(this, false, Index);
+		mRows.Add(Row);
+		AddRowWidget(mReactionRowsBox, Row->GetRootWidget());
+	}
+	if (mReactions.Num() == 0)
+	{
+		AddRowWidget(mReactionRowsBox, AMUI::MakeText(WidgetTree, TEXT("No reactions yet."), HintFont, AMUI::Grey));
+	}
+}
+
+TArray<FString> UAMAutomationTab::GetEventNames() const
+{
+	TSet<FString> Names;
+	if (const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
+	{
+		Names.Append(Subsystem->GetAllEventNames());
+	}
+	for (const FAMFireRule& Rule : mFires)
+	{
+		if (!Rule.Event.IsEmpty())
+		{
+			Names.Add(Rule.Event);
+		}
+	}
+	for (const FAMReactionRule& Rule : mReactions)
+	{
+		if (!Rule.Event.IsEmpty())
+		{
+			Names.Add(Rule.Event);
+		}
+	}
+	TArray<FString> Result = Names.Array();
+	Result.Sort();
+	return Result;
+}
+
+void UAMAutomationTab::OnRulesEdited()
+{
+	if (AFGBuildable* Machine = Cast<AFGBuildable>(GetMachine()))
+	{
+		UAMRemoteCallObject::RequestSetRules(GetOwningPlayer(), Machine, mFires, mReactions);
+	}
+}
+
+void UAMAutomationTab::RemoveRule(bool bFire, int32 Index)
+{
+	if (bFire && mFires.IsValidIndex(Index))
+	{
+		mFires.RemoveAt(Index);
+	}
+	else if (!bFire && mReactions.IsValidIndex(Index))
+	{
+		mReactions.RemoveAt(Index);
+	}
+	else
+	{
+		return;
+	}
+	OnRulesEdited();
+	// Not now: we are inside the click of a button that the rebuild removes.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::RebuildRows));
+	}
+}
+
+void UAMAutomationTab::OnAddFireClicked()
+{
+	mFires.AddDefaulted();
+	RebuildRows();
+}
+
+void UAMAutomationTab::OnAddReactionClicked()
+{
+	mReactions.AddDefaulted();
+	RebuildRows();
 }
 
 void UAMAutomationTab::AddTabEntry()
@@ -299,6 +479,7 @@ void UAMAutomationTab::EnsureTabButtonExists()
 {
 	// Also a good moment to read the machine: the window has it by now.
 	UpdateMachineName();
+	LoadRules();
 
 	UObject* Frame = GetWindowFrame();
 	UObject* TabsContainer = AMAT_GetObject(Frame, AMAT_TabsContainerProperty);
@@ -322,6 +503,8 @@ void UAMAutomationTab::ApplyGameFonts()
 	{
 		return;
 	}
+	mGameFont = Source->GetFont();
+	bHasGameFont = true;
 	for (int32 Index = 0; Index < mTexts.Num(); ++Index)
 	{
 		if (mTexts[Index])
@@ -371,6 +554,7 @@ void UAMAutomationTab::NativeConstruct()
 
 	ApplyGameFonts();
 	UpdateMachineName();
+	LoadRules();
 }
 
 void UAMAutomationTab::NativeDestruct()

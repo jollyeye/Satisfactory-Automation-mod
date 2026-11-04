@@ -75,7 +75,8 @@ If a player stops using the mod, **their machines must stay exactly where they a
 
 - **We never replace or change the game's machines.** No new machine classes, no "automated smelter" building. The game's own Smelter stays a vanilla Smelter.
 - **All mod data lives in one save object of our own** (a world subsystem saved with the game), not in the machines. If the mod is removed, the game simply drops that one object; every machine loads as normal.
-- **Compact data:** the event names are stored once; each automated machine stores only a reference to the building plus a few small numbers per rule (status, event number, action, value). Roughly tens of bytes per machine. Machines without automation store nothing.
+- **Compact data:** each automated machine stores a reference to the building and its rules; a rule is its event name plus one small number (status or action). Roughly tens of bytes per rule. Machines without automation store nothing.
+- **The event list is not stored separately:** it is every event name used by some rule. So an event that no rule uses any more is gone by itself (the "unused events are deleted" rule, for free).
 - Dismantled machines are removed from our data automatically, so nothing piles up.
 - After uninstalling, machines keep the last state the automation gave them (e.g. paused, or a changed clock speed), like any setting the player changes by hand. The mod page should say so.
 
@@ -84,7 +85,7 @@ If a player stops using the mod, **their machines must stay exactly where they a
 In a crowd of machines the player must see at a glance which ones are automated, cheaply:
 
 - The marker is **never saved**. It is created when the world loads, from our own data, and removed when a machine loses its last rule. Without the mod there is simply no marker.
-- **Look: a flat Wi-Fi icon** that always faces the camera, on every axis (also when looking from above or below). **White for now**; the colours come later.
+- **Look: a flat Wi-Fi icon** (the game has none: its flat icon set `MonochromeIcons` has arrows, factory, power, train... but nothing signal-like, checked 4 Nov 2026; we draw our own with a Python script and use it for the tab button too) that always faces the camera, on every axis (also when looking from above or below). **White for now**; the colours come later.
 - **One shared instanced mesh** for all markers (one instance per automated machine), not one actor per machine. Thousands of markers then cost about one draw call.
 - How it stays cheap: the mesh is a single flat square; the material turns it towards the camera in the vertex shader (camera-facing billboard), so it works with instancing and nothing moves on the CPU. The Wi-Fi shape is a texture with transparency on that square, unlit so it reads in the dark.
 - It floats in the same place above every machine of a type (position per machine type), and should be readable from a distance.
