@@ -6,7 +6,7 @@
 #include "Components/Border.h"
 #include "Components/Button.h"
 #include "Components/ButtonSlot.h"
-#include "Components/EditableText.h"
+#include "UI/AMUppercaseText.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/SizeBox.h"
@@ -99,7 +99,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		// | ALARM NAME | MACHINE EVENT |
 		UBorder* Field = AMUI::MakeBox(Tree, AMUI::Field, FMargin(10.f, 7.f));
 		Field->SetVerticalAlignment(VAlign_Center);
-		mAlarmNameText = Tree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
+		mAlarmNameText = Tree->ConstructWidget<UAMUppercaseText>(UAMUppercaseText::StaticClass());
 		mAlarmNameText->SetFont(Font);
 		mAlarmNameText->SetHintText(FText::FromString(TEXT("ALARM NAME")));
 		mAlarmNameText->OnTextChanged.AddDynamic(this, &UAMRuleRow::OnAlarmNameChanged);
@@ -250,6 +250,11 @@ void UAMRuleRow::OnAlarmNameChanged(const FText& Text)
 	if (bSettingText)
 	{
 		return;
+	}
+	// Capitals while typing.
+	{
+		TGuardValue<bool> Guard(bSettingText, true);
+		mAlarmNameText->MakeUppercase();
 	}
 	// Suggestions: existing alarms containing what was typed (any case), the closest first.
 	const FString Typed = AMRules::NormalizeEventName(Text.ToString());

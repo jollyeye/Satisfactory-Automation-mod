@@ -17,7 +17,7 @@ const FLinearColor AMUI::Orange(FColor(250, 149, 73));
 const FLinearColor AMUI::White(FColor(255, 255, 255));
 const FLinearColor AMUI::Grey(FColor(170, 170, 170));
 const FLinearColor AMUI::PageBackground(FColor(15, 15, 15, 240));
-const FLinearColor AMUI::SidePanel(FColor(56, 57, 61, 235));
+const FLinearColor AMUI::SidePanel(FColor(40, 41, 44, 235));
 const FLinearColor AMUI::PanelBody(FColor(67, 67, 68, 230));
 const FLinearColor AMUI::Field(FColor(87, 87, 87));
 const FLinearColor AMUI::Button(FColor(102, 102, 103));
@@ -65,6 +65,13 @@ FSlateFontInfo AMUI::SizedFont(const FSlateFontInfo& Base, int32 Size)
 	return Font;
 }
 
+FSlateFontInfo AMUI::RegularFont(const FSlateFontInfo& Base, int32 Size)
+{
+	FSlateFontInfo Font = SizedFont(Base, Size);
+	Font.TypefaceFontName = TEXT("Regular");
+	return Font;
+}
+
 UTextBlock* AMUI::MakeText(UWidgetTree* Tree, const FString& Text, const FSlateFontInfo& Font, const FLinearColor& Color)
 {
 	UTextBlock* TextBlock = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass());
@@ -99,7 +106,7 @@ UButton* AMUI::MakeDropdown(UWidgetTree* Tree, const FSlateFontInfo& Font, UText
 		LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		LabelSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	if (UHorizontalBoxSlot* ArrowSlot = Content->AddChildToHorizontalBox(AMUIH_Icon(Tree, AMUIH_DropArrowPath, 14.f)))
+	if (UHorizontalBoxSlot* ArrowSlot = Content->AddChildToHorizontalBox(AMUIH_Icon(Tree, AMUIH_DropArrowPath, 11.f)))
 	{
 		ArrowSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
 		ArrowSlot->SetVerticalAlignment(VAlign_Center);
@@ -116,13 +123,13 @@ UButton* AMUI::MakeRemoveButton(UWidgetTree* Tree, const FSlateFontInfo& Font)
 {
 	UButton* Widget = Tree->ConstructWidget<UButton>(UButton::StaticClass());
 	FButtonStyle Style = AMUIH_ButtonStyle(Field);
-	Style.SetNormalPadding(FMargin(8.f, 7.f));
-	Style.SetPressedPadding(FMargin(8.f, 8.f, 8.f, 6.f));
+	Style.SetNormalPadding(FMargin(6.f, 6.f));
+	Style.SetPressedPadding(FMargin(6.f, 7.f, 6.f, 5.f));
 	Widget->SetStyle(Style);
 	USizeBox* IconSize = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	IconSize->SetWidthOverride(16.f);
-	IconSize->SetHeightOverride(16.f);
-	IconSize->AddChild(AMUIH_Icon(Tree, AMUIH_TrashPath, 16.f));
+	IconSize->SetWidthOverride(21.f);
+	IconSize->SetHeightOverride(21.f);
+	IconSize->AddChild(AMUIH_Icon(Tree, AMUIH_TrashPath, 21.f));
 	if (UButtonSlot* IconSlot = Cast<UButtonSlot>(Widget->AddChild(IconSize)))
 	{
 		IconSlot->SetHorizontalAlignment(HAlign_Center);

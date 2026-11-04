@@ -11,7 +11,7 @@
 #include "AMRuleRow.generated.h"
 
 class UAMAutomationTab;
-class UEditableText;
+class UAMUppercaseText;
 class UTextBlock;
 class UVerticalBox;
 class UWidget;
@@ -124,7 +124,7 @@ private:
 	TObjectPtr<UVerticalBox> mRoot;
 
 	UPROPERTY()
-	TObjectPtr<UEditableText> mAlarmNameText;
+	TObjectPtr<UAMUppercaseText> mAlarmNameText;
 
 	/** Machine Event (alarm row) or Do (action row) label. */
 	UPROPERTY()

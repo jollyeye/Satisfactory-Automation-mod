@@ -115,7 +115,8 @@ Tested before: marker, tab icon, two tables, info panel and inventory hiding all
 
 - Page background like the recipe tab's list area: sRGB 15,15,15 at ~94% (`AMUI::PageBackground`); each tab page has its own background, the window has none. A full-height side panel on the right like the recipe tab's info panel: sRGB 56,57,61 at ~92% (`AMUI::SidePanel`).
 - Panel widths are fixed (sum of the row cells), so adding a row does not move anything.
-- The alarm name field ignores SetText while it is committing: the capitals are applied again one frame later.
+- Alarm names are written in capitals while typing: `UAMUppercaseText` (a `UEditableText` subclass) sets the capitalised text straight on its Slate widget and moves the cursor to the end, from OnTextChanged. (UMG `SetText` on commit did not change what was shown.)
+- Info panel: darker (sRGB 40,41,44), title and text in the font's "Regular" face (`AMUI::RegularFont`).
 - Panels "Alarms", "Actions", "Info": title above (white 15), body `AMUI::PanelBody` (sRGB 67,67,68, slightly see-through), column names inside (grey 13), rows scroll, full-width "+ Add ..." button (sRGB 102) at the bottom.
 - Rows: field and dropdowns sRGB 87 with a white arrow icon (`T_AM_DropArrow`), bin button (`T_AM_Trash`). Square corners everywhere (`FSlateColorBrush`).
 - Choices open as a dropdown list under the row (full width, sRGB 110); the current one is orange.

@@ -36,6 +36,9 @@ namespace AMUI
 	/** The base font with another size. */
 	FSlateFontInfo SizedFont(const FSlateFontInfo& Base, int32 Size);
 
+	/** The base font family in its "Regular" face (lighter than the game's semi-bold labels). */
+	FSlateFontInfo RegularFont(const FSlateFontInfo& Base, int32 Size);
+
 	UTextBlock* MakeText(UWidgetTree* Tree, const FString& Text, const FSlateFontInfo& Font, const FLinearColor& Color);
 
 	/** A flat button with a centred text label. OutLabel (optional) gets the label, to change it later. */

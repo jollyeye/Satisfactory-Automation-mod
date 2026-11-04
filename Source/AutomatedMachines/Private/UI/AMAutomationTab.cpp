@@ -651,6 +651,12 @@ void UAMAutomationTab::ApplyGameFonts()
 			mTexts[Index]->SetFont(Font);
 		}
 	}
+	// The info panel reads lighter, like the recipe tab's description.
+	if (mInfoTitle && mInfoBody)
+	{
+		mInfoTitle->SetFont(AMUI::RegularFont(mGameFont, 20));
+		mInfoBody->SetFont(AMUI::RegularFont(mGameFont, 14));
+	}
 }
 
 void UAMAutomationTab::NativeOnInitialized()
