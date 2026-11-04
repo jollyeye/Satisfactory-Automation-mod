@@ -94,11 +94,11 @@ UButton* AMUI::MakeButton(UWidgetTree* Tree, const FString& Label, const FSlateF
 	return Widget;
 }
 
-void AMUI::SetButtonColor(UButton* Button, const FLinearColor& Color)
+void AMUI::SetButtonColor(UButton* Target, const FLinearColor& Color)
 {
-	if (Button)
+	if (Target)
 	{
-		Button->SetStyle(AMUIH_ButtonStyle(Color));
+		Target->SetStyle(AMUIH_ButtonStyle(Color));
 	}
 }
 

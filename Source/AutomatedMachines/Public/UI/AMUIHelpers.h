@@ -45,7 +45,7 @@ namespace AMUI
 	UButton* MakeButton(UWidgetTree* Tree, const FString& Label, const FSlateFontInfo& Font, const FLinearColor& Color, UTextBlock** OutLabel = nullptr);
 
 	/** Gives a button of MakeButton another colour. */
-	void SetButtonColor(UButton* Button, const FLinearColor& Color);
+	void SetButtonColor(UButton* Target, const FLinearColor& Color);
 
 	/** A dropdown-looking button: label on the left, arrow on the right. */
 	UButton* MakeDropdown(UWidgetTree* Tree, const FSlateFontInfo& Font, UTextBlock*& OutLabel);
