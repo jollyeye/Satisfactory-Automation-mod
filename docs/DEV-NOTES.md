@@ -35,11 +35,43 @@ Claude cannot compile; keep edits careful (count braces, check renames). Unity b
 - `Source/AutomatedMachines/.../Debug/AMWidgetDump.*`: development-only widget tree dump (see below). Remove before release.
 - `Tools/update-and-package.bat`: the one-click update script.
 
-## Current step: find where the Automation section goes
+## What we know about the machine window
 
-The editor only has placeholder versions of the game's widgets, so the layout of the Smelter / Constructor window cannot be seen there. `AMWidgetDump` runs in game, twice a second:
+Found with `AMWidgetDump` (first run, 4 Nov 2026):
 
-- every new widget class gets one line: `[WidgetDump] new widget class: <class> (inside: <outer widgets>)`;
-- widgets whose class name contains `Manufactur`, `Smelter`, `Constructor`, `Interact`, `Factory` or `Production` get their whole tree written between `===== begin` and `===== end` lines: name, class, slot type, visibility and the text of text blocks.
+- The Smelter and the Constructor use **the same window class, `Widget_Manufacturing_C`** (Assembler, Foundry, Manufacturer... most likely too). One hook covers them all.
+- Layout (abridged):
 
-Test: load a save, open a Smelter and then a Constructor, close the game, and let Claude read the `[WidgetDump]` lines of `FactoryGame.log`.
+```
+Widget_Manufacturing_C
+  Overlay_0
+    Widget_Window_DarkMode                        the window frame
+      mMainContainer (VerticalBox)
+        CanvasPanel_1
+          Widget_TabsContainer                    the tab buttons
+            HorizontalBox_0
+              mContainer (CanvasPanel)
+                Widget_SlidingTabs_Button_C x2    "Select Recipe", "Production"
+          mCloseButtonContainer
+        CanvasPanel_0
+          WindowHBox
+            WindowBody (NamedSlot)
+              Widget_SlidingTabs                  the tab pages, side by side, slid into view
+                ... mContent (NamedSlot)
+                  HorizontalBox_1
+                    mRecipesTab (VerticalBox)       page 1: recipe list
+                    mManufacturingTab (HorizontalBox) page 2: production (standby button, overclock, IO slots...)
+            mInventorySizeBox                     the player inventory on the right
+```
+
+- So a third tab is plausible: one more `Widget_SlidingTabs_Button_C` and one more page in `HorizontalBox_1`. How the Blueprint registers tabs and slides between them is not known yet; the second dump writes the variables and functions of the tab classes.
+
+## Current step: learn how the tabs work
+
+`AMWidgetDump` now writes, once per session:
+
+- the full tree of `Widget_Manufacturing_C` (between `===== begin` and `===== end`);
+- for `Widget_Manufacturing_C`, `Widget_Window_DarkMode_C`, `Widget_TabsContainer_C`, `Widget_SlidingTabs_C` and `Widget_SlidingTabs_Button_C`: every Blueprint variable with its value, and every function with its parameters (between `===== reflection` and `===== end reflection`);
+- one line per new widget class seen (`new widget class: ...`), useful later for other buildings.
+
+Test: load a save, open a Smelter, switch between its two tabs once, close it, quit, and let Claude read the log.
