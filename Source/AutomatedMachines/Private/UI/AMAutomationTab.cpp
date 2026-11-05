@@ -943,6 +943,7 @@ void UAMAutomationTab::OnWindowTabButtonClicked(int32 ButtonIndex)
 	if (bSinglePageMode)
 	{
 		ShowSinglePage(ButtonIndex == TabIndex && TabIndex != INDEX_NONE);
+		SetOurTabButtonLook();
 		return;
 	}
 	if (ButtonIndex == TabIndex)
@@ -1109,6 +1110,45 @@ void UAMAutomationTab::RegenerateTabButtons()
 		ButtonSlot->SetSize(ButtonSize);
 		// The single button of a one-tab window is a title (not clickable): make them all clickable.
 		Button->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
+	SetOurTabButtonLook();
+}
+
+void UAMAutomationTab::SetOurTabButtonLook()
+{
+	// One-tab windows give every button the window's title and the default icon: ours gets its own.
+	UObject* TabsContainer = AMAT_GetObject(GetWindowFrame(), AMAT_TabsContainerProperty);
+	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
+	UWidget* OurButton = Buttons && TabIndex != INDEX_NONE ? Buttons->GetChildAt(TabIndex) : nullptr;
+	if (!OurButton)
+	{
+		return;
+	}
+	const FText Title = FText::FromString(AMAT_TabTitle);
+	AMAT_Call(OurButton, TEXT("SetTitle"), [&Title](UFunction* Function, uint8* Params)
+	{
+		for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			if (const FTextProperty* TextParam = CastField<FTextProperty>(*It))
+			{
+				TextParam->SetPropertyValue_InContainer(Params, Title);
+				break;
+			}
+		}
+	});
+	if (UTexture2D* Icon = LoadObject<UTexture2D>(nullptr, AMAT_TabIconPath))
+	{
+		AMAT_Call(OurButton, TEXT("SetIcon"), [Icon](UFunction* Function, uint8* Params)
+		{
+			for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+			{
+				if (const FObjectPropertyBase* IconParam = CastField<FObjectPropertyBase>(*It))
+				{
+					IconParam->SetObjectPropertyValue_InContainer(Params, Icon);
+					break;
+				}
+			}
+		});
 	}
 }
 

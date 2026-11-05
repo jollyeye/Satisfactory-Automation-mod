@@ -137,6 +137,9 @@ private:
 	/** Makes the tab buttons again from the frame's tab list (InitTabs, else the tabs container). */
 	void RegenerateTabButtons();
 
+	/** Gives our tab button its title and icon (one-tab windows give every button the window's). */
+	void SetOurTabButtonLook();
+
 	/** One-page windows: shows our page (true) or the machine's own page (false). */
 	void ShowSinglePage(bool bAutomation);
 
