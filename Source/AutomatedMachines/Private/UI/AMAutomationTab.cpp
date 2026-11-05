@@ -1127,42 +1127,55 @@ void UAMAutomationTab::BindSingleTabButtons()
 	}
 	for (int32 Index = 0; Index < Buttons->GetChildrenCount(); ++Index)
 	{
-		UWidget* Button = Buttons->GetChildAt(Index);
-		FMulticastDelegateProperty* ClickedProperty = Button ? FindFProperty<FMulticastDelegateProperty>(Button->GetClass(), TEXT("OnClicked")) : nullptr;
-		if (ClickedProperty)
+		UButton* Inner = Cast<UButton>(AMAT_GetObject(Buttons->GetChildAt(Index), TEXT("mButton")));
+		if (!Inner)
 		{
-			FScriptDelegate Delegate;
-			Delegate.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UAMAutomationTab, OnSingleTabButtonClicked));
-			// Remove first, so binding again (window reopened) never adds a second copy.
-			ClickedProperty->RemoveDelegate(Delegate, Button);
-			ClickedProperty->AddDelegate(MoveTemp(Delegate), Button);
+			UE_LOG(LogAutomatedMachines, Warning, TEXT("Automation tab: tab button %d has no mButton"), Index);
+			continue;
+		}
+		if (Index == TabIndex)
+		{
+			Inner->OnClicked.AddUniqueDynamic(this, &UAMAutomationTab::OnAutomationTabPressed);
+		}
+		else
+		{
+			Inner->OnClicked.AddUniqueDynamic(this, &UAMAutomationTab::OnMachineTabPressed);
 		}
 	}
 }
 
-void UAMAutomationTab::OnSingleTabButtonClicked(UUserWidget* Instigator)
+void UAMAutomationTab::OnMachineTabPressed()
 {
+	SelectSingleTab(0);
+}
+
+void UAMAutomationTab::OnAutomationTabPressed()
+{
+	SelectSingleTab(TabIndex);
+}
+
+void UAMAutomationTab::SelectSingleTab(int32 Index)
+{
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: tab button %d clicked (one-page window)"), Index);
 	UObject* TabsContainer = AMAT_GetObject(GetWindowFrame(), AMAT_TabsContainerProperty);
 	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
-	const int32 Index = Buttons && Instigator ? Buttons->GetChildIndex(Instigator) : INDEX_NONE;
-	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: tab button %d clicked (one-page window)"), Index);
-	if (Index == INDEX_NONE)
+	UWidget* Clicked = Buttons ? Buttons->GetChildAt(Index) : nullptr;
+	if (Clicked)
 	{
-		return;
-	}
-	// The highlight follows the clicked button.
-	AMAT_Call(TabsContainer, TEXT("SetActiveButton"), [Instigator](UFunction* Function, uint8* Params)
-	{
-		for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		// The highlight follows the clicked button.
+		AMAT_Call(TabsContainer, TEXT("SetActiveButton"), [Clicked](UFunction* Function, uint8* Params)
 		{
-			if (const FObjectPropertyBase* ButtonParam = CastField<FObjectPropertyBase>(*It))
+			for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
 			{
-				ButtonParam->SetObjectPropertyValue_InContainer(Params, Instigator);
-				break;
+				if (const FObjectPropertyBase* ButtonParam = CastField<FObjectPropertyBase>(*It))
+				{
+					ButtonParam->SetObjectPropertyValue_InContainer(Params, Clicked);
+					break;
+				}
 			}
-		}
-	});
-	ShowSinglePage(Index == TabIndex);
+		});
+	}
+	ShowSinglePage(Index == TabIndex && TabIndex != INDEX_NONE);
 	SetOurTabButtonLook();
 }
 

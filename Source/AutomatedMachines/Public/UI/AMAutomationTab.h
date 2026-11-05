@@ -80,9 +80,18 @@ protected:
 	UFUNCTION()
 	void OnPassWrongClicked();
 
-	/** One-page windows: bound to each tab button's own OnClicked (the frame does not pass clicks on there). */
+	/**
+	 * One-page windows: bound to the plain button inside each tab button (mButton), because neither
+	 * the frame nor the tab button passes the click on there.
+	 */
 	UFUNCTION()
-	void OnSingleTabButtonClicked(UUserWidget* Instigator);
+	void OnMachineTabPressed();
+
+	UFUNCTION()
+	void OnAutomationTabPressed();
+
+	/** One-page windows: shows page Index (0 = the machine's) and moves the highlight. */
+	void SelectSingleTab(int32 Index);
 
 	UFUNCTION()
 	void OnPassWrongHovered();
