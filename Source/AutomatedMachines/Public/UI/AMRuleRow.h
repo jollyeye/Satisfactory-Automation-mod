@@ -240,9 +240,18 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mAlarmLabel;
 
-	/** The open dropdown list under the row. */
+	/**
+	 * The suggestions while typing an alarm name: floating on the tab's popup layer under the name
+	 * field (not inside the row: that made the row, the page and the window taller).
+	 */
 	UPROPERTY()
 	TObjectPtr<UVerticalBox> mChoices;
+
+	UPROPERTY()
+	TObjectPtr<class USizeBox> mChoicesFloat;
+
+	UPROPERTY()
+	TObjectPtr<UWidget> mAlarmNameField;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UAMChoice>> mChoiceHandlers;

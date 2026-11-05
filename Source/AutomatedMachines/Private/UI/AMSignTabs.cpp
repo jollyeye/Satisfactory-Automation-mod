@@ -173,9 +173,12 @@ void UAMSignTabs::NativeOnInitialized()
 	if (WidgetTree && !WidgetTree->RootWidget)
 	{
 		mLayer = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("AMSignLayer"));
+		mLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 		WidgetTree->RootWidget = mLayer;
 	}
-	SetVisibility(ESlateVisibility::Collapsed);
+	// Visible but click-through (empty unless the picker is open): a collapsed widget has no size,
+	// and the picker is placed from this widget's geometry.
+	SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 }
 
 void UAMSignTabs::NativeConstruct()
@@ -199,6 +202,7 @@ void UAMSignTabs::NativeConstruct()
 
 void UAMSignTabs::Watch()
 {
+	UpdateListHeight();
 	if (bSetUp && GetSign() != mSetupSign.Get())
 	{
 		// The window now edits another sign: its designs, not the last sign's.
@@ -680,7 +684,7 @@ void UAMSignTabs::RebuildTabs()
 	AddHandler->Owner = this;
 	AddHandler->Index = mDesigns.Num() + 1;
 	mHandlers.Add(AddHandler);
-	mAddButton = AMUI::MakeButton(WidgetTree, bPickerOpen ? TEXT("Cancel") : AMST_AddTitle, Font, AMUI::Button, nullptr);
+	mAddButton = AMUI::MakeButton(WidgetTree, AMST_AddTitle, Font, AMUI::Button, nullptr);
 	mAddButton->OnClicked.AddDynamic(AddHandler, &UAMSignTabHandler::OnTabClicked);
 	USizeBox* AddSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	AddSize->SetHeightOverride(RowHeight);
@@ -690,50 +694,7 @@ void UAMSignTabs::RebuildTabs()
 		AddSlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
 	}
 
-	// The picker, under "+ AutoDesign" while it is open: a search box and the alarms without a design here.
-	mPickerList = nullptr;
-	mPickerSearch = nullptr;
-	if (bPickerOpen)
-	{
-		USizeBox* SearchSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		SearchSize->SetHeightOverride(RowHeight);
-		UBorder* SearchField = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 0.f));
-		SearchField->SetVerticalAlignment(VAlign_Center);
-		SearchSize->AddChild(SearchField);
-		mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
-		mPickerSearch->SetFont(Font);
-		mPickerSearch->SetHintText(FText::FromString(TEXT("design for which alarm?")));
-		mPickerSearch->OnTextChanged.AddDynamic(this, &UAMSignTabs::OnPickerSearchChanged);
-		mPickerSearch->OnTextCommitted.AddDynamic(this, &UAMSignTabs::OnPickerSearchCommitted);
-		SearchField->AddChild(mPickerSearch);
-		if (UVerticalBoxSlot* SearchSlot = Column->AddChildToVerticalBox(SearchSize))
-		{
-			SearchSlot->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
-		}
-		USizeBox* ListSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		ListSize->SetMaxDesiredHeight(240.f);
-		UScrollBox* PickerScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
-		PickerScroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
-		ListSize->AddChild(PickerScroll);
-		mPickerList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		PickerScroll->AddChild(mPickerList);
-		if (UVerticalBoxSlot* ListSlot = Column->AddChildToVerticalBox(ListSize))
-		{
-			ListSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
-		}
-		FillPicker(FString());
-		if (UWorld* World = GetWorld())
-		{
-			TWeakObjectPtr<UEditableText> WeakSearch(mPickerSearch);
-			World->GetTimerManager().SetTimerForNextTick([WeakSearch]()
-			{
-				if (UEditableText* Search = WeakSearch.Get())
-				{
-					Search->SetKeyboardFocus();
-				}
-			});
-		}
-	}
+	UpdateListHeight();
 
 	// Where it was before, and the selected row in view.
 	mTabScroll->SetScrollOffset(mTabScrollOffset);
@@ -752,7 +713,6 @@ void UAMSignTabs::SelectTab(int32 Index)
 		if (bPickerOpen)
 		{
 			ClosePicker();
-			RebuildTabs();
 		}
 		else
 		{
@@ -826,8 +786,38 @@ void UAMSignTabs::RemoveDesign(int32 Index)
 	SendDesigns();
 }
 
+void UAMSignTabs::UpdateListHeight()
+{
+	const UWidget* Body = Cast<UWidget>(AMST_GetObject(GetWindowFrame(), TEXT("WindowBody")));
+	if (!mSidePanel || !Body)
+	{
+		return;
+	}
+	// The designer page's own height (without us: we are its neighbour, not inside it).
+	const float PageHeight = static_cast<float>(Body->GetDesiredSize().Y);
+	if (PageHeight > 100.f)
+	{
+		if (!FMath::IsNearlyEqual(mSidePanel->GetHeightOverride(), PageHeight, 1.f))
+		{
+			mSidePanel->SetHeightOverride(PageHeight);
+		}
+	}
+	else if (mSidePanel->GetMaxDesiredHeight() <= 0.f)
+	{
+		// Not measured yet: at most this high meanwhile.
+		mSidePanel->SetMaxDesiredHeight(560.f);
+	}
+}
+
 void UAMSignTabs::OpenPicker()
 {
+	ClosePicker();
+	if (!mLayer)
+	{
+		return;
+	}
+	const FSlateFontInfo Font = GetFont();
+
 	// Alarms without a design on this sign yet.
 	mPickerAlarms.Reset();
 	if (const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
@@ -840,8 +830,89 @@ void UAMSignTabs::OpenPicker()
 			}
 		}
 	}
+
+	// A see-through button over the page: a click outside the picker closes it.
+	UButton* Background = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+	FButtonStyle Clear;
+	Clear.SetNormal(FSlateNoResource());
+	Clear.SetHovered(FSlateNoResource());
+	Clear.SetPressed(FSlateNoResource());
+	Background->SetStyle(Clear);
+	Background->OnClicked.AddDynamic(this, &UAMSignTabs::OnPickerBackgroundClicked);
+	if (UCanvasPanelSlot* BackgroundSlot = mLayer->AddChildToCanvas(Background))
+	{
+		BackgroundSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		BackgroundSlot->SetOffsets(FMargin(0.f));
+	}
+
+	constexpr float Width = 300.f;
+	USizeBox* WindowSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	WindowSize->SetWidthOverride(Width);
+	UBorder* Window = AMUI::MakeBox(WidgetTree, AMUI::SidePanel, FMargin(0.f, 0.f, 0.f, 4.f));
+	WindowSize->AddChild(Window);
+	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Window->AddChild(Column);
+
+	USizeBox* SearchSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	SearchSize->SetHeightOverride(36.f);
+	UBorder* SearchField = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 0.f));
+	SearchField->SetVerticalAlignment(VAlign_Center);
+	SearchSize->AddChild(SearchField);
+	mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
+	mPickerSearch->SetFont(Font);
+	mPickerSearch->SetHintText(FText::FromString(TEXT("design for which alarm?")));
+	mPickerSearch->OnTextChanged.AddDynamic(this, &UAMSignTabs::OnPickerSearchChanged);
+	mPickerSearch->OnTextCommitted.AddDynamic(this, &UAMSignTabs::OnPickerSearchCommitted);
+	SearchField->AddChild(mPickerSearch);
+	Column->AddChildToVerticalBox(SearchSize);
+
+	USizeBox* ListSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	ListSize->SetMaxDesiredHeight(300.f);
+	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+	Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
+	ListSize->AddChild(Scroll);
+	mPickerList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Scroll->AddChild(mPickerList);
+	if (UVerticalBoxSlot* ListSlot = Column->AddChildToVerticalBox(ListSize))
+	{
+		ListSlot->SetPadding(FMargin(4.f, 4.f, 4.f, 0.f));
+	}
+	FillPicker(FString());
+
+	// Floating over the page, its bottom right just left of and level with "+ AutoDesign" (the list
+	// is on the page's right), growing upwards. This widget is never collapsed, so its geometry is
+	// known (from the frames already drawn).
+	FVector2D Position(8.0, 300.0);
+	const FGeometry& PageGeometry = GetCachedGeometry();
+	const FVector2D PageSize = PageGeometry.GetLocalSize();
+	if (mAddButton)
+	{
+		const FGeometry& AnchorGeometry = mAddButton->GetCachedGeometry();
+		const FVector2D AnchorBottom = PageGeometry.AbsoluteToLocal(AnchorGeometry.GetAbsolutePosition() + FVector2D(0.0, AnchorGeometry.GetAbsoluteSize().Y));
+		Position.Y = AnchorBottom.Y;
+	}
+	Position.X = FMath::Max(0.0, PageSize.X - Width - 8.0);
+	Position.Y = FMath::Clamp(Position.Y, 0.0, FMath::Max(0.0, PageSize.Y));
+	if (UCanvasPanelSlot* WindowSlot = mLayer->AddChildToCanvas(WindowSize))
+	{
+		WindowSlot->SetAnchors(FAnchors(0.f, 0.f));
+		WindowSlot->SetAlignment(FVector2D(0.0, 1.0));
+		WindowSlot->SetAutoSize(true);
+		WindowSlot->SetPosition(Position);
+	}
 	bPickerOpen = true;
-	RebuildTabs();
+
+	if (UWorld* World = GetWorld())
+	{
+		TWeakObjectPtr<UEditableText> WeakSearch(mPickerSearch);
+		World->GetTimerManager().SetTimerForNextTick([WeakSearch]()
+		{
+			if (UEditableText* Search = WeakSearch.Get())
+			{
+				Search->SetKeyboardFocus();
+			}
+		});
+	}
 }
 
 void UAMSignTabs::FillPicker(const FString& Filter)
@@ -904,7 +975,6 @@ void UAMSignTabs::OnPickerSearchCommitted(const FText& Text, ETextCommit::Type C
 				if (UAMSignTabs* Tabs = WeakThis.Get())
 				{
 					Tabs->ClosePicker();
-					Tabs->RebuildTabs();
 				}
 			});
 		}
@@ -942,9 +1012,20 @@ void UAMSignTabs::OnPickerSearchCommitted(const FText& Text, ETextCommit::Type C
 	}
 }
 
+void UAMSignTabs::OnPickerBackgroundClicked()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMSignTabs::ClosePicker));
+	}
+}
+
 void UAMSignTabs::ClosePicker()
 {
-	// Closed for the next time the list is made (the callers make it again, or the window closes).
+	if (mLayer)
+	{
+		mLayer->ClearChildren();
+	}
 	bPickerOpen = false;
 	mPickerList = nullptr;
 	mPickerSearch = nullptr;

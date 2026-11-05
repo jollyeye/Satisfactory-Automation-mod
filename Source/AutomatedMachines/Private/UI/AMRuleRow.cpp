@@ -114,6 +114,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		mAlarmNameText->OnTextChanged.AddDynamic(this, &UAMRuleRow::OnAlarmNameChanged);
 		mAlarmNameText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnAlarmNameCommitted);
 		Field->AddChild(mAlarmNameText);
+		mAlarmNameField = Field;
 		Add(AMRR_Cell(Tree, AMRowLayout::AlarmName, Field), 0.f);
 		Add(AMRR_Cell(Tree, AMRowLayout::MachineEvent, SecondButton), AMRowLayout::Gap);
 	}
@@ -265,12 +266,13 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		}
 	}
 
+	// Not in the row: shown floating under the name field (UAMAutomationTab::ShowFloatingList).
 	mChoices = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	mChoices->SetVisibility(ESlateVisibility::Collapsed);
-	if (UVerticalBoxSlot* ChoicesSlot = mRoot->AddChildToVerticalBox(mChoices))
-	{
-		ChoicesSlot->SetPadding(FMargin(0.f, 2.f, 0.f, 4.f));
-	}
+	mChoicesFloat = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	mChoicesFloat->SetWidthOverride(AMRowLayout::AlarmName + AMRowLayout::Gap + AMRowLayout::MachineEvent);
+	UBorder* ChoicesBox = AMUI::MakeBox(Tree, AMUI::SidePanel, FMargin(2.f));
+	ChoicesBox->AddChild(mChoices);
+	mChoicesFloat->AddChild(ChoicesBox);
 
 	UpdateLabels();
 }
@@ -555,14 +557,14 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 
 	bChoicesOpen = true;
 	mOpenKind = Kind;
-	mChoices->SetVisibility(ESlateVisibility::Visible);
+	mTab->ShowFloatingList(mChoicesFloat, mAlarmNameField ? mAlarmNameField.Get() : mRoot.Get());
 }
 
 void UAMRuleRow::HideChoices()
 {
 	mChoices->ClearChildren();
 	mChoiceHandlers.Reset();
-	mChoices->SetVisibility(ESlateVisibility::Collapsed);
+	mTab->HideFloatingList(mChoicesFloat);
 	bChoicesOpen = false;
 }
 

@@ -13,9 +13,9 @@
 // The designs are sent to the server when they change and when the window closes; the server then
 // shows on the sign the design it should show (its last rung alarm's, or the normal one).
 //
-// This widget is hooked into the Sign Designer's page and stays collapsed; the list (made in its
-// widget tree) goes into the window's body row, left of the page, and the alarm picker opens inside
-// the list, under "+ AutoDesign".
+// This widget is hooked into the Sign Designer's page: an empty, click-through layer over it (visible,
+// so it always has a size: the alarm picker floats on it, above "+ AutoDesign"). The list (made in
+// its widget tree) goes into the window's body row, next to the page.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -90,6 +90,9 @@ protected:
 
 	UFUNCTION()
 	void OnPickerSearchCommitted(const FText& Text, ETextCommit::Type CommitMethod);
+
+	UFUNCTION()
+	void OnPickerBackgroundClicked();
 
 private:
 	/** On the tick after construct (retried while the window has not filled its tab list yet). */
@@ -168,8 +171,11 @@ private:
 	TObjectPtr<class UScrollBox> mTabScroll;
 	float mTabScrollOffset = 0.f;
 
-	/** The picker is open (shown under "+ AutoDesign" in the list). */
+	/** The picker is open (floating over the page, above "+ AutoDesign"). */
 	bool bPickerOpen = false;
+
+	/** Caps the list's height at the designer page's (so it scrolls instead of stretching the window). */
+	void UpdateListHeight();
 
 	UPROPERTY()
 	TObjectPtr<class UButton> mAddButton;

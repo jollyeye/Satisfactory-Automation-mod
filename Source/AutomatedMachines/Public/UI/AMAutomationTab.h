@@ -64,6 +64,14 @@ class AUTOMATEDMACHINES_API UAMAutomationTab : public UUserWidget
 public:
 	// Used by the rows (UAMRuleRow).
 	UWidgetTree* GetTree() const { return WidgetTree; }
+
+	/**
+	 * A list floating on the popup layer right under the anchor (e.g. alarm name suggestions under
+	 * the name field), without the click-catching background of the dropdown window: the field keeps
+	 * the focus and everything else stays clickable. Hide removes it again.
+	 */
+	void ShowFloatingList(UWidget* List, UWidget* Anchor);
+	void HideFloatingList(UWidget* List);
 	FSlateFontInfo GetGameFont() const;
 
 	/** The font of the window's tab buttons ("Select Recipe"...): used for the rows, so they match. */
@@ -319,6 +327,12 @@ private:
 	 * a table of every alarm in the world with who rings it and who listens.
 	 */
 	bool bOverviewMode = false;
+
+	/**
+	 * Sliding pages (production window, HUB): our page as high as the game's tallest page, so our
+	 * lists scroll instead of making the window (and with it every tab) taller.
+	 */
+	void UpdatePageHeight();
 
 	/** Our tab's title: "Automation" or "Alarms Overview". */
 	const TCHAR* GetTabTitle() const;

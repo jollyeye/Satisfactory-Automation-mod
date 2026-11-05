@@ -969,6 +969,76 @@ void UAMAutomationTab::ClosePicker(bool bDeferred)
 	mPopupHandlers.Reset();
 }
 
+void UAMAutomationTab::ShowFloatingList(UWidget* List, UWidget* Anchor)
+{
+	if (!List || !mPopupLayer)
+	{
+		return;
+	}
+	if (List->GetParent() != mPopupLayer)
+	{
+		List->RemoveFromParent();
+		mPopupLayer->AddChildToCanvas(List);
+	}
+	FVector2D Position(16.0, 60.0);
+	if (Anchor)
+	{
+		const FGeometry& TabGeometry = GetCachedGeometry();
+		const FGeometry& AnchorGeometry = Anchor->GetCachedGeometry();
+		Position = TabGeometry.AbsoluteToLocal(AnchorGeometry.GetAbsolutePosition() + FVector2D(0.0, AnchorGeometry.GetAbsoluteSize().Y));
+	}
+	if (UCanvasPanelSlot* ListSlot = Cast<UCanvasPanelSlot>(List->Slot))
+	{
+		ListSlot->SetAnchors(FAnchors(0.f, 0.f));
+		ListSlot->SetAlignment(FVector2D::ZeroVector);
+		ListSlot->SetAutoSize(true);
+		ListSlot->SetPosition(Position + FVector2D(0.0, 2.0));
+		ListSlot->SetZOrder(10);
+	}
+	// The layer itself lets clicks through; only the list takes them.
+	mPopupLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+}
+
+void UAMAutomationTab::HideFloatingList(UWidget* List)
+{
+	if (List && mPopupLayer && List->GetParent() == mPopupLayer)
+	{
+		List->RemoveFromParent();
+		if (mPopupLayer->GetChildrenCount() == 0)
+		{
+			mPopupLayer->SetVisibility(ESlateVisibility::Collapsed);
+		}
+	}
+}
+
+void UAMAutomationTab::UpdatePageHeight()
+{
+	if (bSinglePageMode)
+	{
+		return;
+	}
+	const UPanelWidget* Pages = GetParent();
+	USizeBox* Root = Cast<USizeBox>(WidgetTree ? WidgetTree->RootWidget : nullptr);
+	if (!Pages || !Root)
+	{
+		return;
+	}
+	float Tallest = 0.f;
+	for (int32 Index = 0; Index < Pages->GetChildrenCount(); ++Index)
+	{
+		const UWidget* Page = Pages->GetChildAt(Index);
+		if (Page && !Page->IsA<UAMAutomationTab>() && Page->IsVisible())
+		{
+			Tallest = FMath::Max(Tallest, static_cast<float>(Page->GetDesiredSize().Y));
+		}
+	}
+	if (Tallest > 100.f && !FMath::IsNearlyEqual(Root->GetHeightOverride(), Tallest, 1.f))
+	{
+		Root->SetHeightOverride(Tallest);
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: page height %.0f (the game's tallest page)"), Tallest);
+	}
+}
+
 void UAMAutomationTab::OnPopupBackgroundClicked()
 {
 	ClosePicker(true);
@@ -1385,6 +1455,7 @@ void UAMAutomationTab::EnsureTabButtonExists()
 		// The frame made its buttons before our entry was in the list: make them again.
 		RegenerateTabButtons();
 	}
+	UpdatePageHeight();
 }
 
 void UAMAutomationTab::ApplyGameFonts()
@@ -1842,6 +1913,7 @@ void UAMAutomationTab::ShowSinglePage(bool bAutomation)
 void UAMAutomationTab::ShowThisTab()
 {
 	RefreshTabIndex();
+	UpdatePageHeight();
 	UObject* SlidingTabs = AMAT_GetObject(GetHostWindow(), AMAT_SlidingTabsProperty);
 	if (!SlidingTabs || TabIndex == INDEX_NONE)
 	{
