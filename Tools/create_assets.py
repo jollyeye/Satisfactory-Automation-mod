@@ -179,9 +179,9 @@ log("  material: unlit, masked, two-sided, camera-facing")
 
 
 # --- Underglow material (decal under automated machines) ---------------------------------------
-# Projected down onto the floor around a machine: cyan light, full from the centre to FadeStart (75%
-# of the way to the decal's edge on each axis), then a smooth fade to nothing at the edge, with
-# rounded corners. It also fades out above the floor height (30 cm), a little with depth below it
+# Projected down onto the floor around a machine: cyan light, full from the centre to FadeStart (per
+# axis, as a part of the way to the decal's edge: R along U, G along V; set per machine by AAMMarkers
+# so the fade is 1.5 m wide), then a smooth fade to nothing at the edge, with rounded corners. It also fades out above the floor height (30 cm), a little with depth below it
 # (slopes), and on walls (surfaces steeper than about 75 degrees). Only emissive and opacity are
 # connected, so the decal adds light and leaves the floor's own colour alone.
 glow_path = ROOT + "/Marker/M_AM_Underglow"
@@ -210,11 +210,12 @@ g_camera = node(glow, unreal.MaterialExpressionCameraPositionWS, -1300, 800)
 g_relative = node(glow, unreal.MaterialExpressionSubtract, -900, 800)
 link(g_world, "", g_relative, "A")
 link(g_camera, "", g_relative, "B")
-g_fade_start = node(glow, unreal.MaterialExpressionScalarParameter, -900, 150, parameter_name="FadeStart", default_value=0.75)
+g_fade_start = node(glow, unreal.MaterialExpressionVectorParameter, -900, 150, parameter_name="FadeStart",
+                    default_value=unreal.LinearColor(0.75, 0.75, 0.0, 0.0))
 g_shape = node(glow, unreal.MaterialExpressionCustom, -600, 50)
 g_shape.set_editor_property("code",
     "float2 P = abs(UV * 2.0 - 1.0);\n"
-    "float F = clamp(FadeStart, 0.0, 0.98);\n"
+    "float2 F = clamp(FadeStart.xy, 0.0, 0.98);\n"
     "float2 D = max(P - F, 0.0) / (1.0 - F);\n"
     "float G = saturate(1.0 - length(D));\n"
     "G = G * G * (3.0 - 2.0 * G);\n"

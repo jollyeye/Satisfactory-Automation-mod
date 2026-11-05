@@ -22,6 +22,9 @@ namespace
 	/** How far the glow reaches out from the machine's visible edge, in cm. */
 	constexpr float AMMK_Margin = 45.f;
 
+	/** How wide the fade from full light to nothing is, in cm, ending at the glow's outer edge. */
+	constexpr float AMMK_FadeWidth = 150.f;
+
 	/** The projection box around the floor height: this high above it (the material fades the light out over 30 cm) ... */
 	constexpr float AMMK_Above = 60.f;
 
@@ -268,10 +271,13 @@ bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
 	Glow->DecalSize = FVector(HalfDepth, HalfY, HalfZ);
 	Glow->MarkRenderStateDirty();
 
-	// The floor height the light belongs to (the shape is the decal's own: full light to 75% of
-	// the way to its edge, then fading out).
+	// Where the fade starts, as a part of the way from the centre to the edge (U along the
+	// machine's X, V along its Y), so it is AMMK_FadeWidth wide on any machine; and the floor height
+	// the light belongs to.
 	if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Glow->GetDecalMaterial()))
 	{
+		Material->SetVectorParameterValue(TEXT("FadeStart"), FLinearColor(
+			FMath::Max(0.f, 1.f - AMMK_FadeWidth / HalfZ), FMath::Max(0.f, 1.f - AMMK_FadeWidth / HalfY), 0.f, 0.f));
 		Material->SetScalarParameterValue(TEXT("BaseZ"), static_cast<float>(FloorZ));
 	}
 	return bFound;
