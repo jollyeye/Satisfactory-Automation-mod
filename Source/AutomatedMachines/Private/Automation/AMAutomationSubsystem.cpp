@@ -1238,7 +1238,7 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 namespace
 {
 	/**
-	 * The power used (bConsumed) or made by the buildings on one side of a switch, in MW; false if that
+	 * The power used (bConsumed) or that can be made (capacity) by the buildings on one side of a switch, in MW; false if that
 	 * side is not connected. Summed over the side's own buildings, not taken from the circuit's
 	 * numbers: while the switch is on, both sides' circuits show the numbers of the joined grid.
 	 * The circuit's list of buildings is private: read by name (a UPROPERTY). Kept for the rest of
@@ -1278,7 +1278,9 @@ namespace
 				if (Info)
 				{
 					Sums.Used += Info->GetActualConsumption();
-					Sums.Made += Info->GetBaseProduction() + Info->GetRegulatedDynamicProduction();
+					// What the generators can make (the graph's capacity), not what they make now:
+					// generators make only what is used, so that would just repeat the usage.
+					Sums.Made += Info->GetBaseProduction() + Info->GetDynamicProductionCapacity();
 				}
 			}
 		}

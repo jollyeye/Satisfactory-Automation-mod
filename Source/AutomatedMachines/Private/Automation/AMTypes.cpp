@@ -200,9 +200,9 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	case EAMCondition::GridBUsesMore:
 		return AMTY_Text(TEXT("Rings when the machines of Power Grid A use less power than those of Power Grid B (the right graph in the switch's window)."));
 	case EAMCondition::GridAMakesMore:
-		return AMTY_Text(TEXT("Rings when the generators of Power Grid A make more power than those of Power Grid B.\n\nPair it with \"A power < B power\", which rings when it turns the other way."));
+		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make more power than those of Power Grid B: their capacity (the top line of the graph), which counts only generators that have fuel.\n\nPair it with \"A power < B power\", which rings when it turns the other way."));
 	case EAMCondition::GridBMakesMore:
-		return AMTY_Text(TEXT("Rings when the generators of Power Grid A make less power than those of Power Grid B."));
+		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make less power than those of Power Grid B (their capacity, generators with fuel only)."));
 	default:
 		return FText::GetEmpty();
 	}
