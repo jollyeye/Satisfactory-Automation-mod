@@ -24,6 +24,9 @@ namespace AMClipboard
 		TArray<FAMFireRule> Fires;
 		TArray<FAMReactionRule> Reactions;
 		FAMMachineOptions Options;
+		/** Signs: the normal design and the alarm designs. */
+		FAMSignDesign SignNormal;
+		TArray<FAMSignDesign> SignDesigns;
 	};
 
 	/** Installs the hooks (once, at module startup, not in the editor). */

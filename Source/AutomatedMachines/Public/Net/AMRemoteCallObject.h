@@ -22,6 +22,12 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerSetWorldActions(const TArray<FAMReactionRule>& Actions);
 
+	UFUNCTION(Server, Reliable)
+	void ServerSetSignDesigns(AFGBuildable* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs);
+
+	/** Changes a sign's designs: directly on the server, through the server on a client. */
+	static void RequestSetSignDesigns(APlayerController* Player, AFGBuildable* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs);
+
 	/** Every player gets this object (made on the server when the player controller starts). */
 	static void InstallRegistration();
 

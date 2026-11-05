@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "Templates/SubclassOf.h"
+#include "UObject/SoftObjectPath.h"
 #include "AMTypes.generated.h"
 
 class AFGBuildable;
@@ -146,6 +147,46 @@ struct AUTOMATEDMACHINES_API FAMMachineOptions
 	bool IsDefault() const { return !bPassWrongItems; }
 };
 
+/**
+ * A sign's design for an alarm (the game's sign data, in fields our save keeps): when the alarm
+ * rings, the sign shows it. Event empty: the sign's normal design.
+ */
+USTRUCT(BlueprintType)
+struct AUTOMATEDMACHINES_API FAMSignDesign
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame)
+	FString Event;
+
+	UPROPERTY(SaveGame)
+	FSoftClassPath Layout;
+
+	UPROPERTY(SaveGame)
+	TMap<FString, FString> Texts;
+
+	UPROPERTY(SaveGame)
+	TMap<FString, int32> Icons;
+
+	UPROPERTY(SaveGame)
+	FLinearColor Foreground = FLinearColor::Black;
+
+	UPROPERTY(SaveGame)
+	FLinearColor Background = FLinearColor::Black;
+
+	UPROPERTY(SaveGame)
+	FLinearColor Auxiliary = FLinearColor::Black;
+
+	UPROPERTY(SaveGame)
+	float Emissive = 0.f;
+
+	UPROPERTY(SaveGame)
+	float Glossiness = 0.f;
+
+	UPROPERTY(SaveGame)
+	TSubclassOf<UObject> SignType;
+};
+
 /** All rules of one machine. Machines without rules have no entry at all. */
 USTRUCT(BlueprintType)
 struct AUTOMATEDMACHINES_API FAMMachineRules
@@ -164,7 +205,17 @@ struct AUTOMATEDMACHINES_API FAMMachineRules
 	UPROPERTY(SaveGame, BlueprintReadOnly, Category = "Automation")
 	FAMMachineOptions Options;
 
-	bool IsEmpty() const { return Fires.Num() == 0 && Reactions.Num() == 0 && Options.IsDefault(); }
+	/** Signs: a design per alarm, the normal design, and the alarm whose design shows now (empty: normal). */
+	UPROPERTY(SaveGame)
+	TArray<FAMSignDesign> SignDesigns;
+
+	UPROPERTY(SaveGame)
+	FAMSignDesign SignNormal;
+
+	UPROPERTY(SaveGame)
+	FString SignShowing;
+
+	bool IsEmpty() const { return Fires.Num() == 0 && Reactions.Num() == 0 && Options.IsDefault() && SignDesigns.Num() == 0; }
 };
 
 namespace AMRules

@@ -1,6 +1,7 @@
 #include "UI/AMWidgetHooks.h"
 #include "AutomatedMachinesModule.h"
 #include "UI/AMAutomationTab.h"
+#include "UI/AMSignTabs.h"
 #include "Patching/WidgetBlueprintHookManager.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -34,17 +35,22 @@ namespace
 	const TCHAR* const AMWH_GeneratorWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C");
 	const TCHAR* const AMWH_StandbyButton = TEXT("Widget_StandbyButton");
 
+	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
+	// the page panel holding its Revert Settings button (mSaveButton).
+	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
+	const TCHAR* const AMWH_SignPageChild = TEXT("mSaveButton");
+
 	bool AMWH_Registered = false;
 
 	/** Adds UAMAutomationTab as the last page of a window's tab pages. */
 	void AMWH_HookPages(UWidgetBlueprintHookManager* HookManager, const TCHAR* Window, const TCHAR* Pages, const TCHAR* HookName, bool bSlotSetup = true,
-		EWidgetBlueprintHookParentType ParentType = EWidgetBlueprintHookParentType::Direct_Any)
+		EWidgetBlueprintHookParentType ParentType = EWidgetBlueprintHookParentType::Direct_Any, UClass* WidgetClass = nullptr)
 	{
 		UWidgetBlueprintHookData* Hook = NewObject<UWidgetBlueprintHookData>(GetTransientPackage(), HookName);
 		Hook->AddToRoot();
 		Hook->DeveloperComment = TEXT("Automated Machines: Automation tab page");
 		Hook->WidgetClass = TSoftClassPtr<UUserWidget>(FSoftObjectPath(Window));
-		Hook->NewWidgetClass = UAMAutomationTab::StaticClass();
+		Hook->NewWidgetClass = WidgetClass ? WidgetClass : UAMAutomationTab::StaticClass();
 		Hook->NewWidgetName = TEXT("AM_AutomationTab");
 		Hook->ParentWidgetType = ParentType;
 		Hook->ParentWidgetName = Pages;
@@ -83,6 +89,8 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"), false);
 		AMWH_HookPages(HookManager, AMWH_GeneratorWindow, AMWH_StandbyButton, TEXT("AM_GeneratorAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());
 	}
 }
 

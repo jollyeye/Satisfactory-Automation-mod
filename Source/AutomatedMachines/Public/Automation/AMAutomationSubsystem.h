@@ -60,6 +60,13 @@ public:
 	/** Actions of the whole world (the HUB terminal's Automation tab): they need no machine. */
 	const TArray<FAMReactionRule>& GetWorldActions() const { return mWorldActions; }
 
+	/**
+	 * Replaces a sign's designs (server only): its normal design and one per alarm. The sign then
+	 * shows the design it should (a second later, after the game's own save of the open window).
+	 * No designs: the sign gets its normal design back and its entry goes.
+	 */
+	void SetSignDesigns(class AFGBuildableWidgetSign* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs);
+
 	/** Replaces the world actions (server only). Only world actions are kept. */
 	void SetWorldActions(const TArray<FAMReactionRule>& Actions);
 
@@ -81,6 +88,9 @@ protected:
 	void OnBuildableConstructed(AFGBuildable* Buildable);
 
 private:
+	/** Shows on a sign the design it should show now (its alarm's, or the normal one). */
+	void ShowCurrentSignDesign(class AFGBuildableWidgetSign* Sign);
+
 	/** Removes entries of dismantled machines and entries without rules. Returns true if any were removed. */
 	bool RemoveInvalidEntries();
 

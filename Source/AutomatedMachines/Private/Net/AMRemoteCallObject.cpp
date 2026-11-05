@@ -2,6 +2,7 @@
 #include "AutomatedMachinesModule.h"
 #include "Automation/AMAutomationSubsystem.h"
 #include "Buildables/FGBuildable.h"
+#include "Buildables/FGBuildableWidgetSign.h"
 #include "FGPlayerController.h"
 #include "Net/UnrealNetwork.h"
 #include "Patching/NativeHookManager.h"
@@ -89,5 +90,35 @@ void UAMRemoteCallObject::RequestSetRules(APlayerController* Player, AFGBuildabl
 	else
 	{
 		UE_LOG(LogAutomatedMachines, Warning, TEXT("Cannot send rules to the server: no remote call object"));
+	}
+}
+
+void UAMRemoteCallObject::ServerSetSignDesigns_Implementation(AFGBuildable* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs)
+{
+	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Sign))
+	{
+		Subsystem->SetSignDesigns(Cast<AFGBuildableWidgetSign>(Sign), Normal, Designs);
+	}
+}
+
+void UAMRemoteCallObject::RequestSetSignDesigns(APlayerController* Player, AFGBuildable* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs)
+{
+	if (!Sign)
+	{
+		return;
+	}
+	if (Sign->HasAuthority())
+	{
+		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Sign))
+		{
+			Subsystem->SetSignDesigns(Cast<AFGBuildableWidgetSign>(Sign), Normal, Designs);
+		}
+		return;
+	}
+	AFGPlayerController* FGPlayer = Cast<AFGPlayerController>(Player);
+	UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr;
+	if (RCO)
+	{
+		RCO->ServerSetSignDesigns(Sign, Normal, Designs);
 	}
 }

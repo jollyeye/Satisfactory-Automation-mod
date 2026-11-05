@@ -11,6 +11,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Patching/NativeHookManager.h"
 #include "UObject/ObjectKey.h"
+#include "Buildables/FGBuildableWidgetSign.h"
 
 namespace
 {
@@ -50,6 +51,10 @@ namespace
 
 	FString AMCB_Describe(const AMClipboard::FClip& Clip)
 	{
+		if (Clip.SignDesigns.Num() > 0)
+		{
+			return FString::Printf(TEXT("%d alarm design%s"), Clip.SignDesigns.Num(), Clip.SignDesigns.Num() == 1 ? TEXT("") : TEXT("s"));
+		}
 		return FString::Printf(TEXT("%d alarm%s, %d action%s"),
 			Clip.Fires.Num(), Clip.Fires.Num() == 1 ? TEXT("") : TEXT("s"),
 			Clip.Reactions.Num(), Clip.Reactions.Num() == 1 ? TEXT("") : TEXT("s"));
@@ -68,6 +73,8 @@ namespace
 		OutClip.Fires = Rules->Fires;
 		OutClip.Reactions = Rules->Reactions;
 		OutClip.Options = Rules->Options;
+		OutClip.SignNormal = Rules->SignNormal;
+		OutClip.SignDesigns = Rules->SignDesigns;
 		return true;
 	}
 }
@@ -122,7 +129,15 @@ bool AMClipboard::Paste(AFGPlayerState* Player, UObject* Object)
 	AMCB_LastPasteFrame = GFrameCounter;
 	AMCB_LastPasteMachine = FObjectKey(Machine);
 
-	UAMRemoteCallObject::RequestSetRules(AMCB_Controller(Player), Machine, Clip->Fires, Clip->Reactions, Clip->Options);
+	if (Machine->IsA<AFGBuildableWidgetSign>())
+	{
+		// The game pastes the design itself; the alarm designs come from us.
+		UAMRemoteCallObject::RequestSetSignDesigns(AMCB_Controller(Player), Machine, Clip->SignNormal, Clip->SignDesigns);
+	}
+	else
+	{
+		UAMRemoteCallObject::RequestSetRules(AMCB_Controller(Player), Machine, Clip->Fires, Clip->Reactions, Clip->Options);
+	}
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation pasted onto %s: %s"), *Machine->GetName(), *AMCB_Describe(*Clip));
 	UAMNotification::Show(AMCB_Controller(Player), TEXT("AUTOMATION PASTED"), AMCB_Describe(*Clip));
 	return true;
@@ -136,7 +151,14 @@ void AMClipboard::OnBuildableConstructed(AAMAutomationSubsystem* Subsystem, AFGB
 	{
 		return;
 	}
-	Subsystem->SetRules(Buildable, Sample->Clip.Fires, Sample->Clip.Reactions, Sample->Clip.Options);
+	if (AFGBuildableWidgetSign* Sign = Cast<AFGBuildableWidgetSign>(Buildable))
+	{
+		Subsystem->SetSignDesigns(Sign, Sample->Clip.SignNormal, Sample->Clip.SignDesigns);
+	}
+	else
+	{
+		Subsystem->SetRules(Buildable, Sample->Clip.Fires, Sample->Clip.Reactions, Sample->Clip.Options);
+	}
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Built %s with the sampled automation: %s"), *Buildable->GetName(), *AMCB_Describe(Sample->Clip));
 }
 

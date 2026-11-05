@@ -207,6 +207,13 @@ Not offered: production boost (Somersloops are items, not a setting).
 
 `AAMMarkers::Rebuild`: a line trace (Visibility) from the top of the machine's bounds up 120 cm; if it hits another actor, the marker goes to the machine's front instead (`GetActorForwardVector`, bounds depth along it + 60 cm, at the bounds' centre height). Markers are placed again every 5 s (a looping timer), so stacking something later moves the marker.
 
+## Signs (5 Nov 2026, untested)
+
+- Window: `/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C` (from `mInteractWidgetSoftClass` of `Build_StandaloneWidgetSign_*`). One-page window, frame `Widget_Window_DarkMode` (one tab, "Sign Designer"), page `CanvasPanel_144` in `WindowBody`. Variables: `mSign` (the `AFGBuildableWidgetSign`), `mSignData` (the design being edited, `FPrefabSignData`), `mOriginalSignData`, `mSaveFileSignData`, `mChangesWereMade`; functions `Set Sign Data(FPrefabSignData)`, `SaveData()`, `On Apply Changes Close(bool)`, `GenerateSettings()`, `OnFactoryClipboardPasted` (event).
+- `UAMSignTabs` (not the Automation page) is hooked with `Indirect_Child` on `mSaveButton` (its parent is the page canvas). On the tick after construct (retried while `mTabs` is empty) it sets `mTabs` = [window tab] + one per design + "+ Alarm", copies it to the tabs container's `mButtons`, `GenerateButtons`, lays the buttons out (220 wide, narrower above 4), `SetTitle` / `SetIcon`, a bin (`AMUI::MakeRemoveButton`) in each design tab's `mContent`, and binds each tab's inner `mButton`. Switching tabs: read `mSignData` into the old slot, `Set Sign Data` with the new slot. Changes to the tab list happen on the next tick (not inside a click).
+- Saved (`FAMMachineRules`): `SignDesigns` (`FAMSignDesign`: layout path, text and icon maps, three colours, emissive, glossiness, sign type: the `FPrefabSignData` fields, as SaveGame), `SignNormal`, `SignShowing`. `FireEvent` shows a sign's design (`AFGBuildableWidgetSign::SetPrefabSignData` on the server). `SetSignDesigns` (RPC `ServerSetSignDesigns`) shows the right design 1 s later, after the window's own save (which saves whichever tab was selected).
+- Build: the sign headers include `LocalUserInfo.h` (plugin `OnlineIntegration`): added `OnlineIntegration` and `GameplayEvents` to `AutomatedMachines.Build.cs`.
+
 ## The widget dump
 
 Now pointed at the HUB terminal (`BPW_Hub_C`): its tree, plus variables and functions of every widget in it whose class name contains Tab, Menu or Hub, to find where an Automation tab goes next to Milestones.

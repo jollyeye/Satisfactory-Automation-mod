@@ -22,6 +22,8 @@
 #include "Automation/AMSound.h"
 #include "Automation/AMClipboard.h"
 #include "FGBuildableSubsystem.h"
+#include "Automation/AMSign.h"
+#include "Buildables/FGBuildableWidgetSign.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
 #include "EngineUtils.h"
@@ -215,6 +217,78 @@ void AAMAutomationSubsystem::PostLoadGame_Implementation(int32 SaveVersion, int3
 		mMachines.Num(), GetAllEventNames().Num());
 }
 
+void AAMAutomationSubsystem::SetSignDesigns(AFGBuildableWidgetSign* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs)
+{
+	if (!HasAuthority() || !Sign)
+	{
+		return;
+	}
+	int32 Index = mMachines.IndexOfByPredicate([Sign](const FAMMachineRules& Entry) { return Entry.Machine == Sign; });
+	if (Index == INDEX_NONE)
+	{
+		if (Designs.Num() == 0)
+		{
+			return;
+		}
+		FAMMachineRules& NewEntry = mMachines.AddDefaulted_GetRef();
+		NewEntry.Machine = Sign;
+		Index = mMachines.Num() - 1;
+	}
+	FAMMachineRules& Entry = mMachines[Index];
+	Entry.SignNormal = Normal;
+	Entry.SignNormal.Event.Reset();
+	Entry.SignDesigns.Reset();
+	for (const FAMSignDesign& Design : Designs)
+	{
+		FAMSignDesign Clean = Design;
+		Clean.Event = AMRules::NormalizeEventName(Design.Event);
+		if (!Clean.Event.IsEmpty() && !Entry.SignDesigns.ContainsByPredicate([&Clean](const FAMSignDesign& D) { return D.Event == Clean.Event; }))
+		{
+			Entry.SignDesigns.Add(Clean);
+		}
+	}
+	if (!Entry.SignDesigns.ContainsByPredicate([&Entry](const FAMSignDesign& D) { return D.Event == Entry.SignShowing; }))
+	{
+		Entry.SignShowing.Reset();
+	}
+	UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %d sign designs, showing %s"), *AMAS_Describe(Sign), Entry.SignDesigns.Num(),
+		Entry.SignShowing.IsEmpty() ? TEXT("the normal design") : *Entry.SignShowing);
+
+	const bool bNoDesigns = Entry.SignDesigns.Num() == 0;
+	if (bNoDesigns)
+	{
+		// Back to a plain sign: its normal design, no entry.
+		AMSign::Show(Sign, Normal);
+		if (Entry.IsEmpty())
+		{
+			mMachines.RemoveAt(Index);
+		}
+	}
+	else
+	{
+		// After the game's own save of the open window (which saves the tab it was on).
+		TWeakObjectPtr<AFGBuildableWidgetSign> WeakSign(Sign);
+		FTimerHandle Later;
+		GetWorldTimerManager().SetTimer(Later, FTimerDelegate::CreateWeakLambda(this, [this, WeakSign]()
+		{
+			ShowCurrentSignDesign(WeakSign.Get());
+		}), 1.f, false);
+	}
+	ForceNetUpdate();
+	OnRulesChanged.Broadcast();
+}
+
+void AAMAutomationSubsystem::ShowCurrentSignDesign(AFGBuildableWidgetSign* Sign)
+{
+	const FAMMachineRules* Rules = FindRules(Sign);
+	if (!Rules || Rules->SignDesigns.Num() == 0)
+	{
+		return;
+	}
+	const FAMSignDesign* Design = Rules->SignDesigns.FindByPredicate([Rules](const FAMSignDesign& D) { return D.Event == Rules->SignShowing; });
+	AMSign::Show(Sign, Design ? *Design : Rules->SignNormal);
+}
+
 void AAMAutomationSubsystem::OnBuildableConstructed(AFGBuildable* Buildable)
 {
 	AMClipboard::OnBuildableConstructed(this, Buildable);
@@ -244,6 +318,13 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	FAMMachineRules NewRules;
 	NewRules.Machine = Machine;
 	NewRules.Options = Options;
+	if (const FAMMachineRules* Existing = FindRules(Machine))
+	{
+		// Sign designs are set on their own (SetSignDesigns).
+		NewRules.SignDesigns = Existing->SignDesigns;
+		NewRules.SignNormal = Existing->SignNormal;
+		NewRules.SignShowing = Existing->SignShowing;
+	}
 	NewRules.Options.bPassWrongItems = Options.bPassWrongItems && AMRules::HasPassWrongItems(Machine);
 	for (const FAMFireRule& Rule : Fires)
 	{
@@ -391,6 +472,10 @@ TArray<FString> AAMAutomationSubsystem::GetAllEventNames() const
 		{
 			Names.Add(Rule.Event);
 		}
+		for (const FAMSignDesign& Design : Entry.SignDesigns)
+		{
+			Names.Add(Design.Event);
+		}
 	}
 	TArray<FString> Result = Names.Array();
 	Result.Sort();
@@ -407,7 +492,8 @@ void AAMAutomationSubsystem::CountEventUses(const FString& Event, int32& OutRing
 		{
 			++OutRingers;
 		}
-		if (Entry.Reactions.ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; }))
+		if (Entry.Reactions.ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; })
+			|| Entry.SignDesigns.ContainsByPredicate([&Event](const FAMSignDesign& Design) { return Design.Event == Event; }))
 		{
 			++OutActors;
 		}
@@ -422,7 +508,7 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 	// Fuel generators: Biomass Burner, Coal, Fuel, Nuclear (one class; their windows come one by one).
 	return Machine && (Machine->IsA<AFGBuildableManufacturer>() || Machine->IsA<AFGBuildableResourceExtractor>()
 		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
-		|| Machine->IsA<AFGBuildableGeneratorFuel>());
+		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -562,8 +648,19 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringe
 			ApplyWorldAction(Rule, Ringer);
 		}
 	}
-	for (const FAMMachineRules& Entry : mMachines)
+	for (FAMMachineRules& Entry : mMachines)
 	{
+		// Signs: show this alarm's design.
+		if (AFGBuildableWidgetSign* Sign = Cast<AFGBuildableWidgetSign>(Entry.Machine))
+		{
+			if (const FAMSignDesign* Design = Entry.SignDesigns.FindByPredicate([&Event](const FAMSignDesign& D) { return D.Event == Event; }))
+			{
+				Entry.SignShowing = Event;
+				AMSign::Show(Sign, *Design);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s shows its %s design"), *AMAS_Describe(Sign), *Event);
+			}
+			continue;
+		}
 		AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Entry.Machine);
 		if (!Factory)
 		{

@@ -22,6 +22,9 @@ public class AutomatedMachines : ModuleRules
 			// Satisfactory + mod loader
 			"FactoryGame",
 			"SML",
+			// The game's sign headers (FGSignTypes.h) include these.
+			"OnlineIntegration",
+			"GameplayEvents",
 		});
 	}
 }
