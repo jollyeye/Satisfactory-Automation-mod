@@ -171,6 +171,9 @@ private:
 
 	ESlateVisibility mMachinePageVisibility = ESlateVisibility::SelfHitTestInvisible;
 
+	/** One-page windows: the machine page's height, measured while it shows (ours gets the same). */
+	float mMachinePageHeight = 0.f;
+
 	UTextBlock* MakeText(const FString& Text, int32 FontSize, const FLinearColor& Color);
 
 	/** Shows the options' state (On / Off) on their buttons. */

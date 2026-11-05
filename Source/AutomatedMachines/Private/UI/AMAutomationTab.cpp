@@ -1223,7 +1223,22 @@ void UAMAutomationTab::ShowSinglePage(bool bAutomation)
 	{
 		return;
 	}
-	// Our page keeps its own size; the window fits around whichever page shows.
+	// Our page keeps its own width; its height is the machine page's, so the window only changes width.
+	if (bAutomation)
+	{
+		const float PageHeight = static_cast<float>(mMachinePage->GetDesiredSize().Y);
+		if (mMachinePage->GetVisibility() != ESlateVisibility::Collapsed && PageHeight > 100.f)
+		{
+			mMachinePageHeight = PageHeight;
+		}
+		if (USizeBox* Root = Cast<USizeBox>(WidgetTree ? WidgetTree->RootWidget : nullptr))
+		{
+			if (mMachinePageHeight > 0.f)
+			{
+				Root->SetHeightOverride(mMachinePageHeight);
+			}
+		}
+	}
 	mMachinePage->SetVisibility(bAutomation ? ESlateVisibility::Collapsed : mMachinePageVisibility);
 	SetVisibility(bAutomation ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
 	SetInventoryShown(!bAutomation);
