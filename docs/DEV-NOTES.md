@@ -48,6 +48,8 @@ Same loop as Road Maker:
 
 Claude cannot compile; keep edits careful (count braces, check renames). Shadowing is an error (C4458): a local variable named like a member of a base class, e.g. `Padding` in a `UUserWidget`, fails the build. The same for a name hiding a global or namespace one (C4459), e.g. a parameter `Button` inside `AMUI`, which has the colour `AMUI::Button`. Game headers live in subfolders: check the path in `SML/Source/FactoryGame/Public` before including (e.g. `Buildables/FGCentralStorageContainer.h`, not `FGCentralStorageContainer.h`). Unity builds merge `.cpp` files, so helpers in anonymous namespaces get file-specific prefixes (e.g. `AMWD_` in `AMWidgetDump.cpp`).
 
+Before every push, run `python3 Tools/check_source.py` (strings broken across lines, non-ASCII characters). Edits made with a Python script must write `\\n` in a C++ text, not `\n`: in a normal Python string `\n` becomes a real line break and the build fails with C2001 "newline in constant" (happened 5 Nov 2026 with the Automation Overview).
+
 ## Project layout
 
 - `Source/AutomatedMachines/...` C++. Class prefix `AM`.

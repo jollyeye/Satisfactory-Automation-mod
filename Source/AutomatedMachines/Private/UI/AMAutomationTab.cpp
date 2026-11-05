@@ -586,11 +586,7 @@ void UAMAutomationTab::ShowDefaultInfo()
 	if (bOverviewMode)
 	{
 		ShowInfo(FText::FromString(TEXT("Every alarm in the world")),
-			FText::FromString(TEXT("Rung by: how many machines ring the alarm. Listening: how many machines, signs and the HUB do something when it rings.
-
-An alarm nobody rings never makes its listeners act; one nobody listens to does nothing.
-
-The bins remove the alarm from all of them at once.")));
+			FText::FromString(TEXT("Rung by: how many machines ring the alarm. Listening: how many machines, signs and the HUB do something when it rings.\n\nAn alarm nobody rings never makes its listeners act; one nobody listens to does nothing.\n\nThe bins remove the alarm from all of them at once.")));
 		return;
 	}
 	if (bWorldMode)
