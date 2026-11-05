@@ -268,12 +268,10 @@ bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
 	Glow->DecalSize = FVector(HalfDepth, HalfY, HalfZ);
 	Glow->MarkRenderStateDirty();
 
-	// The machine's footprint inside the decal, as a part of it (U along the machine's X, V along
-	// its Y), and the floor height the light belongs to.
+	// The floor height the light belongs to (the shape is the decal's own: full light to 75% of
+	// the way to its edge, then fading out).
 	if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Glow->GetDecalMaterial()))
 	{
-		Material->SetVectorParameterValue(TEXT("Inner"), FLinearColor(
-			static_cast<float>(Extent.X) / HalfZ, static_cast<float>(Extent.Y) / HalfY, 0.f, 0.f));
 		Material->SetScalarParameterValue(TEXT("BaseZ"), static_cast<float>(FloorZ));
 	}
 	return bFound;

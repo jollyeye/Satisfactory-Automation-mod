@@ -179,11 +179,11 @@ log("  material: unlit, masked, two-sided, camera-facing")
 
 
 # --- Underglow material (decal under automated machines) ---------------------------------------
-# Projected down onto the floor around a machine: cyan light, brightest at the machine's edge and
-# fading out with a rounded shape; fading out above the floor height (30 cm), a little with depth
-# below it (slopes), and on walls (surfaces steeper than about 75 degrees). Only emissive and opacity are connected, so the decal adds light
-# and leaves the floor's own colour alone. "Inner" (set per machine by AAMMarkers) is the machine's
-# footprint as a part of the decal: R along U, G along V.
+# Projected down onto the floor around a machine: cyan light, full from the centre to FadeStart (75%
+# of the way to the decal's edge on each axis), then a smooth fade to nothing at the edge, with
+# rounded corners. It also fades out above the floor height (30 cm), a little with depth below it
+# (slopes), and on walls (surfaces steeper than about 75 degrees). Only emissive and opacity are
+# connected, so the decal adds light and leaves the floor's own colour alone.
 glow_path = ROOT + "/Marker/M_AM_Underglow"
 if eal.does_asset_exist(glow_path):
     glow = load(glow_path)
@@ -210,13 +210,12 @@ g_camera = node(glow, unreal.MaterialExpressionCameraPositionWS, -1300, 800)
 g_relative = node(glow, unreal.MaterialExpressionSubtract, -900, 800)
 link(g_world, "", g_relative, "A")
 link(g_camera, "", g_relative, "B")
-g_inner = node(glow, unreal.MaterialExpressionVectorParameter, -900, 150, parameter_name="Inner",
-               default_value=unreal.LinearColor(0.6, 0.6, 0.0, 0.0))
+g_fade_start = node(glow, unreal.MaterialExpressionScalarParameter, -900, 150, parameter_name="FadeStart", default_value=0.75)
 g_shape = node(glow, unreal.MaterialExpressionCustom, -600, 50)
 g_shape.set_editor_property("code",
     "float2 P = abs(UV * 2.0 - 1.0);\n"
-    "float2 In = clamp(Inner.xy, 0.0, 0.98);\n"
-    "float2 D = max(P - In, 0.0) / (1.0 - In);\n"
+    "float F = clamp(FadeStart, 0.0, 0.98);\n"
+    "float2 D = max(P - F, 0.0) / (1.0 - F);\n"
     "float G = saturate(1.0 - length(D));\n"
     "G = G * G * (3.0 - 2.0 * G);\n"
     "float Up = 1.0 - saturate(H / 30.0);\n"
@@ -227,13 +226,13 @@ g_shape.set_editor_property("code",
 g_shape.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
 g_shape.set_editor_property("description", "UnderglowShape")
 g_inputs = []
-for name in ("UV", "Inner", "H", "RP"):
+for name in ("UV", "FadeStart", "H", "RP"):
     ci = unreal.CustomInput()
     ci.set_editor_property("input_name", name)
     g_inputs.append(ci)
 g_shape.set_editor_property("inputs", g_inputs)
 link(g_uv, "", g_shape, "UV")
-link(g_inner, "", g_shape, "Inner")
+link(g_fade_start, "", g_shape, "FadeStart")
 link(g_height, "", g_shape, "H")
 link(g_relative, "", g_shape, "RP")
 
