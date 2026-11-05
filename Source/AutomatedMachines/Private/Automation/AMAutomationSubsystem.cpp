@@ -278,6 +278,63 @@ void AAMAutomationSubsystem::SetSignDesigns(AFGBuildableWidgetSign* Sign, const 
 	OnRulesChanged.Broadcast();
 }
 
+void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers)
+{
+	if (!HasAuthority() || Event.IsEmpty())
+	{
+		return;
+	}
+	int32 Removed = 0;
+	TArray<AFGBuildableWidgetSign*> SignsToRefresh;
+	for (FAMMachineRules& Entry : mMachines)
+	{
+		if (bRingers)
+		{
+			const int32 Count = Entry.Fires.RemoveAll([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; });
+			if (Count > 0)
+			{
+				Removed += Count;
+				// Their conditions start again.
+				mLastConditionValues.Remove(TWeakObjectPtr<AFGBuildable>(Entry.Machine.Get()));
+			}
+		}
+		else
+		{
+			Removed += Entry.Reactions.RemoveAll([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
+			const int32 Designs = Entry.SignDesigns.RemoveAll([&Event](const FAMSignDesign& Design) { return Design.Event == Event; });
+			if (Designs > 0)
+			{
+				Removed += Designs;
+				if (Entry.SignShowing == Event)
+				{
+					Entry.SignShowing.Reset();
+				}
+				if (AFGBuildableWidgetSign* Sign = Cast<AFGBuildableWidgetSign>(Entry.Machine))
+				{
+					SignsToRefresh.Add(Sign);
+					if (Entry.SignDesigns.Num() == 0)
+					{
+						// A plain sign again: its normal design.
+						AMSign::Show(Sign, Entry.SignNormal);
+					}
+				}
+			}
+		}
+	}
+	if (!bRingers)
+	{
+		Removed += mWorldActions.RemoveAll([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
+	}
+	for (AFGBuildableWidgetSign* Sign : SignsToRefresh)
+	{
+		ShowCurrentSignDesign(Sign);
+	}
+	RemoveInvalidEntries();
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Alarm %s cleared (%s): %d rows removed"), *Event, bRingers ? TEXT("ringers") : TEXT("listeners"), Removed);
+	ForceNetUpdate();
+	OnRulesChanged.Broadcast();
+}
+
 void AAMAutomationSubsystem::ShowCurrentSignDesign(AFGBuildableWidgetSign* Sign)
 {
 	const FAMMachineRules* Rules = FindRules(Sign);
@@ -497,6 +554,11 @@ void AAMAutomationSubsystem::CountEventUses(const FString& Event, int32& OutRing
 		{
 			++OutActors;
 		}
+	}
+	// The HUB listens too.
+	if (mWorldActions.ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; }))
+	{
+		++OutActors;
 	}
 }
 

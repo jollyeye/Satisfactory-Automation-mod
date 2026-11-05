@@ -67,6 +67,12 @@ public:
 	 */
 	void SetSignDesigns(class AFGBuildableWidgetSign* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs);
 
+	/**
+	 * Removes an alarm from the whole world (server only): bRingers = every machine's alarm rows with
+	 * this name; else every action with it (machines, the HUB) and every sign design for it.
+	 */
+	void ClearAlarm(const FString& Event, bool bRingers);
+
 	/** Replaces the world actions (server only). Only world actions are kept. */
 	void SetWorldActions(const TArray<FAMReactionRule>& Actions);
 

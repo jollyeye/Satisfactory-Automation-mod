@@ -122,3 +122,32 @@ void UAMRemoteCallObject::RequestSetSignDesigns(APlayerController* Player, AFGBu
 		RCO->ServerSetSignDesigns(Sign, Normal, Designs);
 	}
 }
+
+void UAMRemoteCallObject::ServerClearAlarm_Implementation(const FString& Event, bool bRingers)
+{
+	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(GetOuter()))
+	{
+		Subsystem->ClearAlarm(Event, bRingers);
+	}
+}
+
+void UAMRemoteCallObject::RequestClearAlarm(APlayerController* Player, const FString& Event, bool bRingers)
+{
+	if (!Player)
+	{
+		return;
+	}
+	if (Player->HasAuthority())
+	{
+		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Player))
+		{
+			Subsystem->ClearAlarm(Event, bRingers);
+		}
+		return;
+	}
+	AFGPlayerController* FGPlayer = Cast<AFGPlayerController>(Player);
+	if (UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr)
+	{
+		RCO->ServerClearAlarm(Event, bRingers);
+	}
+}

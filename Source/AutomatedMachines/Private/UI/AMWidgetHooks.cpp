@@ -44,14 +44,15 @@ namespace
 
 	/** Adds UAMAutomationTab as the last page of a window's tab pages. */
 	void AMWH_HookPages(UWidgetBlueprintHookManager* HookManager, const TCHAR* Window, const TCHAR* Pages, const TCHAR* HookName, bool bSlotSetup = true,
-		EWidgetBlueprintHookParentType ParentType = EWidgetBlueprintHookParentType::Direct_Any, UClass* WidgetClass = nullptr)
+		EWidgetBlueprintHookParentType ParentType = EWidgetBlueprintHookParentType::Direct_Any, UClass* WidgetClass = nullptr,
+		const TCHAR* WidgetName = TEXT("AM_AutomationTab"))
 	{
 		UWidgetBlueprintHookData* Hook = NewObject<UWidgetBlueprintHookData>(GetTransientPackage(), HookName);
 		Hook->AddToRoot();
 		Hook->DeveloperComment = TEXT("Automated Machines: Automation tab page");
 		Hook->WidgetClass = TSoftClassPtr<UUserWidget>(FSoftObjectPath(Window));
 		Hook->NewWidgetClass = WidgetClass ? WidgetClass : UAMAutomationTab::StaticClass();
-		Hook->NewWidgetName = TEXT("AM_AutomationTab");
+		Hook->NewWidgetName = WidgetName;
 		Hook->ParentWidgetType = ParentType;
 		Hook->ParentWidgetName = Pages;
 
@@ -85,6 +86,9 @@ namespace
 		AMWH_Registered = true;
 		AMWH_HookPages(HookManager, AMWH_ManufacturingWindow, AMWH_ManufacturingPages, TEXT("AM_ManufacturingAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_HubWindow, AMWH_HubPages, TEXT("AM_HubAutomationTabHook"));
+		// A second page in the HUB: every alarm of the world (UAMAutomationTab in overview mode, by its name).
+		AMWH_HookPages(HookManager, AMWH_HubWindow, AMWH_HubPages, TEXT("AM_HubOverviewTabHook"), true,
+			EWidgetBlueprintHookParentType::Direct_Any, nullptr, TEXT("AM_OverviewTab"));
 		AMWH_HookPages(HookManager, AMWH_ExtractorWindow, AMWH_ExtractorPage, TEXT("AM_ExtractorAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"), false);
 		AMWH_HookPages(HookManager, AMWH_GeneratorWindow, AMWH_StandbyButton, TEXT("AM_GeneratorAutomationTabHook"), false,

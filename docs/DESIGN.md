@@ -66,6 +66,19 @@ Some actions have nothing to do with a machine: they only need to hear an alarm 
 - World actions: **Show message** (our notification: Wi-Fi icon, the alarm's name, your text or "Rung by <machine>"; stacked at the side with the game's notifications) and **Play sound** (one of 5 short game sounds: Blip, Ping, Warning, Alert, Success), for every player.
 - Show message moves there from the machines; machine rules with Show message from older saves are moved to the HUB on load.
 
+### Automation Overview: a second HUB tab (decided 5 Nov 2026)
+
+A table of every alarm in the world, to find alarms that are only half made (someone listens but nobody rings it, or the other way round):
+
+| Alarm Name | Rung by | Listening |
+|---|---|---|
+| PLATES BACKED UP | 3 [bin] | 2 [bin] |
+
+- **Rung by**: how many machines ring the alarm. Its bin removes the alarm's rows from every machine that rings it.
+- **Listening**: how many machines, signs and the HUB do something when it rings. Its bin removes every action on that alarm, and the signs' designs for it (a sign with no designs left goes back to its normal design).
+- A count of 0 shows "nobody" in orange. Bins need two clicks within 4 seconds; pointing at a bin says what it will remove. Pointing at a name explains the alarm (who rings it, who listens).
+- Same class as the Automation tab (`UAMAutomationTab`), hooked a second time into the HUB with the name `AM_OverviewTab`; the name switches it to overview mode. Clearing goes to the server (`ServerClearAlarm`).
+
 ### Unlock
 
 - Unlocked by a **MAM research, as early in the game as possible**, so players can use it from the start.

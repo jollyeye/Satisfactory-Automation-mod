@@ -164,6 +164,13 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Play sound: the event is loaded by path and played with its own UFUNCTION `UAkAudioEvent::PostOnActor(Actor, delegate, CallbackMask, bStop)`, called by name (`AMSound`), so the mod does not depend on the Wwise plugin. The server calls `MulticastPlaySound(index)`; each game instance plays it on its local players' pawns. The sound's number is stored in the rule's `Value`.
 - Show message tested 4 Nov 2026: our notifications stack at the side of the screen with the game's.
 
+### Automation Overview tab (5 Nov 2026, not tested yet)
+
+- A second hook (`AM_HubOverviewTabHook`) adds another `UAMAutomationTab` to `HorizontalBox_25` with the widget name `AM_OverviewTab`; `NativeOnInitialized` sets `bOverviewMode` from `GetFName()`. `GetTabTitle()` gives "Automation" or "Automation Overview".
+- Two pages of ours in one window: `AddTabEntry` inserts the tab entry at the page's child index (not always at the end), and `RefreshTabIndex()` finds our tab by title before it is used (button click, ShowThisTab, EnsureTabButtonExists), because the other page's entry may have been inserted before ours.
+- `RebuildOverview()` makes the rows from `GetAllEventNames()` + `CountEventUses()` (the HUB's world actions count as one listener) on construct and on every `OnRulesChanged`. Handlers are `UAMOverviewHandler` objects (name hover, bin click, bin hover).
+- `AAMAutomationSubsystem::ClearAlarm(Event, bRingers)`: ringers = fire rules with that alarm; listeners = reactions, sign designs (the sign shows its normal design again if none are left) and world actions. Then `RemoveInvalidEntries`, `ForceNetUpdate`, broadcast.
+
 ## Wrong input and "Pass wrong items through" (4-5 Nov 2026, works)
 
 - Wrong input (`AAMAutomationSubsystem::FindWrongInput`): for each `FCD_INPUT` connection of the machine (`GetConnectionComponents`), its connected belt end (`GetConnection`) is asked `Factory_PeekOutput`: the first item waiting. Wrong if its class is not in `UFGRecipe::GetIngredients`. Pipes: every `UFGPipeConnectionComponent` with `PCT_CONSUMER`, connected, whose `GetFluidDescriptor` is not an ingredient. No recipe: never wrong.

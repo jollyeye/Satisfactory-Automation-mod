@@ -30,6 +30,29 @@ struct FAMPickerOption
 	UAMChoice* Handler = nullptr;
 };
 
+/** A row's buttons in the HUB's Automation Overview: the alarm's name, and its two bins. */
+UCLASS()
+class AUTOMATEDMACHINES_API UAMOverviewHandler : public UObject
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY()
+	TObjectPtr<class UAMAutomationTab> Tab;
+
+	FString Event;
+	bool bRingers = true;
+
+	UFUNCTION()
+	void OnBinClicked();
+
+	UFUNCTION()
+	void OnBinHovered();
+
+	UFUNCTION()
+	void OnNameHovered();
+};
+
 UCLASS()
 class AUTOMATEDMACHINES_API UAMAutomationTab : public UUserWidget
 {
@@ -84,6 +107,10 @@ public:
 	 * machine), saved for the whole world instead of for a machine.
 	 */
 	bool IsWorldMode() const { return bWorldMode; }
+
+	/** Overview: a bin was clicked (once: asks to click again; twice within a few seconds: clears). */
+	void OnOverviewBin(const FString& Event, bool bRingers);
+	void ExplainOverviewBin(const FString& Event, bool bRingers);
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -282,6 +309,32 @@ private:
 	bool bBoundToPages = false;
 
 	bool bWorldMode = false;
+
+	/**
+	 * The HUB's second page, "Automation Overview" (this class, named AM_OverviewTab by its hook):
+	 * a table of every alarm in the world with who rings it and who listens.
+	 */
+	bool bOverviewMode = false;
+
+	/** Our tab's title: "Automation" or "Automation Overview". */
+	const TCHAR* GetTabTitle() const;
+
+	/** Our tab's index in the window's tab list, by title (two pages of ours in one window can move it). */
+	void RefreshTabIndex();
+
+	/** Overview: the rows, made again whenever any rules change. */
+	void RebuildOverview();
+
+	UPROPERTY()
+	TObjectPtr<UVerticalBox> mOverviewRows;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UAMOverviewHandler>> mOverviewHandlers;
+
+	/** Overview: the bin clicked once, waiting for a second click. */
+	FString mPendingClearEvent;
+	bool bPendingClearRingers = false;
+	double mPendingClearTime = 0.0;
 
 	/** Index of our tab button and page; INDEX_NONE until the tab entry is added. */
 	int32 TabIndex = INDEX_NONE;
