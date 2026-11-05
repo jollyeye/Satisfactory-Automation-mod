@@ -4,6 +4,7 @@
 #include "Automation/AMAutomationSubsystem.h"
 #include "AutomatedMachinesModule.h"
 #include "Buildables/FGBuildable.h"
+#include "Buildables/FGBuildableWidgetSign.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
@@ -110,7 +111,8 @@ void AAMMarkers::Rebuild()
 	for (const FAMMachineRules& Entry : Subsystem->GetAllMachines())
 	{
 		const AActor* Machine = Entry.Machine;
-		if (!IsValid(Machine) || Entry.IsEmpty())
+		// Signs never get a marker: nothing may change how a sign looks except its own designs.
+		if (!IsValid(Machine) || Entry.IsEmpty() || Machine->IsA<AFGBuildableWidgetSign>())
 		{
 			continue;
 		}
