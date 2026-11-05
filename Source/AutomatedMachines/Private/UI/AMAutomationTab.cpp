@@ -364,6 +364,13 @@ void UAMAutomationTab::BuildLayout()
 	mGridWarningText = MakeText(TEXT("Power Grid A and B are joined by a cable somewhere else: they are one grid. This switch separates nothing, and the A / B usage and power alarms cannot ring until the cable is removed."), 14, AMUI::Orange);
 	mGridWarningText->SetVisibility(ESlateVisibility::Collapsed);
 	AddTo(mContentBox, mGridWarningText, 6.f);
+	// A wrapping text still asks for its whole one-line width, which widens the window: these two
+	// wrap at the panels' width instead (the alarms and actions panels side by side).
+	for (UTextBlock* LongText : { mNoticeText.Get(), mGridWarningText.Get() })
+	{
+		LongText->SetAutoWrapText(false);
+		LongText->SetWrapTextAt(AMAT_AlarmsWidth + AMAT_PanelGap + AMAT_ActionsWidth);
+	}
 
 	UHorizontalBox* Panels = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMPanels"));
 	AddTo(mContentBox, Panels, 14.f, true);
