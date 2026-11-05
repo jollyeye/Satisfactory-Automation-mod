@@ -66,6 +66,12 @@ namespace
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
 	const TCHAR* const AMWH_SignPageChild = TEXT("mSaveButton");
 
+	// Power switches and priority power switches: one window with sliding pages, like the production
+	// window (dump 5 Nov 2026): the switch page and the priority list (its tab button is collapsed on
+	// a plain power switch) side by side in HorizontalBox_0.
+	const TCHAR* const AMWH_PowerSwitchWindow = TEXT("/Game/FactoryGame/Buildable/Factory/PowerSwitch/UI/BPW_PowerSwitch.BPW_PowerSwitch_C");
+	const TCHAR* const AMWH_PowerSwitchPages = TEXT("HorizontalBox_0");
+
 	bool AMWH_Registered = false;
 
 	/** Adds UAMAutomationTab as the last page of a window's tab pages. */
@@ -121,6 +127,7 @@ namespace
 		{
 			AMWH_HookPages(HookManager, *MamWindow, AMWH_MamPages, TEXT("AM_MamAutomationTabHook"));
 		}
+		AMWH_HookPages(HookManager, AMWH_PowerSwitchWindow, AMWH_PowerSwitchPages, TEXT("AM_PowerSwitchAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_ExtractorWindow, AMWH_ExtractorPage, TEXT("AM_ExtractorAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"), false);
 		AMWH_HookPages(HookManager, AMWH_GeneratorWindow, AMWH_StandbyButton, TEXT("AM_GeneratorAutomationTabHook"), false,

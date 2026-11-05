@@ -1,4 +1,6 @@
 #include "UI/AMAutomationTab.h"
+#include "Buildables/FGBuildableCircuitSwitch.h"
+#include "Buildables/FGBuildablePriorityPowerSwitch.h"
 #include "AutomatedMachinesModule.h"
 #include "UI/AMRuleRow.h"
 #include "UI/AMUIHelpers.h"
@@ -1539,6 +1541,26 @@ void UAMAutomationTab::EnsureTabButtonExists()
 	{
 		// The frame made its buttons before our entry was in the list: make them again.
 		RegenerateTabButtons();
+	}
+	// A plain power switch shares its window with the priority switch: the priority list's tab
+	// (page 1) stays hidden there, also after the buttons were made again.
+	const UObject* Machine = GetMachine();
+	if (Buttons && Machine && Machine->IsA<AFGBuildableCircuitSwitch>() && !Machine->IsA<AFGBuildablePriorityPowerSwitch>()
+		&& TabIndex != 1 && Buttons->GetChildrenCount() > 1)
+	{
+		if (UWidget* PriorityButton = Buttons->GetChildAt(1))
+		{
+			PriorityButton->SetVisibility(ESlateVisibility::Collapsed);
+		}
+		// Where the buttons sit (to check there is no gap where the hidden one was).
+		for (int32 Index = 0; Index < Buttons->GetChildrenCount(); ++Index)
+		{
+			const UWidget* Button = Buttons->GetChildAt(Index);
+			const UCanvasPanelSlot* ButtonSlot = Button ? Cast<UCanvasPanelSlot>(Button->Slot) : nullptr;
+			UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: switch window button %d vis=%d pos=%s size=%s"), Index,
+				Button ? static_cast<int32>(Button->GetVisibility()) : -1,
+				ButtonSlot ? *ButtonSlot->GetPosition().ToString() : TEXT("-"), ButtonSlot ? *ButtonSlot->GetSize().ToString() : TEXT("-"));
+		}
 	}
 	UpdatePageHeight();
 }
