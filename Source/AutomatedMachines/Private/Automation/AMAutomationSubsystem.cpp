@@ -1238,62 +1238,62 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 namespace
 {
 	/**
-	 * The power used (bConsumed) or made by the grid on one side of a switch, in MW; false if that side
-	 * is not connected. The circuit's numbers are private: read by name (they are UPROPERTYs).
+	 * The power used (bConsumed) or made by the buildings on one side of a switch, in MW; false if that
+	 * side is not connected. Summed over the side's own buildings, not taken from the circuit's
+	 * numbers: while the switch is on, both sides' circuits show the numbers of the joined grid.
+	 * The circuit's list of buildings is private: read by name (a UPROPERTY). Kept for the rest of
+	 * the check (several alarms of one switch ask for the same side).
 	 */
 	bool AMAS_GetGridPower(const AFGBuildableCircuitSwitch* Switch, int32 Side, bool bConsumed, float& OutPower)
 	{
 		AFGCircuitSubsystem* Circuits = AFGCircuitSubsystem::GetCircuitSubsystem(const_cast<AFGBuildableCircuitSwitch*>(Switch));
 		const int32 CircuitID = Side == 0 ? Switch->GetCircuitID0() : Switch->GetCircuitID1();
 		const UFGPowerCircuit* Circuit = Circuits && CircuitID != INDEX_NONE ? Circuits->FindCircuit<UFGPowerCircuit>(CircuitID) : nullptr;
-		if (!Circuit)
+		static const FArrayProperty* InfosProperty = FindFProperty<FArrayProperty>(UFGPowerCircuit::StaticClass(), TEXT("mPowerInfos"));
+		if (!Circuit || !InfosProperty)
 		{
 			return false;
 		}
-		static const FFloatProperty* ConsumedProperty = FindFProperty<FFloatProperty>(UFGPowerCircuit::StaticClass(), TEXT("mPowerConsumed"));
-		static const FFloatProperty* ProducedProperty = FindFProperty<FFloatProperty>(UFGPowerCircuit::StaticClass(), TEXT("mPowerProduced"));
-		const FFloatProperty* Property = bConsumed ? ConsumedProperty : ProducedProperty;
-		if (!Property)
-		{
-			return false;
-		}
-		OutPower = Property->GetPropertyValue_InContainer(Circuit);
-		return true;
-	}
 
-	/** Every 5 s per switch with grid alarms: what each side reads (to check the comparisons). */
-	void AMAS_LogGrids(const AFGBuildableCircuitSwitch* Switch)
-	{
-		static TMap<TWeakObjectPtr<const AActor>, double> LastLog;
+		struct FSums
+		{
+			double Time = -1.0;
+			float Used = 0.f;
+			float Made = 0.f;
+		};
+		static TMap<TWeakObjectPtr<const UFGPowerCircuit>, FSums> Cache;
 		const UWorld* World = Switch->GetWorld();
 		const double Now = World ? World->GetTimeSeconds() : 0.0;
-		double& Last = LastLog.FindOrAdd(Switch, -100.0);
-		if (Now - Last < 5.0)
+		FSums& Sums = Cache.FindOrAdd(Circuit);
+		if (Sums.Time != Now)
 		{
-			return;
-		}
-		Last = Now;
-		AFGCircuitSubsystem* Circuits = AFGCircuitSubsystem::GetCircuitSubsystem(const_cast<AFGBuildableCircuitSwitch*>(Switch));
-		FString Text;
-		for (int32 Side = 0; Side < 2; ++Side)
-		{
-			const int32 CircuitID = Side == 0 ? Switch->GetCircuitID0() : Switch->GetCircuitID1();
-			UFGCircuit* Any = Circuits && CircuitID != INDEX_NONE ? Circuits->FindCircuit(CircuitID) : nullptr;
-			UFGPowerCircuit* Circuit = Cast<UFGPowerCircuit>(Any);
-			float Consumed = -1.f;
-			float Produced = -1.f;
-			AMAS_GetGridPower(Switch, Side, true, Consumed);
-			AMAS_GetGridPower(Switch, Side, false, Produced);
-			FPowerCircuitStats Stats;
-			if (Circuit)
+			Sums.Time = Now;
+			Sums.Used = 0.f;
+			Sums.Made = 0.f;
+			FScriptArrayHelper Infos(InfosProperty, InfosProperty->ContainerPtrToValuePtr<void>(Circuit));
+			const FObjectPropertyBase* Inner = CastField<FObjectPropertyBase>(InfosProperty->Inner);
+			for (int32 Index = 0; Inner && Index < Infos.Num(); ++Index)
 			{
-				Circuit->GetStats(Stats);
+				const UFGPowerInfoComponent* Info = Cast<UFGPowerInfoComponent>(Inner->GetObjectPropertyValue(Infos.GetRawPtr(Index)));
+				if (Info)
+				{
+					Sums.Used += Info->GetActualConsumption();
+					Sums.Made += Info->GetBaseProduction() + Info->GetRegulatedDynamicProduction();
+				}
 			}
-			Text += FString::Printf(TEXT(" | grid %s: id %d, %s, used %.1f made %.1f (stats used %.1f made %.1f capacity %.1f)"),
-				Side == 0 ? TEXT("A") : TEXT("B"), CircuitID, Any ? *Any->GetClass()->GetName() : TEXT("no circuit"),
-				Consumed, Produced, Circuit ? Stats.PowerConsumed : -1.f, Circuit ? Stats.PowerProduced : -1.f, Circuit ? Stats.PowerProductionCapacity : -1.f);
 		}
-		UE_LOG(LogAutomatedMachines, Log, TEXT("%s (%s)%s"), *AMAS_Describe(Switch), Switch->IsSwitchOn() ? TEXT("on") : TEXT("off"), *Text);
+		OutPower = bConsumed ? Sums.Used : Sums.Made;
+		if (Cache.Num() > 256)
+		{
+			for (auto It = Cache.CreateIterator(); It; ++It)
+			{
+				if (!It->Key.IsValid())
+				{
+					It.RemoveCurrent();
+				}
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -1302,8 +1302,7 @@ namespace
 	 */
 	bool AMAS_GridHasMore(const AFGBuildableCircuitSwitch* Switch, int32 Side, bool bConsumed)
 	{
-		AMAS_LogGrids(Switch);
-		float Mine = 0.f;
+			float Mine = 0.f;
 		float Other = 0.f;
 		if (!AMAS_GetGridPower(Switch, Side, bConsumed, Mine) || !AMAS_GetGridPower(Switch, 1 - Side, bConsumed, Other))
 		{
