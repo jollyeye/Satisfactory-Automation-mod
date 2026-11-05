@@ -142,29 +142,19 @@ void AMClipboard::OnBuildableConstructed(AAMAutomationSubsystem* Subsystem, AFGB
 
 void AMClipboard::Install()
 {
-	// The game's copy / paste (Ctrl+C / Ctrl+V on a machine, the window's buttons).
-	SUBSCRIBE_METHOD_AFTER(AFGPlayerState::CopyFactoryClipboard, [](AFGPlayerState* Self, UObject* Object)
-	{
-		Copy(Self, Object);
-	});
-	SUBSCRIBE_METHOD_AFTER(AFGPlayerState::PasteFactoryClipboard, [](AFGPlayerState* Self, UObject* Object)
-	{
-		Paste(Self, Object);
-	});
-
-	// Ctrl+C / Ctrl+V on machines the game does not copy (storage containers).
+	// Ctrl+C / Ctrl+V while looking at a machine: everything (the game copies its settings, we add
+	// the automation). The window's Copy / Paste Settings buttons copy only the game's settings (not
+	// hooked), our Copy / Paste automation settings buttons only the automation.
 	SUBSCRIBE_METHOD_AFTER(AFGCharacterPlayer::ClipboardCopy, [](AFGCharacterPlayer* Self)
 	{
-		AActor* Target = Self ? Self->GetBestUsableActor() : nullptr;
-		if (Target && !GameCanCopy(Target))
+		if (AActor* Target = Self ? Self->GetBestUsableActor() : nullptr)
 		{
 			Copy(Self->GetPlayerState<AFGPlayerState>(), Target);
 		}
 	});
 	SUBSCRIBE_METHOD_AFTER(AFGCharacterPlayer::ClipboardPaste, [](AFGCharacterPlayer* Self)
 	{
-		AActor* Target = Self ? Self->GetBestUsableActor() : nullptr;
-		if (Target && !GameCanCopy(Target))
+		if (AActor* Target = Self ? Self->GetBestUsableActor() : nullptr)
 		{
 			Paste(Self->GetPlayerState<AFGPlayerState>(), Target);
 		}

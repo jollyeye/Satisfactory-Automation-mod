@@ -8,6 +8,7 @@
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "CollisionQueryParams.h"
 
 namespace
 {
@@ -17,6 +18,15 @@ namespace
 
 	/** Height of the marker's centre above the top of the machine, in cm. */
 	constexpr float AMMK_HeightAboveMachine = 150.f;
+
+	/** Something closer than this above the machine (a stacked container) moves the marker to its front, in cm. */
+	constexpr float AMMK_StackCheckHeight = 120.f;
+
+	/** How far in front of the machine's front face the marker floats then, in cm. */
+	constexpr float AMMK_FrontDistance = 60.f;
+
+	/** Markers are placed again this often, in seconds (something may have been stacked on a machine). */
+	constexpr float AMMK_RefreshInterval = 5.f;
 
 	/** Markers further away than this are not drawn, in cm. */
 	constexpr int32 AMMK_CullDistance = 30000;
@@ -59,6 +69,11 @@ void AAMMarkers::Init(AAMAutomationSubsystem* InSubsystem)
 		}
 	}
 	Rebuild();
+	if (UWorld* World = GetWorld())
+	{
+		FTimerHandle Refresh;
+		World->GetTimerManager().SetTimer(Refresh, this, &AAMMarkers::Rebuild, AMMK_RefreshInterval, true);
+	}
 }
 
 void AAMMarkers::OnRulesChanged()
@@ -98,7 +113,24 @@ void AAMMarkers::Rebuild()
 		FVector Origin;
 		FVector Extent;
 		Machine->GetActorBounds(true, Origin, Extent);
-		const FVector Location(Origin.X, Origin.Y, Origin.Z + Extent.Z + AMMK_HeightAboveMachine);
+		const float Top = static_cast<float>(Origin.Z + Extent.Z);
+		FVector Location(Origin.X, Origin.Y, Top + AMMK_HeightAboveMachine);
+
+		// Something stacked on it (containers, signs on a wall): in front of the machine instead,
+		// halfway up, so each machine of a stack shows its own marker.
+		if (UWorld* World = GetWorld())
+		{
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(AMMarkerStack), false, Machine);
+			FHitResult Hit;
+			const FVector Start(Origin.X, Origin.Y, Top + 5.f);
+			const FVector End(Origin.X, Origin.Y, Top + AMMK_StackCheckHeight);
+			if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) && Hit.GetActor() != Machine)
+			{
+				const FVector Forward = Machine->GetActorForwardVector().GetSafeNormal2D();
+				const float Depth = static_cast<float>(FMath::Abs(Forward.X) * Extent.X + FMath::Abs(Forward.Y) * Extent.Y);
+				Location = FVector(Origin.X, Origin.Y, Origin.Z) + Forward * (Depth + AMMK_FrontDistance);
+			}
+		}
 		mInstances->AddInstance(FTransform(Location), true);
 	}
 }

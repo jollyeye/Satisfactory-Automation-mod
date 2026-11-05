@@ -472,8 +472,8 @@ void UAMAutomationTab::BuildLayout()
 		RefreshOptions();
 	}
 
-	// Copy / Paste automation settings, for machines the game cannot copy (storage containers);
-	// the others use the game's Copy / Paste Settings and Ctrl+C / Ctrl+V.
+	// Copy / Paste automation settings: the automation only (Ctrl+C / Ctrl+V copy everything, the
+	// game's Copy / Paste Settings buttons only the game's settings).
 	if (!bWorldMode)
 	{
 		UHorizontalBox* ClipboardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMClipboardRow"));
@@ -602,7 +602,7 @@ void UAMAutomationTab::LoadRules()
 	bRulesLoaded = true;
 	if (mClipboardRow)
 	{
-		mClipboardRow->SetVisibility(Machine && !AMClipboard::GameCanCopy(Machine) ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		mClipboardRow->SetVisibility(Machine ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 	}
 	for (UWidget* OptionsWidget : mOptionsWidgets)
 	{
@@ -1042,7 +1042,7 @@ void UAMAutomationTab::OnPasteAutomationClicked()
 void UAMAutomationTab::OnCopyPasteHovered()
 {
 	ShowInfo(FText::FromString(TEXT("Copy and paste")), FText::FromString(
-		TEXT("Copy automation settings: remembers this machine's alarms, actions and options.\n\nPaste automation settings: gives them to this machine, replacing its own. Works between machines of the same kind.\n\nCtrl+C / Ctrl+V while looking at a machine do the same, and so does building after a middle click on an automated machine.")));
+		TEXT("Copy automation settings: remembers only this machine's alarms, actions and options.\n\nPaste automation settings: gives them to this machine, replacing its own. Works between the same machines.\n\nCtrl+C / Ctrl+V while looking at a machine copy everything (its settings and its automation), and so does building after a middle click. The window's Copy Settings / Paste Settings buttons copy only the machine's own settings.")));
 }
 
 void UAMAutomationTab::OnWorldRulesChanged()

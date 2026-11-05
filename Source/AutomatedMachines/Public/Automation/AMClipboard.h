@@ -1,9 +1,9 @@
 // Copy and paste of automation settings (alarms, actions, options), together with the game's own
 // copy / paste of machine settings:
-//   - Ctrl+C / Ctrl+V while looking at a machine, and the machine window's Copy / Paste Settings
-//     buttons: hooks on AFGPlayerState::CopyFactoryClipboard / PasteFactoryClipboard;
-//   - machines the game cannot copy (storage containers): hooks on the character's Ctrl+C / Ctrl+V,
-//     and our own buttons on the Automation page;
+//   - Ctrl+C / Ctrl+V while looking at a machine (everything: the game's settings and ours): hooks on
+//     the character's ClipboardCopy / ClipboardPaste;
+//   - the window's Copy / Paste Settings buttons: the game's settings only (not hooked);
+//   - our Copy / Paste automation settings buttons on the Automation page: the automation only;
 //   - middle click (sample a building with the build gun), then build: the new buildings of the same
 //     kind get the sampled automation (hooks on the build gun's sample and construct).
 // The clipboard is per player and per kind of machine, like the game's. Nothing is saved.

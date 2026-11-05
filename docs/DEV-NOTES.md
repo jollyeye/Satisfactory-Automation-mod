@@ -191,18 +191,21 @@ Not offered: production boost (Somersloops are items, not a setting).
 ## Copy and paste (5 Nov 2026, works)
 
 `Automation/AMClipboard.*`. Hooks (SML `SUBSCRIBE_METHOD_AFTER` unless said):
-- `AFGPlayerState::CopyFactoryClipboard(UObject*)` / `PasteFactoryClipboard(UObject*)`: the game's copy / paste (Ctrl+C / Ctrl+V and the window buttons go through these, on the player's own machine). Copy reads the replicated rules; paste sends them with `UAMRemoteCallObject::RequestSetRules`.
-- `AFGCharacterPlayer::ClipboardCopy()` / `ClipboardPaste()`: for machines with `CanUseFactoryClipboard` false (storage), using `GetBestUsableActor()`. A copy / paste of the same machine in the same frame is done once (both hooks can fire).
+- `AFGCharacterPlayer::ClipboardCopy()` / `ClipboardPaste()` (target: `GetBestUsableActor()`): Ctrl+C / Ctrl+V copy everything. Second version (5 Nov 2026): the `AFGPlayerState::CopyFactoryClipboard` / `PasteFactoryClipboard` hooks were removed, so the window's Copy / Paste Settings buttons copy only the game's settings again; our buttons (on every Automation page) copy only the automation. Copy reads the replicated rules; paste sends them with `UAMRemoteCallObject::RequestSetRules`.
 - `UFGBuildGunStateBuild::SampleClipboardSettingsFromActor(AActor*)` (middle click, server): remembers the sampled automation per build gun. `UFGBuildGunStateBuild::InternalConstructHologram` (`SUBSCRIBE_METHOD`, around the call): marks the build gun building right now; `AFGBuildableSubsystem::BuildableConstructedGlobalDelegate` (bound by the subsystem on the server) gives each new buildable the sample if it is of the same kind.
 - Kind = the machine's own class (first try used `Execute_GetClipboardMappingClass`, which groups Constructor and Assembler together). A machine without automation is copied as empty (pasting it clears). Clipboard per player state and kind; not saved.
 - Tested 5 Nov 2026: Ctrl+C / Ctrl+V, the window buttons, our container buttons, middle click (the new machine gets the rules). The marker of a just-built machine was missing: its bounds are not there yet when it gets its rules, so `AAMMarkers::OnRulesChanged` places the markers again one second later.
-- Tab: Copy / Paste automation settings buttons at the bottom when `AMClipboard::GameCanCopy` is false. The tab now listens to `OnRulesChanged` and reloads its rows when the world's rules of its machine differ from its own (e.g. pasted with the game's button on the other tab), unless it has rows without an alarm name yet.
+- Tab: Copy / Paste automation settings buttons at the bottom of every machine's page. The tab now listens to `OnRulesChanged` and reloads its rows when the world's rules of its machine differ from its own (e.g. pasted with the game's button on the other tab), unless it has rows without an alarm name yet.
 - Recipe dropdown: icon of the recipe's first product.
 
 ## Fuel generators (5 Nov 2026, Biomass Burner works)
 
 - Window: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C` (`mInteractWidgetSoftClass` of `Build_GeneratorBiomass` and `Build_GeneratorBiomass_Automated`, class `AFGBuildableGeneratorFuel`). One-page window: `Widget_Window_DarkMode`, `WindowBody`, no sliding tabs. The page panel's name is not readable from the asset (names like `CanvasPanel_3` are stored as name + number), so the hook uses **`Indirect_Child` on `Widget_StandbyButton`**: SML takes the named widget's parent panel. No slot setup. The dump is pointed at `Widget_Generator_C`.
 - Engine: `IsOutOfFuel` = `!HasFuel()`; `CountFuel` = items at `GetFuelInventoryIndex()`; `GetLoad` = `GetLoadPercentage()` (0..1); `IsFuseBlown` = `GetPowerInfo()->IsFuseTriggered()`; Input full = the fuel slot has no room for one more of its fuel; Wrong input = a belt item / pipe fluid that is neither `IsValidFuel` nor `IsValidSupplementalResource`; Delete input = `DeleteAllItems(GetFuelInventory())`.
+
+## Marker on stacks (5 Nov 2026, untested)
+
+`AAMMarkers::Rebuild`: a line trace (Visibility) from the top of the machine's bounds up 120 cm; if it hits another actor, the marker goes to the machine's front instead (`GetActorForwardVector`, bounds depth along it + 60 cm, at the bounds' centre height). Markers are placed again every 5 s (a looping timer), so stacking something later moves the marker.
 
 ## The widget dump
 
