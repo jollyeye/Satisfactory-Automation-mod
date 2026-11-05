@@ -188,13 +188,66 @@ void UAMSignTabs::NativeConstruct()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMSignTabs::Setup));
+		World->GetTimerManager().SetTimer(mWatchTimer, this, &UAMSignTabs::Watch, 0.25f, true);
 	}
+}
+
+void UAMSignTabs::Watch()
+{
+	if (!bSetUp)
+	{
+		return;
+	}
+	if (GetSign() != mSetupSign.Get())
+	{
+		// The window now edits another sign: its designs, not the last sign's.
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: the window shows another sign, setting up again"));
+		bSetUp = false;
+		mSetupTries = 0;
+		Setup();
+		return;
+	}
+	UObject* TabsContainer = AMST_GetObject(GetWindowFrame(), AMST_TabsContainerProperty);
+	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMST_GetObject(TabsContainer, AMST_ButtonsPanelProperty));
+	if (!Buttons)
+	{
+		return;
+	}
+	bool bSame = Buttons->GetChildrenCount() == mBoundButtons.Num();
+	for (int32 Index = 0; bSame && Index < mBoundButtons.Num(); ++Index)
+	{
+		bSame = Buttons->GetChildAt(Index) == mBoundButtons[Index].Get();
+	}
+	if (!bSame)
+	{
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: the window made its tab buttons again, ours again"));
+		RebuildTabs();
+	}
+}
+
+void UAMSignTabs::RestoreWindowTabs()
+{
+	UObject* Frame = GetWindowFrame();
+	FArrayProperty* TabsProperty = Frame ? FindFProperty<FArrayProperty>(Frame->GetClass(), AMST_TabsProperty) : nullptr;
+	if (TabsProperty)
+	{
+		FScriptArrayHelper Tabs(TabsProperty, TabsProperty->ContainerPtrToValuePtr<void>(Frame));
+		if (Tabs.Num() > 1)
+		{
+			Tabs.Resize(1);
+		}
+	}
+	mBoundButtons.Reset();
 }
 
 void UAMSignTabs::NativeDestruct()
 {
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(mWatchTimer);
+	}
 	ClosePicker();
-	if (bSetUp)
+	if (bSetUp && GetSign() == mSetupSign.Get())
 	{
 		CaptureEditor();
 		if (mDesigns.Num() > 0 || bHadDesigns)
@@ -202,7 +255,9 @@ void UAMSignTabs::NativeDestruct()
 			SendDesigns();
 		}
 	}
+	RestoreWindowTabs();
 	bSetUp = false;
+	mSetupSign = nullptr;
 	Super::NativeDestruct();
 }
 
@@ -297,7 +352,7 @@ void UAMSignTabs::CaptureEditor()
 
 void UAMSignTabs::SendDesigns()
 {
-	if (AFGBuildableWidgetSign* Sign = GetSign())
+	if (AFGBuildableWidgetSign* Sign = mSetupSign.Get())
 	{
 		UAMRemoteCallObject::RequestSetSignDesigns(GetOwningPlayer(), Sign, mNormal, mDesigns);
 		bHadDesigns = mDesigns.Num() > 0;
@@ -356,8 +411,9 @@ void UAMSignTabs::Setup()
 		bHadDesigns = false;
 	}
 	bSetUp = true;
+	mSetupSign = Sign;
 	RebuildTabs();
-	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: %d alarm designs, tab %d selected"), mDesigns.Num(), mSelected);
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs for %s: %d alarm designs, tab %d selected"), *Sign->GetName(), mDesigns.Num(), mSelected);
 }
 
 void UAMSignTabs::RebuildTabs()
@@ -482,6 +538,11 @@ void UAMSignTabs::RebuildTabs()
 	if (UWidget* Selected = Buttons->GetChildAt(mSelected))
 	{
 		AMST_CallWithObject(TabsContainer, TEXT("SetActiveButton"), Selected);
+	}
+	mBoundButtons.Reset();
+	for (int32 Index = 0; Index < Buttons->GetChildrenCount(); ++Index)
+	{
+		mBoundButtons.Add(Buttons->GetChildAt(Index));
 	}
 }
 

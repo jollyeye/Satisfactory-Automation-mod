@@ -102,6 +102,10 @@ The window has `Widget_SlidingTabs` with its pages side by side in a HorizontalB
    reverse. Visibility only, nothing is moved.
 9. **Size**: our page keeps its own width (the window fits around whichever page shows); its height
    is set to the machine page's height, measured while that page shows (`USizeBox::SetHeightOverride`).
+11. **Windows are reused** (sign window, tested): on reopening, its variables can still hold the
+    previous building for a moment, and it can make its tab buttons again after our setup. Keep a
+    watch while open (a timer): set up again if the building changed, bind again if the buttons are
+    new; put the frame's `mTabs` back to its own entries when the window closes.
 10. Reopening the window (it can be pooled): construct runs again; the setup finds us already in the
     row and only resets to the machine's page.
 

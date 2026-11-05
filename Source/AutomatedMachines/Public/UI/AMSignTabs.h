@@ -79,6 +79,16 @@ private:
 	/** Tab list = normal + one per design + "+ Alarm"; makes the buttons again. */
 	void RebuildTabs();
 
+	/**
+	 * While the window is open (4 times a second): the window is reused for other signs and may
+	 * make its tab buttons again after us (then our clicks were bound to buttons that are gone).
+	 * Another sign: set up again for it. New buttons: make ours again.
+	 */
+	void Watch();
+
+	/** The window's tab list back to its own single tab (when it closes). */
+	void RestoreWindowTabs();
+
 	UUserWidget* GetHostWindow() const;
 	UObject* GetWindowFrame() const;
 	class AFGBuildableWidgetSign* GetSign() const;
@@ -112,6 +122,11 @@ private:
 	FText mWindowTitle;
 
 	bool bSetUp = false;
+
+	/** The sign the tabs were set up for, and the tab buttons our clicks are bound to. */
+	TWeakObjectPtr<class AFGBuildableWidgetSign> mSetupSign;
+	TArray<TWeakObjectPtr<UWidget>> mBoundButtons;
+	FTimerHandle mWatchTimer;
 	bool bHadDesigns = false;
 	int32 mSetupTries = 0;
 
