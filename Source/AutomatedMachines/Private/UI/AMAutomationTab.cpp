@@ -9,8 +9,6 @@
 #include "Components/ButtonSlot.h"
 #include "Components/Image.h"
 #include "Components/NamedSlot.h"
-#include "Components/Overlay.h"
-#include "Components/OverlaySlot.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Engine/Texture2D.h"
@@ -805,8 +803,7 @@ void UAMAutomationTab::EnsureTabButtonExists()
 	if (Buttons && TabIndex != INDEX_NONE && ButtonCount > 0 && ButtonCount <= TabIndex)
 	{
 		// The frame made its buttons before our entry was in the list: make them again.
-		AMAT_CallNoParams(Frame, TEXT("InitTabs"));
-		UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: tabs made again, now %d buttons"), Buttons->GetChildrenCount());
+		RegenerateTabButtons();
 	}
 }
 
@@ -879,7 +876,7 @@ void UAMAutomationTab::NativeConstruct()
 		}
 	}
 
-	if (TabIndex == INDEX_NONE)
+	if (TabIndex == INDEX_NONE && !bSinglePageMode)
 	{
 		AddTabEntry();
 	}
@@ -1012,39 +1009,75 @@ void UAMAutomationTab::SetInventoryShown(bool bShow)
 void UAMAutomationTab::SetupSinglePage()
 {
 	UNamedSlot* Body = Cast<UNamedSlot>(AMAT_GetObject(GetWindowFrame(), AMAT_WindowBodyProperty));
-	if (!Body)
+	UPanelWidget* WindowRow = Body ? Body->GetParent() : nullptr;
+	if (!WindowRow)
 	{
-		UE_LOG(LogAutomatedMachines, Warning, TEXT("Automation tab: the window has no body to put our page in"));
+		UE_LOG(LogAutomatedMachines, Warning, TEXT("Automation tab: the window has no body to sit next to"));
 		return;
 	}
-	UWidget* Content = Body->GetContent();
-	if (Content && Content == mSinglePageOverlay)
+	if (!mMachinePage)
 	{
-		// Already set up (the window was opened before): start on the machine's page.
-		ShowSinglePage(false);
-		return;
+		mMachinePage = Body;
+		mMachinePageVisibility = Body->GetVisibility();
 	}
-	if (!Content)
+	if (GetParent() != WindowRow)
 	{
-		return;
+		// From inside the machine's page to the frame's row (order does not matter: when we show,
+		// the body and the inventory are hidden).
+		RemoveFromParent();
+		if (UHorizontalBoxSlot* RowSlot = Cast<UHorizontalBoxSlot>(WindowRow->AddChild(this)))
+		{
+			RowSlot->SetHorizontalAlignment(HAlign_Fill);
+			RowSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: placed next to %s in %s"), *Body->GetName(), *WindowRow->GetName());
 	}
 
-	// Body: [machine page] becomes Body: Overlay [machine page, our page].
-	mMachinePage = Content;
-	mMachinePageVisibility = Content->GetVisibility();
-	RemoveFromParent();
-	mSinglePageOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("AMSinglePageOverlay"));
-	Body->SetContent(mSinglePageOverlay);
-	for (UWidget* Child : {static_cast<UWidget*>(mMachinePage), static_cast<UWidget*>(this)})
+	// The window fills its tab list in its own construct, after ours: now our entry can go in.
+	if (TabIndex == INDEX_NONE)
 	{
-		if (UOverlaySlot* ChildSlot = mSinglePageOverlay->AddChildToOverlay(Child))
-		{
-			ChildSlot->SetHorizontalAlignment(HAlign_Fill);
-			ChildSlot->SetVerticalAlignment(VAlign_Fill);
-		}
+		AddTabEntry();
 	}
-	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: placed next to the machine's page %s"), *mMachinePage->GetName());
+	if (TabIndex == INDEX_NONE)
+	{
+		if (++mSetupTries < 20)
+		{
+			if (UWorld* World = GetWorld())
+			{
+				World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::SetupSinglePage));
+			}
+		}
+		return;
+	}
+	mSetupTries = 0;
+	RegenerateTabButtons();
 	ShowSinglePage(false);
+}
+
+void UAMAutomationTab::RegenerateTabButtons()
+{
+	UObject* Frame = GetWindowFrame();
+	UObject* TabsContainer = AMAT_GetObject(Frame, AMAT_TabsContainerProperty);
+	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
+	if (!Buttons || TabIndex == INDEX_NONE || Buttons->GetChildrenCount() > TabIndex)
+	{
+		return;
+	}
+	AMAT_CallNoParams(Frame, TEXT("InitTabs"));
+	if (Buttons->GetChildrenCount() > TabIndex)
+	{
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: tabs made again, now %d buttons"), Buttons->GetChildrenCount());
+		return;
+	}
+	// The frame kept its old buttons: give the tabs container the frame's list and let it make them.
+	FArrayProperty* FrameTabs = FindFProperty<FArrayProperty>(Frame->GetClass(), AMAT_TabsProperty);
+	FArrayProperty* ContainerButtons = FindFProperty<FArrayProperty>(TabsContainer->GetClass(), TEXT("mButtons"));
+	if (FrameTabs && ContainerButtons && FrameTabs->Inner->SameType(ContainerButtons->Inner))
+	{
+		ContainerButtons->CopyCompleteValue(ContainerButtons->ContainerPtrToValuePtr<void>(TabsContainer), FrameTabs->ContainerPtrToValuePtr<void>(Frame));
+		AMAT_CallNoParams(TabsContainer, TEXT("GenerateButtons"));
+	}
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: tab buttons made by the tabs container, now %d buttons"), Buttons->GetChildrenCount());
 }
 
 void UAMAutomationTab::ShowSinglePage(bool bAutomation)
@@ -1053,23 +1086,10 @@ void UAMAutomationTab::ShowSinglePage(bool bAutomation)
 	{
 		return;
 	}
-	if (bAutomation)
-	{
-		// As tall as the machine's page, so the window keeps its height.
-		if (USizeBox* Root = Cast<USizeBox>(WidgetTree ? WidgetTree->RootWidget : nullptr))
-		{
-			Root->SetMinDesiredHeight(FMath::Max(560.f, static_cast<float>(mMachinePage->GetDesiredSize().Y)));
-		}
-		mMachinePage->SetVisibility(ESlateVisibility::Collapsed);
-		SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-		SetInventoryShown(false);
-	}
-	else
-	{
-		SetVisibility(ESlateVisibility::Collapsed);
-		mMachinePage->SetVisibility(mMachinePageVisibility);
-		SetInventoryShown(true);
-	}
+	// Our page keeps its own size; the window fits around whichever page shows.
+	mMachinePage->SetVisibility(bAutomation ? ESlateVisibility::Collapsed : mMachinePageVisibility);
+	SetVisibility(bAutomation ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+	SetInventoryShown(!bAutomation);
 }
 
 void UAMAutomationTab::ShowThisTab()

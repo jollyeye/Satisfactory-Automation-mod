@@ -127,10 +127,15 @@ private:
 	void SetInventoryShown(bool bShow);
 
 	/**
-	 * One-page windows (miners): the window body gets an overlay holding the machine's page and
-	 * ours; the tab buttons show one or the other. Done once per window, on the tick after construct.
+	 * One-page windows (miners): we move next to the window body (in the frame's row, beside the
+	 * inventory) and add our tab; the tab buttons show the body or us. The machine's page itself is
+	 * never moved (moving it rebuilt its widgets, which then showed their designer defaults).
+	 * On the tick after construct, when the window has filled its tab list.
 	 */
 	void SetupSinglePage();
+
+	/** Makes the tab buttons again from the frame's tab list (InitTabs, else the tabs container). */
+	void RegenerateTabButtons();
 
 	/** One-page windows: shows our page (true) or the machine's own page (false). */
 	void ShowSinglePage(bool bAutomation);
@@ -138,10 +143,10 @@ private:
 	/** True in windows with one page and no sliding pages (miners). */
 	bool bSinglePageMode = false;
 
-	/** One-page windows: the overlay in the window body, and the machine's own page in it. */
-	UPROPERTY()
-	TObjectPtr<class UOverlay> mSinglePageOverlay;
+	/** SetupSinglePage tries again on the next tick while the window's tab list is still empty. */
+	int32 mSetupTries = 0;
 
+	/** One-page windows: the window body (holding the machine's page), shown or hidden. */
 	UPROPERTY()
 	TObjectPtr<UWidget> mMachinePage;
 
