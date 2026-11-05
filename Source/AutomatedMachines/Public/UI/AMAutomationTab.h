@@ -15,6 +15,20 @@ class UTextBlock;
 class UVerticalBox;
 class UWidgetTree;
 class UAMRuleRow;
+class UAMChoice;
+class UTexture2D;
+
+/** One choice of a dropdown window (UAMAutomationTab::OpenPicker). */
+struct FAMPickerOption
+{
+	FString Label;
+	/** Shown in front of the label (items), or none. */
+	UTexture2D* Icon = nullptr;
+	/** The current choice: shown in orange. */
+	bool bCurrent = false;
+	/** Its click and hover handler (kept alive by the tab while the window is open). */
+	UAMChoice* Handler = nullptr;
+};
 
 UCLASS()
 class AUTOMATEDMACHINES_API UAMAutomationTab : public UUserWidget
@@ -53,12 +67,17 @@ public:
 	UObject* GetMachineObject() const { return GetMachine(); }
 
 	/**
-	 * The item window: a scrolling list of items with their icons, floating over the page under the
-	 * clicked dropdown (Anchor). Items in this container come first, then every item the player
-	 * knows from unlocked recipes. Current: shown in orange.
+	 * A dropdown window floating over the page: a search field exactly over the clicked dropdown
+	 * (Anchor), with the choices under it in a scrolling list. Typing filters the list; Enter picks
+	 * the first one; a click outside closes it.
 	 */
-	void OpenItemPicker(UAMRuleRow* Row, UWidget* Anchor, UClass* Current);
-	void CloseItemPicker();
+	void OpenPicker(UAMRuleRow* Row, UWidget* Anchor, TArray<FAMPickerOption>&& Options, const FString& EmptyMessage, float MinWidth);
+
+	/** Closes the dropdown window (on the next tick when bDeferred: safe from inside its own click). */
+	void ClosePicker(bool bDeferred = false);
+
+	/** Items the player knows: this container's contents first, then items of unlocked recipes, by name; solids only. */
+	TArray<UClass*> GetPickableItems() const;
 
 	/**
 	 * True in the HUB terminal: the page has only actions, and only world actions (they need no
@@ -88,9 +107,15 @@ protected:
 	UFUNCTION()
 	void OnPassWrongClicked();
 
-	/** A click outside the item window closes it. */
+	/** A click outside the dropdown window closes it. */
 	UFUNCTION()
 	void OnPopupBackgroundClicked();
+
+	UFUNCTION()
+	void OnPickerSearchChanged(const FText& Text);
+
+	UFUNCTION()
+	void OnPickerSearchCommitted(const FText& Text, ETextCommit::Type CommitMethod);
 
 	/**
 	 * One-page windows: bound to the plain button inside each tab button (mButton), because neither
@@ -262,10 +287,21 @@ private:
 	TObjectPtr<UWidget> mPopup;
 
 	UPROPERTY()
-	TArray<TObjectPtr<class UAMChoice>> mPopupHandlers;
+	TArray<TObjectPtr<UAMChoice>> mPopupHandlers;
 
-	/** Items the player knows (from unlocked recipes), sorted by name; solids only. */
-	TArray<UClass*> GetPickableItems() const;
+	/** The open dropdown window's choices, its list and search field. */
+	TArray<FAMPickerOption> mPickerOptions;
+
+	UPROPERTY()
+	TObjectPtr<UVerticalBox> mPickerList;
+
+	UPROPERTY()
+	TObjectPtr<class UEditableText> mPickerSearch;
+
+	FString mPickerEmptyMessage;
+
+	/** Shows the choices whose label contains Filter (any case). */
+	void FillPickerList(const FString& Filter);
 
 	/** Our texts with the font size each should get (fonts are copied from the game in ApplyGameFonts). */
 	UPROPERTY()

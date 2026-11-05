@@ -8,6 +8,7 @@
 #include "Components/Button.h"
 #include "Components/ButtonSlot.h"
 #include "Components/Image.h"
+#include "Components/EditableText.h"
 #include "Components/NamedSlot.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/CanvasPanel.h"
@@ -638,16 +639,47 @@ TArray<UClass*> UAMAutomationTab::GetPickableItems() const
 	return Contents;
 }
 
-void UAMAutomationTab::OpenItemPicker(UAMRuleRow* Row, UWidget* Anchor, UClass* Current)
+void UAMAutomationTab::OpenPicker(UAMRuleRow* Row, UWidget* Anchor, TArray<FAMPickerOption>&& Options, const FString& EmptyMessage, float MinWidth)
 {
-	CloseItemPicker();
+	ClosePicker();
 	if (!Row || !Anchor || !mPopupLayer || !mRootOverlay)
 	{
 		return;
 	}
-	constexpr float PopupWidth = 300.f;
-	constexpr float PopupHeight = 340.f;
+	mPickerOptions = MoveTemp(Options);
+	mPickerEmptyMessage = EmptyMessage;
+	for (const FAMPickerOption& Option : mPickerOptions)
+	{
+		mPopupHandlers.Add(Option.Handler);
+	}
 	const FSlateFontInfo Font = GetRowFont();
+
+	// Where the dropdown is, in the page's units.
+	const FGeometry& PageGeometry = mRootOverlay->GetCachedGeometry();
+	const FGeometry& AnchorGeometry = Anchor->GetCachedGeometry();
+	const FVector2D PageSize = PageGeometry.GetLocalSize();
+	const FVector2D AnchorPosition = AnchorGeometry.GetAbsolutePosition();
+	const FVector2D AnchorSize = AnchorGeometry.GetAbsoluteSize();
+	const FVector2D AnchorTopLeft = PageGeometry.AbsoluteToLocal(AnchorPosition);
+	const FVector2D AnchorBottomRight = PageGeometry.AbsoluteToLocal(AnchorPosition + AnchorSize);
+	const float AnchorHeight = FMath::Max(24.f, static_cast<float>(AnchorBottomRight.Y - AnchorTopLeft.Y));
+	const float Width = FMath::Max(MinWidth, static_cast<float>(AnchorBottomRight.X - AnchorTopLeft.X));
+
+	// The list: up to 320 high, less if the page ends sooner (it scrolls); moved up only if very short.
+	constexpr float MaxListHeight = 320.f;
+	constexpr float MinListHeight = 140.f;
+	float X = static_cast<float>(AnchorTopLeft.X);
+	float Y = static_cast<float>(AnchorTopLeft.Y);
+	float ListHeight = MaxListHeight;
+	if (PageSize.Y > 0.0)
+	{
+		ListHeight = FMath::Clamp(static_cast<float>(PageSize.Y) - Y - AnchorHeight - 12.f, MinListHeight, MaxListHeight);
+		Y = FMath::Max(0.f, FMath::Min(Y, static_cast<float>(PageSize.Y) - AnchorHeight - ListHeight - 12.f));
+	}
+	if (PageSize.X > 0.0)
+	{
+		X = FMath::Clamp(X, 0.f, FMath::Max(0.f, static_cast<float>(PageSize.X) - Width));
+	}
 
 	// See-through background over the whole page: a click outside the window closes it.
 	UButton* Background = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
@@ -663,85 +695,40 @@ void UAMAutomationTab::OpenItemPicker(UAMRuleRow* Row, UWidget* Anchor, UClass* 
 		BackgroundSlot->SetOffsets(FMargin(0.f));
 	}
 
-	// The window: a dark box with a scrolling list.
+	// The window: the search field over the dropdown, the list under it.
 	USizeBox* WindowSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	WindowSize->SetWidthOverride(PopupWidth);
-	WindowSize->SetHeightOverride(PopupHeight);
-	UBorder* Window = AMUI::MakeBox(WidgetTree, AMUI::SidePanel, FMargin(4.f));
+	WindowSize->SetWidthOverride(Width);
+	UBorder* Window = AMUI::MakeBox(WidgetTree, AMUI::SidePanel, FMargin(0.f, 0.f, 0.f, 4.f));
 	WindowSize->AddChild(Window);
+	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Window->AddChild(Column);
+
+	USizeBox* SearchSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	SearchSize->SetHeightOverride(AnchorHeight);
+	UBorder* SearchField = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 0.f));
+	SearchField->SetVerticalAlignment(VAlign_Center);
+	SearchSize->AddChild(SearchField);
+	mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
+	mPickerSearch->SetFont(Font);
+	mPickerSearch->SetHintText(FText::FromString(TEXT("type to search")));
+	mPickerSearch->OnTextChanged.AddDynamic(this, &UAMAutomationTab::OnPickerSearchChanged);
+	mPickerSearch->OnTextCommitted.AddDynamic(this, &UAMAutomationTab::OnPickerSearchCommitted);
+	SearchField->AddChild(mPickerSearch);
+	Column->AddChildToVerticalBox(SearchSize);
+
+	USizeBox* ListSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	ListSize->SetMaxDesiredHeight(ListHeight);
 	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
 	Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
-	Window->AddChild(Scroll);
-	UVerticalBox* List = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	Scroll->AddChild(List);
+	ListSize->AddChild(Scroll);
+	mPickerList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Scroll->AddChild(mPickerList);
+	if (UVerticalBoxSlot* ListSlot = Column->AddChildToVerticalBox(ListSize))
+	{
+		ListSlot->SetPadding(FMargin(4.f, 4.f, 4.f, 0.f));
+	}
+	FillPickerList(FString());
 
-	const TArray<UClass*> Items = GetPickableItems();
-	if (Items.Num() == 0)
-	{
-		List->AddChildToVerticalBox(AMUI::MakeText(WidgetTree, TEXT("No items known yet."), Font, AMUI::Grey));
-	}
-	for (UClass* Item : Items)
-	{
-		UAMChoice* Handler = NewObject<UAMChoice>(Row);
-		Handler->Row = Row;
-		Handler->Kind = EAMChoiceKind::Item;
-		Handler->ItemClass = Item;
-		mPopupHandlers.Add(Handler);
-
-		UButton* Option = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
-		AMUI::SetButtonColor(Option, AMUI::Option);
-		Option->OnClicked.AddDynamic(Handler, &UAMChoice::OnClicked);
-		Option->OnHovered.AddDynamic(Handler, &UAMChoice::OnHovered);
-		UHorizontalBox* Line = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UButtonSlot* LineSlot = Cast<UButtonSlot>(Option->AddChild(Line)))
-		{
-			LineSlot->SetHorizontalAlignment(HAlign_Fill);
-			LineSlot->SetPadding(FMargin(6.f, 3.f));
-		}
-		UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
-		if (UTexture2D* Texture = UFGItemDescriptor::GetSmallIcon(Item))
-		{
-			Icon->SetBrushFromTexture(Texture, false);
-		}
-		Icon->SetDesiredSizeOverride(FVector2D(28.f, 28.f));
-		USizeBox* IconSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		IconSize->SetWidthOverride(28.f);
-		IconSize->SetHeightOverride(28.f);
-		IconSize->AddChild(Icon);
-		if (UHorizontalBoxSlot* IconSlot = Line->AddChildToHorizontalBox(IconSize))
-		{
-			IconSlot->SetVerticalAlignment(VAlign_Center);
-		}
-		UTextBlock* Name = AMUI::MakeText(WidgetTree, UFGItemDescriptor::GetItemName(Item).ToString(), Font, Item == Current ? AMUI::Orange : AMUI::White);
-		if (UHorizontalBoxSlot* NameSlot = Line->AddChildToHorizontalBox(Name))
-		{
-			NameSlot->SetVerticalAlignment(VAlign_Center);
-			NameSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
-		}
-		if (UVerticalBoxSlot* OptionSlot = List->AddChildToVerticalBox(Option))
-		{
-			OptionSlot->SetPadding(FMargin(0.f, 1.f, 0.f, 0.f));
-		}
-	}
-
-	// Under the dropdown, or above it if there is no room below; inside the page.
-	const FGeometry& PageGeometry = mRootOverlay->GetCachedGeometry();
-	const FGeometry& AnchorGeometry = Anchor->GetCachedGeometry();
-	const FVector2D PageSize = PageGeometry.GetLocalSize();
-	const FVector2D AnchorPosition = AnchorGeometry.GetAbsolutePosition();
-	const FVector2D AnchorSize = AnchorGeometry.GetAbsoluteSize();
-	const FVector2D AnchorTopLeft = PageGeometry.AbsoluteToLocal(AnchorPosition);
-	const FVector2D AnchorBottomRight = PageGeometry.AbsoluteToLocal(AnchorPosition + AnchorSize);
-	float X = static_cast<float>(AnchorTopLeft.X);
-	float Y = static_cast<float>(AnchorBottomRight.Y) + 2.f;
-	if (PageSize.Y > 0.0 && Y + PopupHeight > PageSize.Y)
-	{
-		Y = FMath::Max(0.f, static_cast<float>(AnchorTopLeft.Y) - PopupHeight - 2.f);
-	}
-	if (PageSize.X > 0.0)
-	{
-		X = FMath::Clamp(X, 0.f, FMath::Max(0.f, static_cast<float>(PageSize.X) - PopupWidth));
-	}
 	if (UCanvasPanelSlot* WindowSlot = mPopupLayer->AddChildToCanvas(WindowSize))
 	{
 		WindowSlot->SetAnchors(FAnchors(0.f, 0.f));
@@ -751,27 +738,145 @@ void UAMAutomationTab::OpenItemPicker(UAMRuleRow* Row, UWidget* Anchor, UClass* 
 	}
 	mPopup = WindowSize;
 	mPopupLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	// Type right away (the field exists on screen from the next frame).
+	if (UWorld* World = GetWorld())
+	{
+		TWeakObjectPtr<UEditableText> WeakSearch(mPickerSearch);
+		World->GetTimerManager().SetTimerForNextTick([WeakSearch]()
+		{
+			if (UEditableText* Search = WeakSearch.Get())
+			{
+				Search->SetKeyboardFocus();
+			}
+		});
+	}
 }
 
-void UAMAutomationTab::CloseItemPicker()
+void UAMAutomationTab::FillPickerList(const FString& Filter)
 {
+	if (!mPickerList)
+	{
+		return;
+	}
+	mPickerList->ClearChildren();
+	const FSlateFontInfo Font = GetRowFont();
+	int32 Shown = 0;
+	for (const FAMPickerOption& Option : mPickerOptions)
+	{
+		if (!Option.Handler || (!Filter.IsEmpty() && !Option.Label.Contains(Filter, ESearchCase::IgnoreCase)))
+		{
+			continue;
+		}
+		++Shown;
+		UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+		AMUI::SetButtonColor(Button, AMUI::Option);
+		Button->OnClicked.AddDynamic(Option.Handler, &UAMChoice::OnClicked);
+		Button->OnHovered.AddDynamic(Option.Handler, &UAMChoice::OnHovered);
+		UHorizontalBox* Line = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UButtonSlot* LineSlot = Cast<UButtonSlot>(Button->AddChild(Line)))
+		{
+			LineSlot->SetHorizontalAlignment(HAlign_Fill);
+			LineSlot->SetPadding(FMargin(Option.Icon ? 4.f : 0.f, Option.Icon ? 2.f : 0.f));
+		}
+		if (Option.Icon)
+		{
+			UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
+			Icon->SetBrushFromTexture(Option.Icon, false);
+			Icon->SetDesiredSizeOverride(FVector2D(28.f, 28.f));
+			USizeBox* IconSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			IconSize->SetWidthOverride(28.f);
+			IconSize->SetHeightOverride(28.f);
+			IconSize->AddChild(Icon);
+			if (UHorizontalBoxSlot* IconSlot = Line->AddChildToHorizontalBox(IconSize))
+			{
+				IconSlot->SetVerticalAlignment(VAlign_Center);
+				IconSlot->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+			}
+		}
+		UTextBlock* Label = AMUI::MakeText(WidgetTree, Option.Label, Font, Option.bCurrent ? AMUI::Orange : AMUI::White);
+		if (UHorizontalBoxSlot* LabelSlot = Line->AddChildToHorizontalBox(Label))
+		{
+			LabelSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		if (UVerticalBoxSlot* OptionSlot = mPickerList->AddChildToVerticalBox(Button))
+		{
+			OptionSlot->SetPadding(FMargin(0.f, 1.f, 0.f, 0.f));
+		}
+	}
+	if (Shown == 0)
+	{
+		UBorder* Message = AMUI::MakeBox(WidgetTree, AMUI::Option, FMargin(12.f, 7.f));
+		Message->AddChild(AMUI::MakeText(WidgetTree, Filter.IsEmpty() ? mPickerEmptyMessage : FString(TEXT("Nothing found.")), Font, AMUI::Grey));
+		mPickerList->AddChildToVerticalBox(Message);
+	}
+}
+
+void UAMAutomationTab::OnPickerSearchChanged(const FText& Text)
+{
+	FillPickerList(Text.ToString().TrimStartAndEnd());
+}
+
+void UAMAutomationTab::OnPickerSearchCommitted(const FText& Text, ETextCommit::Type CommitMethod)
+{
+	if (CommitMethod == ETextCommit::OnCleared)
+	{
+		ClosePicker(true);
+		return;
+	}
+	if (CommitMethod != ETextCommit::OnEnter)
+	{
+		return;
+	}
+	// Enter: the first choice shown.
+	const FString Filter = Text.ToString().TrimStartAndEnd();
+	for (const FAMPickerOption& Option : mPickerOptions)
+	{
+		if (Option.Handler && (Filter.IsEmpty() || Option.Label.Contains(Filter, ESearchCase::IgnoreCase)))
+		{
+			Option.Handler->OnClicked();
+			return;
+		}
+	}
+}
+
+void UAMAutomationTab::ClosePicker(bool bDeferred)
+{
+	if (bDeferred)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			TWeakObjectPtr<UAMAutomationTab> WeakThis(this);
+			World->GetTimerManager().SetTimerForNextTick([WeakThis]()
+			{
+				if (UAMAutomationTab* Tab = WeakThis.Get())
+				{
+					Tab->ClosePicker(false);
+				}
+			});
+			return;
+		}
+	}
 	if (mPopupLayer)
 	{
 		mPopupLayer->ClearChildren();
 		mPopupLayer->SetVisibility(ESlateVisibility::Collapsed);
 	}
 	mPopup = nullptr;
+	mPickerList = nullptr;
+	mPickerSearch = nullptr;
+	mPickerOptions.Reset();
 	mPopupHandlers.Reset();
 }
 
 void UAMAutomationTab::OnPopupBackgroundClicked()
 {
-	CloseItemPicker();
+	ClosePicker(true);
 }
 
 void UAMAutomationTab::RebuildRows()
 {
-	CloseItemPicker();
+	ClosePicker();
 	if (!mReactionRowsBox || (!mFireRowsBox && !bWorldMode))
 	{
 		return;

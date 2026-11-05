@@ -100,6 +100,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 	UTextBlock* SecondLabel = nullptr;
 	UButton* SecondButton = AMUI::MakeDropdown(Tree, Font, SecondLabel);
 	mSecondLabel = SecondLabel;
+	mSecondButton = SecondButton;
 	SecondButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnSecondCellClicked);
 
 	if (bIsAlarm)
@@ -123,6 +124,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		UTextBlock* AlarmLabel = nullptr;
 		UButton* AlarmButton = AMUI::MakeDropdown(Tree, Font, AlarmLabel);
 		mAlarmLabel = AlarmLabel;
+		mAlarmButton = AlarmButton;
 		AlarmButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnAlarmCellClicked);
 		Add(AMRR_Cell(Tree, AMRowLayout::OnAlarm, AlarmButton), AMRowLayout::Gap);
 	}
@@ -156,47 +158,38 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 			UnitSlot->SetPadding(FMargin(6.f, 0.f, 0.f, 0.f));
 			UnitSlot->SetVerticalAlignment(VAlign_Center);
 		}
+
+		// Item count above / below: "# [500]  [icon Iron Plate v]" on one line.
+		if (bIsAlarm)
+		{
+			UTextBlock* ItemLabel = nullptr;
+			mItemButton = AMUI::MakeDropdown(Tree, Font, ItemLabel);
+			mItemLabel = ItemLabel;
+			if (UHorizontalBox* Content = Cast<UHorizontalBox>(mItemButton->GetChildAt(0)))
+			{
+				mItemIcon = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+				mItemIcon->SetDesiredSizeOverride(FVector2D(20.f, 20.f));
+				mItemIcon->SetVisibility(ESlateVisibility::Collapsed);
+				if (UHorizontalBoxSlot* IconSlot = Cast<UHorizontalBoxSlot>(Content->InsertChildAt(0, mItemIcon)))
+				{
+					IconSlot->SetVerticalAlignment(VAlign_Center);
+					IconSlot->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
+				}
+			}
+			mItemButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnItemCellClicked);
+			// The rest of the row's width: alarm name + machine event + bin, minus "# [500]".
+			mItemCell = AMRR_Cell(Tree, AMRowLayout::AlarmName + AMRowLayout::MachineEvent + AMRowLayout::Remove + 2 * AMRowLayout::Gap
+				- AMRowLayout::ValueField - 40.f, mItemButton);
+			mItemCell->SetVisibility(ESlateVisibility::Collapsed);
+			if (UHorizontalBoxSlot* ItemSlot = ValueLine->AddChildToHorizontalBox(mItemCell))
+			{
+				ItemSlot->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
+			}
+		}
 		ValueLine->SetVisibility(ESlateVisibility::Collapsed);
 		if (UVerticalBoxSlot* ValueSlot = mRoot->AddChildToVerticalBox(ValueLine))
 		{
 			ValueSlot->SetPadding(FMargin(bIsAlarm ? AMRowLayout::AlarmName + AMRowLayout::Gap : 0.f, 4.f, 0.f, 0.f));
-		}
-	}
-
-	// "Item [icon Iron Plate v]" for Item count above / below, under the Machine Event cell.
-	if (bIsAlarm)
-	{
-		UHorizontalBox* ItemLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		mItemLine = ItemLine;
-		if (UHorizontalBoxSlot* LabelSlot = ItemLine->AddChildToHorizontalBox(AMUI::MakeText(Tree, TEXT("Item"), Font, AMUI::Grey)))
-		{
-			LabelSlot->SetVerticalAlignment(VAlign_Center);
-		}
-		// Like the other dropdowns, with the item's icon in front of its name.
-		UTextBlock* ItemLabel = nullptr;
-		mItemButton = AMUI::MakeDropdown(Tree, Font, ItemLabel);
-		mItemLabel = ItemLabel;
-		if (UHorizontalBox* Content = Cast<UHorizontalBox>(mItemButton->GetChildAt(0)))
-		{
-			mItemIcon = Tree->ConstructWidget<UImage>(UImage::StaticClass());
-			mItemIcon->SetDesiredSizeOverride(FVector2D(20.f, 20.f));
-			mItemIcon->SetVisibility(ESlateVisibility::Collapsed);
-			if (UHorizontalBoxSlot* IconSlot = Cast<UHorizontalBoxSlot>(Content->InsertChildAt(0, mItemIcon)))
-			{
-				IconSlot->SetVerticalAlignment(VAlign_Center);
-				IconSlot->SetPadding(FMargin(0.f, 0.f, 6.f, 0.f));
-			}
-		}
-		mItemButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnItemCellClicked);
-		if (UHorizontalBoxSlot* ButtonSlot = ItemLine->AddChildToHorizontalBox(
-			AMRR_Cell(Tree, AMRowLayout::MachineEvent + AMRowLayout::Gap + AMRowLayout::Remove - 36.f, mItemButton)))
-		{
-			ButtonSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
-		}
-		ItemLine->SetVisibility(ESlateVisibility::Collapsed);
-		if (UVerticalBoxSlot* ItemSlot = mRoot->AddChildToVerticalBox(ItemLine))
-		{
-			ItemSlot->SetPadding(FMargin(AMRowLayout::AlarmName + AMRowLayout::Gap, 4.f, 0.f, 0.f));
 		}
 	}
 
@@ -212,6 +205,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		UTextBlock* RecipeLabel = nullptr;
 		UButton* RecipeButton = AMUI::MakeDropdown(Tree, Font, RecipeLabel);
 		mRecipeLabel = RecipeLabel;
+		mRecipeButton = RecipeButton;
 		RecipeButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnRecipeCellClicked);
 		if (UHorizontalBoxSlot* ButtonSlot = RecipeLine->AddChildToHorizontalBox(
 			AMRR_Cell(Tree, AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm - 60.f, RecipeButton)))
@@ -258,6 +252,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		UTextBlock* SoundLabel = nullptr;
 		UButton* SoundButton = AMUI::MakeDropdown(Tree, Font, SoundLabel);
 		mSoundLabel = SoundLabel;
+		mSoundButton = SoundButton;
 		SoundButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnSoundCellClicked);
 		if (UHorizontalBoxSlot* ButtonSlot = SoundLine->AddChildToHorizontalBox(AMRR_Cell(Tree, AMRowLayout::Do, SoundButton)))
 		{
@@ -340,11 +335,16 @@ void UAMRuleRow::UpdateLabels()
 		}
 	}
 
-	if (bIsAlarm && mItemLine && mItemLabel)
+	if (bIsAlarm && mItemCell && mItemLabel)
 	{
 		const FAMFireRule* Rule = mTab->GetFireRule(mIndex);
 		const bool bNeedsItem = Rule && AMRules::ConditionNeedsItem(Rule->Condition);
-		mItemLine->SetVisibility(bNeedsItem ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		mItemCell->SetVisibility(bNeedsItem ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		// With an item, the line starts under the alarm name (room for the item's name).
+		if (UVerticalBoxSlot* ValueSlot = mValueLine ? Cast<UVerticalBoxSlot>(mValueLine->Slot) : nullptr)
+		{
+			ValueSlot->SetPadding(FMargin(bNeedsItem ? 0.f : AMRowLayout::AlarmName + AMRowLayout::Gap, 4.f, 0.f, 0.f));
+		}
 		if (bNeedsItem)
 		{
 			mItemLabel->SetText(Rule->Item ? UFGItemDescriptor::GetItemName(Rule->Item) : FText::FromString(TEXT("choose an item")));
@@ -727,7 +727,6 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 				mTab->OnRulesEdited();
 			}
 		}
-		mTab->CloseItemPicker();
 		break;
 	case EAMChoiceKind::Action:
 		if (FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
@@ -747,6 +746,7 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 	}
 	UpdateLabels();
 	HideChoices();
+	mTab->ClosePicker(true);
 	Explain(Choice);
 }
 
@@ -813,68 +813,152 @@ void UAMRuleRow::ExplainCurrent()
 	}
 }
 
+void UAMRuleRow::OpenPicker(EAMChoiceKind Kind, UWidget* Anchor)
+{
+	HideChoices();
+	TArray<FAMPickerOption> Options;
+	auto Add = [this, Kind, &Options](const FString& Label, uint8 Value, bool bCurrent) -> UAMChoice*
+	{
+		UAMChoice* Handler = NewObject<UAMChoice>(this);
+		Handler->Row = this;
+		Handler->Kind = Kind;
+		Handler->Value = Value;
+		FAMPickerOption& Option = Options.AddDefaulted_GetRef();
+		Option.Label = Label;
+		Option.bCurrent = bCurrent;
+		Option.Handler = Handler;
+		return Handler;
+	};
+	FString EmptyMessage = TEXT("Nothing to choose here.");
+	float MinWidth = 220.f;
+
+	switch (Kind)
+	{
+	case EAMChoiceKind::MachineEvent:
+	{
+		const FAMFireRule* Rule = mTab->GetFireRule(mIndex);
+		for (uint8 Value = 0; Value < static_cast<uint8>(EAMCondition::Count); ++Value)
+		{
+			const EAMCondition Condition = static_cast<EAMCondition>(Value);
+			const bool bCurrent = Rule && Rule->Condition == Condition;
+			if (AMRules::IsConditionAvailable(Condition, mTab->GetMachineObject()) || bCurrent)
+			{
+				Add(AMRules::GetConditionText(Condition).ToString(), Value, bCurrent);
+			}
+		}
+		break;
+	}
+	case EAMChoiceKind::Action:
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
+		{
+			const EAMAction Action = static_cast<EAMAction>(Value);
+			const bool bCurrent = Rule && Rule->Action == Action;
+			// Machines: machine actions. HUB: world actions.
+			if (AMRules::IsWorldAction(Action) == mTab->IsWorldMode() && (AMRules::IsActionAvailable(Action, mTab->GetMachineObject()) || bCurrent))
+			{
+				Add(AMRules::GetActionText(Action).ToString(), Value, bCurrent);
+			}
+		}
+		break;
+	}
+	case EAMChoiceKind::Alarm:
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		for (const FString& Alarm : mTab->GetEventNames())
+		{
+			Add(Alarm, 0, Rule && Rule->Event == Alarm)->Alarm = Alarm;
+		}
+		EmptyMessage = TEXT("No alarms yet: give a machine an alarm first.");
+		MinWidth = 260.f;
+		break;
+	}
+	case EAMChoiceKind::Recipe:
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		TArray<TSubclassOf<UFGRecipe>> Recipes;
+		if (const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(mTab->GetMachineObject()))
+		{
+			Manufacturer->GetAvailableRecipes(Recipes);
+		}
+		for (const TSubclassOf<UFGRecipe>& Recipe : Recipes)
+		{
+			Add(UFGRecipe::GetRecipeName(Recipe).ToString(), 0, Rule && Rule->Recipe.Get() == Recipe.Get())->RecipeClass = Recipe.Get();
+		}
+		EmptyMessage = TEXT("No recipes available for this machine.");
+		MinWidth = 280.f;
+		break;
+	}
+	case EAMChoiceKind::Sound:
+	{
+		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		const int32 Current = Rule ? AMRules::GetSoundIndex(Rule->Value) : INDEX_NONE;
+		const TArray<AMRules::FSound>& Sounds = AMRules::GetSounds();
+		for (int32 Index = 0; Index < Sounds.Num(); ++Index)
+		{
+			Add(Sounds[Index].Label, static_cast<uint8>(Index), Index == Current);
+		}
+		break;
+	}
+	case EAMChoiceKind::Item:
+	{
+		const FAMFireRule* Rule = mTab->GetFireRule(mIndex);
+		for (UClass* Item : mTab->GetPickableItems())
+		{
+			const TSubclassOf<UFGItemDescriptor> ItemClass(Item);
+			UAMChoice* Handler = Add(UFGItemDescriptor::GetItemName(ItemClass).ToString(), 0, Rule && Rule->Item.Get() == Item);
+			Handler->ItemClass = Item;
+			Options.Last().Icon = UFGItemDescriptor::GetSmallIcon(ItemClass);
+		}
+		EmptyMessage = TEXT("No items known yet.");
+		MinWidth = 300.f;
+		break;
+	}
+	}
+	mTab->OpenPicker(this, Anchor, MoveTemp(Options), EmptyMessage, MinWidth);
+}
+
 void UAMRuleRow::OnSecondCellClicked()
 {
-	const EAMChoiceKind Kind = bIsAlarm ? EAMChoiceKind::MachineEvent : EAMChoiceKind::Action;
-	if (bChoicesOpen && mOpenKind == Kind)
-	{
-		HideChoices();
-		return;
-	}
 	ExplainCurrent();
-	ShowChoices(Kind, {}, FString());
+	OpenPicker(bIsAlarm ? EAMChoiceKind::MachineEvent : EAMChoiceKind::Action, mSecondButton);
 }
 
 void UAMRuleRow::OnAlarmCellClicked()
 {
-	if (bChoicesOpen && mOpenKind == EAMChoiceKind::Alarm)
-	{
-		HideChoices();
-		return;
-	}
 	if (const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 	{
 		mTab->ShowAlarmInfo(Rule->Event);
 	}
-	ShowChoices(EAMChoiceKind::Alarm, mTab->GetEventNames(), TEXT("No alarms yet: give a machine an alarm first."));
+	OpenPicker(EAMChoiceKind::Alarm, mAlarmButton);
 }
 
 void UAMRuleRow::OnItemCellClicked()
 {
-	HideChoices();
 	if (const FAMFireRule* Rule = mTab->GetFireRule(mIndex))
 	{
 		mTab->ShowInfo(AMRules::GetConditionText(Rule->Condition), AMRules::GetConditionDescription(Rule->Condition));
-		mTab->OpenItemPicker(this, mItemButton, Rule->Item.Get());
 	}
+	OpenPicker(EAMChoiceKind::Item, mItemButton);
 }
 
 void UAMRuleRow::OnSoundCellClicked()
 {
-	if (bChoicesOpen && mOpenKind == EAMChoiceKind::Sound)
-	{
-		HideChoices();
-		return;
-	}
 	if (const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 	{
 		mTab->ShowInfo(AMRules::GetActionText(Rule->Action), AMRules::GetActionDescription(Rule->Action));
 	}
-	ShowChoices(EAMChoiceKind::Sound, {}, FString());
+	OpenPicker(EAMChoiceKind::Sound, mSoundButton);
 }
 
 void UAMRuleRow::OnRecipeCellClicked()
 {
-	if (bChoicesOpen && mOpenKind == EAMChoiceKind::Recipe)
-	{
-		HideChoices();
-		return;
-	}
 	if (const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 	{
 		mTab->ShowInfo(AMRules::GetActionText(Rule->Action), AMRules::GetActionDescription(Rule->Action));
 	}
-	ShowChoices(EAMChoiceKind::Recipe, {}, FString());
+	OpenPicker(EAMChoiceKind::Recipe, mRecipeButton);
 }
 
 void UAMRuleRow::OnMessageCommitted(const FText& Text, ETextCommit::Type CommitMethod)

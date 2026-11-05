@@ -176,12 +176,28 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mValueUnit;
 
-	/** The line with the item dropdown, under the alarm row (Item count above / below only). */
+	/** The item dropdown, on the number's line (Item count above / below only). */
 	UPROPERTY()
-	TObjectPtr<UWidget> mItemLine;
+	TObjectPtr<UWidget> mItemCell;
 
 	UPROPERTY()
 	TObjectPtr<class UButton> mItemButton;
+
+	/** The dropdowns, where their dropdown window opens. */
+	UPROPERTY()
+	TObjectPtr<class UButton> mSecondButton;
+
+	UPROPERTY()
+	TObjectPtr<class UButton> mAlarmButton;
+
+	UPROPERTY()
+	TObjectPtr<class UButton> mRecipeButton;
+
+	UPROPERTY()
+	TObjectPtr<class UButton> mSoundButton;
+
+	/** Opens the tab's dropdown window with the choices of Kind, at Anchor. */
+	void OpenPicker(EAMChoiceKind Kind, UWidget* Anchor);
 
 	UPROPERTY()
 	TObjectPtr<class UImage> mItemIcon;

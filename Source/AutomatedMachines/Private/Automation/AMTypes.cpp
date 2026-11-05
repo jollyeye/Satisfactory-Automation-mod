@@ -180,7 +180,7 @@ AMRules::FValueInfo AMRules::GetConditionValueInfo(EAMCondition Condition)
 	else if (Condition == EAMCondition::ItemCountAbove || Condition == EAMCondition::ItemCountBelow)
 	{
 		Info.bNeeded = true;
-		Info.Label = TEXT("Items");
+		Info.Label = TEXT("#");
 		Info.Min = 0.f;
 		Info.Max = 999999.f;
 		Info.Default = Condition == EAMCondition::ItemCountAbove ? 500.f : 200.f;

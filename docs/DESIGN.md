@@ -85,6 +85,8 @@ Everything that has a switch or an internal state that can change:
 
 ### UI
 
+- **Dropdowns** (decided 5 Nov 2026): every dropdown (Machine Event, Do, On Alarm, Recipe, Sound, Item) opens a window floating over the page, starting where the dropdown is: a search box on top (type to filter, Enter picks the first), the choices under it in a scrolling list, with icons for items. A click outside closes it.
+
 - **No new windows.** The Automation section is **added to the game's existing window** of the machine (a new tab, or a panel inside the window, whichever the game's widget allows).
 - Only buildings that have **no window at all** (possibly rail signals, power switches...) get a small window of our own.
 - How: SML widget hooks can insert our widget into a named panel of a game widget. The game's widget trees are not visible in the editor (placeholder assets, like the textures in Road Maker), so first we **dump the widget tree of an open machine window to the log** in game, find the right panel, then hook into it.
@@ -152,7 +154,7 @@ Storage Container and Industrial Storage Container (same window, `Widget_Storage
 
 - Machine events: Full, Not full, Empty, Not empty, Filled above N%, Filled below N% (a slot with half a stack counts as half a slot).
 - Full = the belt into it stops: every slot holds a full stack, or a belt brings an item it has no room for (in a mixed container that can happen before every slot is full). A separate "Belt blocked" event was tried and dropped (decided 5 Nov 2026): for one kind of item it is the same moment as Full, and a blocked output belt is the next machine's "Input full" / "Full".
-- Item count above N / Item count below N, for one item picked under the alarm (decided 5 Nov 2026): for containers with several kinds of items, e.g. restart only the Constructor making Iron Plates when fewer than 200 are left. The item is picked in its own floating, scrolling window with the items' icons: items in this container first, then every item of the unlocked recipes.
+- Item count above N / Item count below N, for one item picked under the alarm (decided 5 Nov 2026): for containers with several kinds of items, e.g. restart only the Constructor making Iron Plates when fewer than 200 are left. The item is picked in a dropdown window with the items' icons: items in this container first, then every item of the unlocked recipes. The number line reads "# [500] [icon Iron Plate]".
 - Actions: Delete contents (destroyed for good, like Delete output). With Full or Filled above on the same container it becomes an overflow that throws away what nobody uses.
 - The container's own events are the useful part: e.g. "Filled below 10%" rings an alarm that resumes the machines filling it, "Filled above 90%" pauses them.
 - Not included for now: the Dimensional Depot uploader (its own window), fluid buffers (other kind of building).
