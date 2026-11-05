@@ -186,8 +186,11 @@ UBorder* AMUI::MakeBox(UWidgetTree* Tree, const FLinearColor& Color, const FMarg
 
 namespace
 {
-	/** How dark an input box gets while typing in it (its colour times this). */
-	constexpr float AMUIH_TypingShade = 0.62f;
+	/**
+	 * How dark an input box gets while typing in it (its colour times this): the field grey 87
+	 * becomes about 26, darker than the side panel (40), the darkest thing of ours, but not black.
+	 */
+	constexpr float AMUIH_TypingShade = 0.3f;
 
 	struct FAMUIHInputBox
 	{

@@ -69,7 +69,7 @@ namespace AMUI
 	UBorder* MakeBox(UWidgetTree* Tree, const FLinearColor& Color, const FMargin& Padding);
 
 	/**
-	 * The box around a text input: a little darker while the player is typing in it (it has the
+	 * The box around a text input: much darker while the player is typing in it (it has the
 	 * keyboard focus). UMG text fields tell nothing about focus, so a ticker checks the registered
 	 * boxes every frame (a handful at most) and tints them; boxes that are gone drop out by themselves.
 	 */
