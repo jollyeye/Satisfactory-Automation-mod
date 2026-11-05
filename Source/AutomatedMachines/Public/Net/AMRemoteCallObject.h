@@ -23,10 +23,10 @@ public:
 	void ServerSetWorldActions(const TArray<FAMReactionRule>& Actions);
 
 	UFUNCTION(Server, Reliable)
-	void ServerClearAlarm(const FString& Event, bool bRingers);
+	void ServerClearAlarm(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub);
 
 	/** Removes an alarm's ringers or listeners from the whole world: directly on the server, through the server on a client. */
-	static void RequestClearAlarm(APlayerController* Player, const FString& Event, bool bRingers);
+	static void RequestClearAlarm(APlayerController* Player, const FString& Event, bool bRingers, AFGBuildable* OnlyMachine = nullptr, bool bOnlyHub = false);
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetSignDesigns(AFGBuildable* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs);

@@ -17,6 +17,7 @@ class UWidgetTree;
 class UAMRuleRow;
 class UAMChoice;
 class UTexture2D;
+class AFGBuildable;
 
 /** One choice of a dropdown window (UAMAutomationTab::OpenPicker). */
 struct FAMPickerOption
@@ -43,8 +44,25 @@ public:
 	FString Event;
 	bool bRingers = true;
 
+	/** A row of an alarm's machine list: its machine (or the HUB); its bin removes the alarm from it only. */
+	TWeakObjectPtr<AFGBuildable> Machine;
+	bool bHub = false;
+	bool bOne = false;
+	FString TargetName;
+
 	UFUNCTION()
 	void OnBinPressed();
+
+	/** A count cell (Rung by / Listening): opens or closes its machine list. */
+	UFUNCTION()
+	void OnCountClicked();
+
+	UFUNCTION()
+	void OnCountHovered();
+
+	/** A machine row's locate button. */
+	UFUNCTION()
+	void OnLocateClicked();
 
 	UFUNCTION()
 	void OnBinReleased();
@@ -120,9 +138,16 @@ public:
 	bool IsWorldMode() const { return bWorldMode; }
 
 	/** Overview: a bin is held down (2.5 s with the big bin filling up in the middle of the screen: clears), or let go. */
-	void StartOverviewHold(const FString& Event, bool bRingers);
+	void StartOverviewHold(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine = nullptr, bool bOnlyHub = false, bool bOne = false, const FString& TargetName = FString());
 	void StopOverviewHold(bool bDone);
-	void ExplainOverviewBin(const FString& Event, bool bRingers);
+	void ExplainOverviewBin(const FString& Event, bool bRingers, bool bOne = false, const FString& TargetName = FString());
+
+	/** Overview: a count cell clicked (its list opens; clicked again, closes; another one, swaps). */
+	void OnOverviewCountClicked(const FString& Event, bool bRingers);
+	void ExplainOverviewCount(const FString& Event, bool bRingers);
+
+	/** Overview: a machine's locate button (finding it in the world comes next). */
+	void OnOverviewLocate(AFGBuildable* Machine, bool bHub, const FString& TargetName);
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -365,6 +390,49 @@ private:
 
 	/** Rules changed while a bin was held: the rows are made again when it is let go. */
 	bool bOverviewDirty = false;
+
+	/** The bin held is a machine row's: only that machine (or the HUB). */
+	TWeakObjectPtr<AFGBuildable> mHoldMachine;
+	bool bHoldHub = false;
+	bool bHoldOne = false;
+	FString mHoldTargetName;
+
+	/**
+	 * Overview: the open machine list (one at a time), under its alarm's row: the machines ringing
+	 * it (Rung by) or listening to it (Listening), nearest first. Its rows are made in batches (a
+	 * few frames for thousands of machines) behind a progress bar.
+	 */
+	FString mExpandedEvent;
+	bool bExpandedRingers = true;
+	struct FAMOverviewEntry
+	{
+		TWeakObjectPtr<AFGBuildable> Machine;
+		bool bHub = false;
+		FString Name;
+		TWeakObjectPtr<UTexture2D> Icon;
+		float Distance = 0.f;
+	};
+	TArray<FAMOverviewEntry> mExpandedEntries;
+	int32 mExpandedBuilt = 0;
+	int32 mExpandGeneration = 0;
+
+	UPROPERTY()
+	TObjectPtr<UVerticalBox> mExpandedRows;
+
+	UPROPERTY()
+	TObjectPtr<class UProgressBar> mExpandedProgress;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mExpandedProgressText;
+
+	UPROPERTY()
+	TObjectPtr<UWidget> mExpandedLoading;
+
+	/** Adds the open list under its alarm's row (collects its machines, then makes the first rows). */
+	void AddExpandedList();
+
+	/** Makes the next batch of the open list's rows (again next tick until all are made). */
+	void BuildExpandedRows();
 
 	/** Index of our tab button and page; INDEX_NONE until the tab entry is added. */
 	int32 TabIndex = INDEX_NONE;

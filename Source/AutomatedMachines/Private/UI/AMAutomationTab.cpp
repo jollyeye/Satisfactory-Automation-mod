@@ -3,6 +3,10 @@
 #include "UI/AMRuleRow.h"
 #include "UI/AMUIHelpers.h"
 #include "UI/AMHoldBin.h"
+#include "Components/ProgressBar.h"
+#include "Brushes/SlateColorBrush.h"
+#include "GameFramework/Pawn.h"
+#include "Styling/SlateTypes.h"
 #include "Framework/Application/SlateApplication.h"
 #include "InputCoreTypes.h"
 #include "Automation/AMAutomationSubsystem.h"
@@ -2025,6 +2029,10 @@ void UAMAutomationTab::RebuildOverview()
 	bOverviewDirty = false;
 	mOverviewRows->ClearChildren();
 	mOverviewHandlers.Reset();
+	// A list still being made belongs to the rows just removed: its batches stop.
+	++mExpandGeneration;
+	mExpandedRows = nullptr;
+	mExpandedLoading = nullptr;
 	const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this);
 	const FSlateFontInfo Font = GetRowFont();
 	TArray<FString> Alarms = Subsystem ? Subsystem->GetAllEventNames() : TArray<FString>();
@@ -2075,10 +2083,31 @@ void UAMAutomationTab::RebuildOverview()
 		auto AddCount = [&](int32 Count, bool bRingers)
 		{
 			UHorizontalBox* Cell = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-			UBorder* Box = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 7.f));
-			Box->SetVerticalAlignment(VAlign_Center);
-			Box->AddChild(AMUI::MakeText(WidgetTree, Count == 0 ? FString(TEXT("nobody")) : FString::Printf(TEXT("%d"), Count), Font, Count == 0 ? AMUI::Orange : AMUI::White));
-			if (UHorizontalBoxSlot* BoxSlot = Cell->AddChildToHorizontalBox(Box))
+			UWidget* CountWidget = nullptr;
+			if (Count > 0)
+			{
+				// Clickable: lists the machines under the row (lighter while its list is open).
+				const bool bOpen = mExpandedEvent == Alarm && bExpandedRingers == bRingers;
+				UTextBlock* CountLabel = nullptr;
+				UButton* CountButton = AMUI::MakeButton(WidgetTree, FString::Printf(TEXT("%d"), Count), Font,
+					bOpen ? AMUI::Orange : AMUI::Field, &CountLabel);
+				if (UButtonSlot* CountSlot = CountLabel ? Cast<UButtonSlot>(CountLabel->Slot) : nullptr)
+				{
+					CountSlot->SetHorizontalAlignment(HAlign_Left);
+				}
+				UAMOverviewHandler* CountHandler = MakeHandler(bRingers);
+				CountButton->OnClicked.AddDynamic(CountHandler, &UAMOverviewHandler::OnCountClicked);
+				CountButton->OnHovered.AddDynamic(CountHandler, &UAMOverviewHandler::OnCountHovered);
+				CountWidget = CountButton;
+			}
+			else
+			{
+				UBorder* Box = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 7.f));
+				Box->SetVerticalAlignment(VAlign_Center);
+				Box->AddChild(AMUI::MakeText(WidgetTree, TEXT("nobody"), Font, AMUI::Orange));
+				CountWidget = Box;
+			}
+			if (UHorizontalBoxSlot* BoxSlot = Cell->AddChildToHorizontalBox(CountWidget))
 			{
 				BoxSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			}
@@ -2111,11 +2140,301 @@ void UAMAutomationTab::RebuildOverview()
 		{
 			RowSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 		}
+		if (Alarm == mExpandedEvent)
+		{
+			AddExpandedList();
+		}
 	}
 }
 
-void UAMAutomationTab::ExplainOverviewBin(const FString& Event, bool bRingers)
+namespace
 {
+	/** Rows of an alarm's machine list made per tick (thousands of machines: a few frames). */
+	constexpr int32 AMAT_ExpandBatch = 50;
+	constexpr float AMAT_ExpandRowHeight = 34.f;
+	const TCHAR* const AMAT_LocateIconPath = TEXT("/AutomatedMachines/Icons/T_AM_Locate.T_AM_Locate");
+}
+
+void UAMAutomationTab::OnOverviewCountClicked(const FString& Event, bool bRingers)
+{
+	if (mExpandedEvent == Event && bExpandedRingers == bRingers)
+	{
+		mExpandedEvent.Reset();
+	}
+	else
+	{
+		mExpandedEvent = Event;
+		bExpandedRingers = bRingers;
+	}
+	// The rows are made again on the next tick (not inside the click of one of them).
+	if (UWorld* World = GetWorld())
+	{
+		TWeakObjectPtr<UAMAutomationTab> WeakThis(this);
+		World->GetTimerManager().SetTimerForNextTick([WeakThis]()
+		{
+			if (UAMAutomationTab* Tab = WeakThis.Get())
+			{
+				Tab->RebuildOverview();
+			}
+		});
+	}
+}
+
+void UAMAutomationTab::ExplainOverviewCount(const FString& Event, bool bRingers)
+{
+	ShowInfo(FText::FromString(Event), FText::FromString(bRingers
+		? TEXT("Click to list the machines that ring this alarm, nearest first; click again to close the list.\n\nEach machine has a locate button and a bin that removes the alarm from that machine only.")
+		: TEXT("Click to list the machines, signs and the HUB that act when this alarm rings, nearest first; click again to close the list.\n\nEach has a locate button and a bin that removes its actions on this alarm only.")));
+}
+
+void UAMAutomationTab::OnOverviewLocate(AFGBuildable* Machine, bool bHub, const FString& TargetName)
+{
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Overview: locate %s (%s)"), *TargetName, Machine ? *Machine->GetName() : (bHub ? TEXT("the HUB") : TEXT("gone")));
+	ShowInfo(FText::FromString(TargetName), FText::FromString(TEXT("Locating comes next: this button will show where it is.")));
+}
+
+void UAMAutomationTab::AddExpandedList()
+{
+	const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this);
+	if (!Subsystem || !mOverviewRows)
+	{
+		return;
+	}
+	// Who rings (or listens to) the alarm, nearest first.
+	mExpandedEntries.Reset();
+	mExpandedBuilt = 0;
+	const FString& Event = mExpandedEvent;
+	const APawn* Pawn = GetOwningPlayerPawn();
+	const FVector From = Pawn ? Pawn->GetActorLocation() : FVector::ZeroVector;
+	for (const FAMMachineRules& Entry : Subsystem->GetAllMachines())
+	{
+		AFGBuildable* Machine = Entry.Machine.Get();
+		if (!IsValid(Machine))
+		{
+			continue;
+		}
+		const bool bUses = bExpandedRingers
+			? Entry.Fires.ContainsByPredicate([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; })
+			: (Entry.Reactions.ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; })
+				|| Entry.SignDesigns.ContainsByPredicate([&Event](const FAMSignDesign& Design) { return Design.Event == Event; }));
+		if (!bUses)
+		{
+			continue;
+		}
+		FAMOverviewEntry& Added = mExpandedEntries.AddDefaulted_GetRef();
+		Added.Machine = Machine;
+		const FTextProperty* NameProperty = FindFProperty<FTextProperty>(Machine->GetClass(), AMAT_MachineNameProperty);
+		Added.Name = NameProperty ? NameProperty->GetPropertyValue_InContainer(Machine).ToString() : Machine->GetClass()->GetName();
+		Added.Icon = UFGItemDescriptor::GetSmallIcon(Machine->GetBuiltWithDescriptor());
+		Added.Distance = static_cast<float>(FVector::Dist(From, Machine->GetActorLocation()));
+	}
+	mExpandedEntries.Sort([](const FAMOverviewEntry& A, const FAMOverviewEntry& B) { return A.Distance < B.Distance; });
+	if (!bExpandedRingers && Subsystem->GetWorldActions().ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; }))
+	{
+		FAMOverviewEntry Hub;
+		Hub.bHub = true;
+		Hub.Name = TEXT("The HUB (world actions)");
+		Hub.Distance = -1.f;
+		mExpandedEntries.Insert(Hub, 0);
+	}
+
+	// Under the alarm's row, indented: what it is, the rows (scrolling), and the progress while they are made.
+	const FSlateFontInfo Font = GetRowFont();
+	UVerticalBox* Box = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	const int32 Total = mExpandedEntries.Num();
+	const FString Title = FString::Printf(TEXT("%s %s: %d, nearest first"), bExpandedRingers ? TEXT("Rung by") : TEXT("Listening to"),
+		*Event, Total);
+	if (UVerticalBoxSlot* TitleSlot = Box->AddChildToVerticalBox(AMUI::MakeText(WidgetTree, Title, AMUI::SizedFont(Font, 13), AMUI::Grey)))
+	{
+		TitleSlot->SetPadding(FMargin(2.f, 0.f, 0.f, 4.f));
+	}
+	USizeBox* ListSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	ListSize->SetMaxDesiredHeight(10.f * (AMAT_ExpandRowHeight + 2.f));
+	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+	Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
+	ListSize->AddChild(Scroll);
+	mExpandedRows = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Scroll->AddChild(mExpandedRows);
+	Box->AddChildToVerticalBox(ListSize);
+
+	UHorizontalBox* Loading = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	mExpandedProgress = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass());
+	FProgressBarStyle BarStyle;
+	BarStyle.SetBackgroundImage(FSlateColorBrush(AMUI::Field));
+	BarStyle.SetFillImage(FSlateColorBrush(FLinearColor::White));
+	mExpandedProgress->SetWidgetStyle(BarStyle);
+	mExpandedProgress->SetFillColorAndOpacity(AMUI::Orange);
+	mExpandedProgress->SetPercent(0.f);
+	USizeBox* BarSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	BarSize->SetHeightOverride(8.f);
+	BarSize->AddChild(mExpandedProgress);
+	if (UHorizontalBoxSlot* BarSlot = Loading->AddChildToHorizontalBox(BarSize))
+	{
+		BarSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		BarSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	mExpandedProgressText = AMUI::MakeText(WidgetTree, TEXT(""), AMUI::SizedFont(Font, 13), AMUI::Grey);
+	if (UHorizontalBoxSlot* TextSlot = Loading->AddChildToHorizontalBox(mExpandedProgressText))
+	{
+		TextSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		TextSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	mExpandedLoading = Loading;
+	if (UVerticalBoxSlot* LoadingSlot = Box->AddChildToVerticalBox(Loading))
+	{
+		LoadingSlot->SetPadding(FMargin(2.f, 4.f, 0.f, 0.f));
+	}
+	if (UVerticalBoxSlot* BoxSlot = mOverviewRows->AddChildToVerticalBox(Box))
+	{
+		BoxSlot->SetPadding(FMargin(24.f, 4.f, 0.f, 8.f));
+	}
+	BuildExpandedRows();
+}
+
+void UAMAutomationTab::BuildExpandedRows()
+{
+	if (!mExpandedRows)
+	{
+		return;
+	}
+	const FSlateFontInfo Font = GetRowFont();
+	const int32 Total = mExpandedEntries.Num();
+	const int32 End = FMath::Min(Total, mExpandedBuilt + AMAT_ExpandBatch);
+	for (; mExpandedBuilt < End; ++mExpandedBuilt)
+	{
+		const FAMOverviewEntry& Entry = mExpandedEntries[mExpandedBuilt];
+		UAMOverviewHandler* Handler = NewObject<UAMOverviewHandler>(this);
+		Handler->Tab = this;
+		Handler->Event = mExpandedEvent;
+		Handler->bRingers = bExpandedRingers;
+		Handler->Machine = Entry.Machine;
+		Handler->bHub = Entry.bHub;
+		Handler->bOne = true;
+		Handler->TargetName = Entry.Name;
+		mOverviewHandlers.Add(Handler);
+
+		// [icon] [name] [distance] [locate] [bin]
+		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UBorder* Back = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(8.f, 0.f));
+		Back->SetVerticalAlignment(VAlign_Center);
+		UHorizontalBox* Line = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		Back->AddChild(Line);
+		UImage* Icon = nullptr;
+		if (UTexture2D* Texture = Entry.Icon.Get())
+		{
+			Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
+			Icon->SetBrushFromTexture(Texture, false);
+			Icon->SetDesiredSizeOverride(FVector2D(26.f, 26.f));
+		}
+		else
+		{
+			Icon = AMUI::MakeImage(WidgetTree, AMAT_TabIconPath, FVector2D(22.f, 22.f));
+		}
+		if (UHorizontalBoxSlot* IconSlot = Line->AddChildToHorizontalBox(Icon))
+		{
+			IconSlot->SetVerticalAlignment(VAlign_Center);
+			IconSlot->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		}
+		USizeBox* NameClip = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		NameClip->SetClipping(EWidgetClipping::ClipToBounds);
+		NameClip->AddChild(AMUI::MakeText(WidgetTree, Entry.Name, Font, AMUI::White));
+		if (UHorizontalBoxSlot* NameSlot = Line->AddChildToHorizontalBox(NameClip))
+		{
+			NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			NameSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		const FString Distance = Entry.Distance < 0.f ? FString() : FString::Printf(TEXT("%.0f m"), Entry.Distance / 100.f);
+		if (UHorizontalBoxSlot* DistanceSlot = Line->AddChildToHorizontalBox(AMUI::MakeText(WidgetTree, Distance, Font, AMUI::Grey)))
+		{
+			DistanceSlot->SetVerticalAlignment(VAlign_Center);
+			DistanceSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		}
+		USizeBox* BackSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		BackSize->SetHeightOverride(AMAT_ExpandRowHeight);
+		BackSize->AddChild(Back);
+		if (UHorizontalBoxSlot* BackSlot = Row->AddChildToHorizontalBox(BackSize))
+		{
+			BackSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		}
+
+		auto AddIconButton = [&](UButton* Button)
+		{
+			USizeBox* ButtonSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			ButtonSize->SetWidthOverride(AMRowLayout::Remove + 10.f);
+			ButtonSize->SetHeightOverride(AMAT_ExpandRowHeight);
+			ButtonSize->AddChild(Button);
+			if (UHorizontalBoxSlot* ButtonSlot = Row->AddChildToHorizontalBox(ButtonSize))
+			{
+				ButtonSlot->SetPadding(FMargin(AMRowLayout::Gap, 0.f, 0.f, 0.f));
+			}
+		};
+		// Locate: the bin button's look with a map pin instead of the bin.
+		UButton* Locate = AMUI::MakeRemoveButton(WidgetTree, Font);
+		USizeBox* PinSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		PinSize->SetWidthOverride(20.f);
+		PinSize->SetHeightOverride(20.f);
+		PinSize->AddChild(AMUI::MakeImage(WidgetTree, AMAT_LocateIconPath, FVector2D(20.f, 20.f)));
+		Locate->SetContent(PinSize);
+		if (UButtonSlot* PinSlot = Cast<UButtonSlot>(PinSize->Slot))
+		{
+			PinSlot->SetHorizontalAlignment(HAlign_Center);
+			PinSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		Locate->OnClicked.AddDynamic(Handler, &UAMOverviewHandler::OnLocateClicked);
+		AddIconButton(Locate);
+		UButton* Bin = AMUI::MakeRemoveButton(WidgetTree, Font);
+		Bin->OnPressed.AddDynamic(Handler, &UAMOverviewHandler::OnBinPressed);
+		Bin->OnReleased.AddDynamic(Handler, &UAMOverviewHandler::OnBinReleased);
+		Bin->OnHovered.AddDynamic(Handler, &UAMOverviewHandler::OnBinHovered);
+		AddIconButton(Bin);
+
+		if (UVerticalBoxSlot* RowSlot = mExpandedRows->AddChildToVerticalBox(Row))
+		{
+			RowSlot->SetPadding(FMargin(0.f, mExpandedBuilt == 0 ? 0.f : 2.f, 0.f, 0.f));
+		}
+	}
+
+	// Progress while there are more; the next batch on the next tick.
+	const bool bMore = mExpandedBuilt < Total;
+	if (mExpandedLoading)
+	{
+		mExpandedLoading->SetVisibility(bMore ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+	}
+	if (bMore)
+	{
+		if (mExpandedProgress)
+		{
+			mExpandedProgress->SetPercent(Total > 0 ? static_cast<float>(mExpandedBuilt) / Total : 1.f);
+		}
+		if (mExpandedProgressText)
+		{
+			mExpandedProgressText->SetText(FText::FromString(FString::Printf(TEXT("%d / %d"), mExpandedBuilt, Total)));
+		}
+		if (UWorld* World = GetWorld())
+		{
+			TWeakObjectPtr<UAMAutomationTab> WeakThis(this);
+			const int32 Generation = mExpandGeneration;
+			World->GetTimerManager().SetTimerForNextTick([WeakThis, Generation]()
+			{
+				UAMAutomationTab* Tab = WeakThis.Get();
+				if (Tab && Tab->mExpandGeneration == Generation)
+				{
+					Tab->BuildExpandedRows();
+				}
+			});
+		}
+	}
+}
+
+void UAMAutomationTab::ExplainOverviewBin(const FString& Event, bool bRingers, bool bOne, const FString& TargetName)
+{
+	if (bOne)
+	{
+		ShowInfo(FText::FromString(FString::Printf(TEXT("Remove from %s"), *TargetName)), FText::FromString(bRingers
+			? FString::Printf(TEXT("Removes the alarm %s from %s only: its alarm rows with this name are deleted.\n\nHold the bin down for 2.5 seconds to do it."), *Event, *TargetName)
+			: FString::Printf(TEXT("Removes the actions of %s on the alarm %s (a sign: its design for it).\n\nHold the bin down for 2.5 seconds to do it."), *TargetName, *Event)));
+		return;
+	}
 	int32 Ringers = 0;
 	int32 Listeners = 0;
 	if (const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
@@ -2134,7 +2453,7 @@ namespace
 	constexpr double AMAT_HoldSeconds = 2.5;
 }
 
-void UAMAutomationTab::StartOverviewHold(const FString& Event, bool bRingers)
+void UAMAutomationTab::StartOverviewHold(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub, bool bOne, const FString& TargetName)
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -2143,6 +2462,10 @@ void UAMAutomationTab::StartOverviewHold(const FString& Event, bool bRingers)
 	}
 	mHoldEvent = Event;
 	bHoldRingers = bRingers;
+	mHoldMachine = OnlyMachine;
+	bHoldHub = bOnlyHub;
+	bHoldOne = bOne;
+	mHoldTargetName = TargetName;
 	bHolding = true;
 	mHoldStart = FPlatformTime::Seconds();
 	if (!mHoldBin)
@@ -2151,7 +2474,8 @@ void UAMAutomationTab::StartOverviewHold(const FString& Event, bool bRingers)
 	}
 	if (mHoldBin)
 	{
-		mHoldBin->SetLabel(FString::Printf(TEXT("Hold to remove %s from %s"), *Event, bRingers ? TEXT("the machines ringing it") : TEXT("its listeners")));
+		mHoldBin->SetLabel(bOne ? FString::Printf(TEXT("Hold to remove %s from %s"), *Event, *TargetName)
+			: FString::Printf(TEXT("Hold to remove %s from %s"), *Event, bRingers ? TEXT("the machines ringing it") : TEXT("its listeners")));
 		mHoldBin->SetProgress(0.f);
 		if (!mHoldBin->IsInViewport())
 		{
@@ -2201,7 +2525,17 @@ void UAMAutomationTab::StopOverviewHold(bool bDone)
 	{
 		return;
 	}
-	if (bDone)
+	if (bDone && bHoldOne)
+	{
+		// One machine (or the HUB): never all of them, also if that machine is gone meanwhile.
+		AFGBuildable* Target = mHoldMachine.Get();
+		if (Target || bHoldHub)
+		{
+			UAMRemoteCallObject::RequestClearAlarm(GetOwningPlayer(), mHoldEvent, bHoldRingers, Target, bHoldHub);
+			ShowInfo(FText::FromString(mHoldEvent), FText::FromString(FString::Printf(TEXT("Removed from %s."), *mHoldTargetName)));
+		}
+	}
+	else if (bDone)
 	{
 		UAMRemoteCallObject::RequestClearAlarm(GetOwningPlayer(), mHoldEvent, bHoldRingers);
 		ShowInfo(FText::FromString(mHoldEvent), FText::FromString(bHoldRingers ? TEXT("Removed from the machines that rang it.") : TEXT("Removed from every listener.")));
@@ -2220,7 +2554,31 @@ void UAMOverviewHandler::OnBinPressed()
 {
 	if (Tab)
 	{
-		Tab->StartOverviewHold(Event, bRingers);
+		Tab->StartOverviewHold(Event, bRingers, bOne ? Machine.Get() : nullptr, bHub, bOne, TargetName);
+	}
+}
+
+void UAMOverviewHandler::OnCountClicked()
+{
+	if (Tab)
+	{
+		Tab->OnOverviewCountClicked(Event, bRingers);
+	}
+}
+
+void UAMOverviewHandler::OnCountHovered()
+{
+	if (Tab)
+	{
+		Tab->ExplainOverviewCount(Event, bRingers);
+	}
+}
+
+void UAMOverviewHandler::OnLocateClicked()
+{
+	if (Tab)
+	{
+		Tab->OnOverviewLocate(Machine.Get(), bHub, TargetName);
 	}
 }
 
@@ -2236,7 +2594,7 @@ void UAMOverviewHandler::OnBinHovered()
 {
 	if (Tab)
 	{
-		Tab->ExplainOverviewBin(Event, bRingers);
+		Tab->ExplainOverviewBin(Event, bRingers, bOne, TargetName);
 	}
 }
 

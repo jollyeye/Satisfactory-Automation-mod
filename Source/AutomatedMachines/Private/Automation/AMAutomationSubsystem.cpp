@@ -278,7 +278,7 @@ void AAMAutomationSubsystem::SetSignDesigns(AFGBuildableWidgetSign* Sign, const 
 	OnRulesChanged.Broadcast();
 }
 
-void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers)
+void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, const AActor* OnlyMachine, bool bOnlyHub)
 {
 	if (!HasAuthority() || Event.IsEmpty())
 	{
@@ -288,6 +288,10 @@ void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers)
 	TArray<AFGBuildableWidgetSign*> SignsToRefresh;
 	for (FAMMachineRules& Entry : mMachines)
 	{
+		if (bOnlyHub || (OnlyMachine && Entry.Machine.Get() != OnlyMachine))
+		{
+			continue;
+		}
 		if (bRingers)
 		{
 			const int32 Count = Entry.Fires.RemoveAll([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; });
@@ -321,7 +325,7 @@ void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers)
 			}
 		}
 	}
-	if (!bRingers)
+	if (!bRingers && !OnlyMachine)
 	{
 		Removed += mWorldActions.RemoveAll([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
 	}

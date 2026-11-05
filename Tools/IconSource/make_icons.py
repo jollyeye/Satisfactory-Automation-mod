@@ -3,6 +3,7 @@
 #   Tools/Icons/T_AM_MarkerIcon.png  256 x 256, the marker above automated machines
 #   Tools/Icons/T_AM_DropArrow.png   32 x 32, the arrow of our dropdowns
 #   Tools/Icons/T_AM_Trash.png       32 x 32, the remove button
+#   Tools/Icons/T_AM_Locate.png      32 x 32, a map pin: the locate button of the Alarms Overview
 #   Tools/Icons/T_AM_TrashLarge.png  192 x 192, the same bin, big in the middle of the screen while
 #     a bin is held down (HUB Alarms Overview); its own file because UI textures have no mips
 #   Tools/Icons/T_AM_SwitchOff.png / T_AM_SwitchOn.png  64 x 32, the option switch (like the
@@ -93,6 +94,21 @@ def trash(size):
     return img.resize((size, size), Image.LANCZOS)
 
 
+def locate(size):
+    """A map pin (like the game's map markers): a round head with a hole, ending in a point."""
+    big = size * SUPERSAMPLE
+    img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    white = (255, 255, 255, 255)
+    s = big / 32.0
+    cx, cy, r = 16 * s, 12 * s, 9 * s
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=white)                  # head
+    draw.polygon([(cx - r * 0.82, cy + r * 0.55), (cx + r * 0.82, cy + r * 0.55), (cx, 30 * s)], fill=white)  # point
+    hole = 3.6 * s
+    draw.ellipse([cx - hole, cy - hole, cx + hole, cy + hole], fill=(0, 0, 0, 0))  # hole
+    return img.resize((size, size), Image.LANCZOS)
+
+
 def switch(on, disabled=False, width=64, height=32):
     """Like the game's switches (power switch window). On: filled pill, dark knob on the right.
     Off: outline only (see-through inside), knob on the left. Disabled: the same in grey."""
@@ -124,6 +140,7 @@ def main():
     drop_arrow(32).save(os.path.join(OUT_DIR, "T_AM_DropArrow.png"))
     trash(32).save(os.path.join(OUT_DIR, "T_AM_Trash.png"))
     trash(192).save(os.path.join(OUT_DIR, "T_AM_TrashLarge.png"))
+    locate(32).save(os.path.join(OUT_DIR, "T_AM_Locate.png"))
     switch(False).save(os.path.join(OUT_DIR, "T_AM_SwitchOff.png"))
     switch(True).save(os.path.join(OUT_DIR, "T_AM_SwitchOn.png"))
     switch(False, disabled=True).save(os.path.join(OUT_DIR, "T_AM_SwitchOffDisabled.png"))

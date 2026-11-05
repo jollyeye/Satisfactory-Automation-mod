@@ -58,7 +58,7 @@ def save(asset):
 
 
 # --- Textures ----------------------------------------------------------------------------------
-UI_ICONS = ["T_AM_TabIcon", "T_AM_DropArrow", "T_AM_Trash", "T_AM_TrashLarge", "T_AM_SwitchOff", "T_AM_SwitchOn", "T_AM_SwitchOffDisabled", "T_AM_SwitchOnDisabled"]
+UI_ICONS = ["T_AM_TabIcon", "T_AM_DropArrow", "T_AM_Trash", "T_AM_TrashLarge", "T_AM_Locate", "T_AM_SwitchOff", "T_AM_SwitchOn", "T_AM_SwitchOffDisabled", "T_AM_SwitchOnDisabled"]
 for name in UI_ICONS + ["T_AM_MarkerIcon"]:
     import_file(os.path.join(TOOLS, "Icons", name + ".png"), ROOT + "/Icons")
 
