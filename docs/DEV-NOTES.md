@@ -15,6 +15,8 @@ Notes for the next session working on this mod. The design (what the mod does an
 | Options strip with the game-like switch | 5 Nov 2026 |
 | Miner: Automation tab in its one-page window (tabs side by side, switching, same height), its events and actions, Delete output | 5 Nov 2026 |
 | Storage Container / Industrial Storage Container: Automation tab (one-page window, frame named `WidgetWindowDarkMode`), same height | 5 Nov 2026 |
+| Storage events, Delete contents, Item count with the searchable dropdown window (all row dropdowns), recipe icons | 5 Nov 2026 |
+| Copy / paste of automation (Ctrl+C / Ctrl+V, window buttons, container buttons), middle click sample | 5 Nov 2026 |
  Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
 
 ## Setup on the developer's PC (Windows)
@@ -185,13 +187,14 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Item count above / below: `FAMFireRule::Item` (SaveGame), `Value` = the count (label "#", no unit), counted with `GetNumItems`. On the alarm's number line: "# [500] [icon item v]" (the line starts under the alarm name when an item is needed).
 - Dropdown window (second version, 5 Nov 2026, untested; first version tested: opened at the top of the page because it was moved above the dropdown when the page was too short): every dropdown of the rows (Machine Event, Do, On Alarm, Recipe, Sound, Item) opens `UAMAutomationTab::OpenPicker`. The tab's root is SizeBox > Overlay [page, `mPopupLayer` canvas]; the window is a see-through full-page button (click outside closes) plus a box placed from cached geometry (`AbsoluteToLocal`): a search field exactly over the clicked dropdown (focused on the next tick; typing filters by label, any case; Enter picks the first shown), and under it a scrolling list (up to 320 high, shorter if the page ends sooner) of buttons with an optional 28 px icon (items: `GetSmallIcon`). Choosing closes it on the next tick (`ClosePicker(true)`), not inside its own click. Items: the container's contents first, then products and ingredients of `AFGRecipeManager::GetAllAvailableRecipes`, solids only, no building descriptors, by name. The list under the alarm name while typing (suggestions) stays inline.
 
-## Copy and paste (5 Nov 2026, untested)
+## Copy and paste (5 Nov 2026, works)
 
 `Automation/AMClipboard.*`. Hooks (SML `SUBSCRIBE_METHOD_AFTER` unless said):
 - `AFGPlayerState::CopyFactoryClipboard(UObject*)` / `PasteFactoryClipboard(UObject*)`: the game's copy / paste (Ctrl+C / Ctrl+V and the window buttons go through these, on the player's own machine). Copy reads the replicated rules; paste sends them with `UAMRemoteCallObject::RequestSetRules`.
 - `AFGCharacterPlayer::ClipboardCopy()` / `ClipboardPaste()`: for machines with `CanUseFactoryClipboard` false (storage), using `GetBestUsableActor()`. A copy / paste of the same machine in the same frame is done once (both hooks can fire).
 - `UFGBuildGunStateBuild::SampleClipboardSettingsFromActor(AActor*)` (middle click, server): remembers the sampled automation per build gun. `UFGBuildGunStateBuild::InternalConstructHologram` (`SUBSCRIBE_METHOD`, around the call): marks the build gun building right now; `AFGBuildableSubsystem::BuildableConstructedGlobalDelegate` (bound by the subsystem on the server) gives each new buildable the sample if it is of the same kind.
-- Kind = `IFGFactoryClipboardInterface::Execute_GetClipboardMappingClass`, else the class. Clipboard per player state and kind; not saved.
+- Kind = the machine's own class (first try used `Execute_GetClipboardMappingClass`, which groups Constructor and Assembler together). A machine without automation is copied as empty (pasting it clears). Clipboard per player state and kind; not saved.
+- Tested 5 Nov 2026: Ctrl+C / Ctrl+V, the window buttons, our container buttons, middle click (the new machine gets the rules). The marker of a just-built machine was missing: its bounds are not there yet when it gets its rules, so `AAMMarkers::OnRulesChanged` places the markers again one second later.
 - Tab: Copy / Paste automation settings buttons at the bottom when `AMClipboard::GameCanCopy` is false. The tab now listens to `OnRulesChanged` and reloads its rows when the world's rules of its machine differ from its own (e.g. pasted with the game's button on the other tab), unless it has rows without an alarm name yet.
 - Recipe dropdown: icon of the recipe's first product.
 

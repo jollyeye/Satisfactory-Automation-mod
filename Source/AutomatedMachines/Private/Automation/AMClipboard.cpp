@@ -34,21 +34,13 @@ namespace
 	FObjectKey AMCB_LastCopyMachine;
 	FObjectKey AMCB_LastPasteMachine;
 
-	/** The kind of a machine for copying: the game's mapping class (e.g. Mk1 and Mk2 together), else its class. */
+	/**
+	 * The kind of a machine for copying: its own class, so only the same machine (Constructor to
+	 * Constructor). The game's mapping class puts all production machines together.
+	 */
 	UClass* AMCB_Kind(UObject* Machine)
 	{
-		if (!Machine)
-		{
-			return nullptr;
-		}
-		if (Machine->GetClass()->ImplementsInterface(UFGFactoryClipboardInterface::StaticClass()))
-		{
-			if (UClass* Mapping = IFGFactoryClipboardInterface::Execute_GetClipboardMappingClass(Machine).Get())
-			{
-				return Mapping;
-			}
-		}
-		return Machine->GetClass();
+		return Machine ? Machine->GetClass() : nullptr;
 	}
 
 	APlayerController* AMCB_Controller(AFGPlayerState* Player)
@@ -66,6 +58,7 @@ namespace
 	/** The machine's automation, if it has any. */
 	bool AMCB_Read(AFGBuildable* Machine, AMClipboard::FClip& OutClip)
 	{
+		OutClip = AMClipboard::FClip();
 		const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Machine);
 		const FAMMachineRules* Rules = Subsystem ? Subsystem->FindRules(Machine) : nullptr;
 		if (!Rules || Rules->IsEmpty())
@@ -100,13 +93,9 @@ void AMClipboard::Copy(AFGPlayerState* Player, UObject* Object)
 	AMCB_LastCopyMachine = FObjectKey(Machine);
 
 	TMap<FObjectKey, FClip>& Copies = AMCB_Copies.FindOrAdd(FObjectKey(Player));
+	// A machine without automation is copied too: pasting it removes the other machine's automation.
 	FClip Clip;
-	if (!AMCB_Read(Machine, Clip))
-	{
-		// Nothing to copy: a later paste leaves the other machine's automation as it is.
-		Copies.Remove(FObjectKey(AMCB_Kind(Machine)));
-		return;
-	}
+	AMCB_Read(Machine, Clip);
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation copied from %s: %s"), *Machine->GetName(), *AMCB_Describe(Clip));
 	UAMNotification::Show(AMCB_Controller(Player), TEXT("AUTOMATION COPIED"), AMCB_Describe(Clip));
 	Copies.Add(FObjectKey(AMCB_Kind(Machine)), MoveTemp(Clip));

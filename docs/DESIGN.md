@@ -166,7 +166,7 @@ Automation is copied together with the game's own machine settings:
 - **Ctrl+C / Ctrl+V** while looking at a machine, and the window's **Copy Settings / Paste Settings** buttons: the alarms, actions and options go along.
 - Machines the game cannot copy (storage containers) get our own buttons on the Automation page, **Copy automation settings / Paste automation settings**; Ctrl+C / Ctrl+V work on them too.
 - **Middle click** (sample a building with the build gun) on an automated machine, then build: the new buildings get the same automation.
-- Only between machines of the same kind (the game's rule: e.g. Miner Mk1 to Mk2 if the game allows it). Pasting replaces the machine's automation. Copying a machine without automation does not erase anything: a later paste leaves the other machine's automation as it is.
+- Only between the same machine (Constructor to Constructor, Miner Mk1 to Miner Mk1): the game's own grouping puts all production machines together, which is not wanted. Pasting replaces the machine's automation; copying a machine without automation and pasting it removes the other machine's automation (decided 5 Nov 2026).
 - A notification says what was copied / pasted ("AUTOMATION COPIED: 2 alarms, 1 action").
 
 ### Wrong items on a belt (decided 4 Nov 2026)
