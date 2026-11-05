@@ -12,6 +12,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystem.h"
 #include "Representation/FGResourceNodeRepresentation.h"
+#include "FGCompassMaterialSettings.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/UnrealType.h"
 
 namespace
@@ -112,6 +114,66 @@ namespace
 	}
 }
 
+// ----- Compass representation ---------------------------------------------------------------------
+
+UMaterialInterface* UAMLocateRepresentation::GetRepresentationCompassMaterial() const
+{
+	const UFGCompassMaterialSettings* Settings = UFGCompassMaterialSettings::Get();
+	UMaterialInterface* Material = Settings ? Settings->mResourceCompassMaterial.LoadSynchronous() : nullptr;
+	return Material ? Material : Super::GetRepresentationCompassMaterial();
+}
+
+float UAMLocateRepresentation::GetCompassHeightAlignment() const
+{
+	// The ores' row.
+	return GetDefault<UFGResourceNodeRepresentation>()->GetCompassHeightAlignment();
+}
+
+FText UAMLocateRepresentation::GetDynamicCompassRepresentationText(APlayerController* OwnerPlayerController, float DistanceToPlayer) const
+{
+	return FText::FromString(FString::Printf(TEXT("%d m"), FMath::RoundToInt(DistanceToPlayer / 100.f)));
+}
+
+float UAMLocateRepresentation::CalculateCompassRepresentationScale(APlayerController* OwnerPlayerController, float DistanceToPlayer) const
+{
+	// Bigger when near, smaller when far, like the ores.
+	const UFGCompassMaterialSettings* Settings = UFGCompassMaterialSettings::Get();
+	if (!Settings || Settings->mResourceMaxCompassDistance <= 0.f)
+	{
+		return 1.f;
+	}
+	const float Far = FMath::Clamp(DistanceToPlayer / Settings->mResourceMaxCompassDistance, 0.f, 1.f);
+	return FMath::Lerp(Settings->mResourceCompassDistanceNearScale, Settings->mResourceCompassDistanceFarScale, Far);
+}
+
+UMaterialInterface* UAMLocateRepresentation::GetRepresentationCompassEffectMaterial() const
+{
+	const UFGCompassMaterialSettings* Settings = UFGCompassMaterialSettings::Get();
+	return Settings ? Settings->mResourceScannerPingEffectMaterial.LoadSynchronous() : nullptr;
+}
+
+FVector2f UAMLocateRepresentation::GetRepresentationCompassEffectSize() const
+{
+	const UFGCompassMaterialSettings* Settings = UFGCompassMaterialSettings::Get();
+	return Settings ? Settings->mResourceScannerPingEffectImageSize : FVector2f(400.f);
+}
+
+bool UAMLocateRepresentation::UpdateRepresentationCompassEffectMaterial(UMaterialInstanceDynamic* CompassMaterialInstance, APlayerController* OwnerPlayerController, float DistanceToPlayer, float TotalTime)
+{
+	// The scanner's ping when it appears: its loops for its total time, then no more.
+	const UFGCompassMaterialSettings* Settings = UFGCompassMaterialSettings::Get();
+	const float Loop = Settings ? FMath::Max(Settings->mResourceScannerPingEffectLoopTime, 0.01f) : 0.5f;
+	const float Total = Settings ? Settings->mResourceScannerPingEffectTotalTime : 2.f;
+	if (CompassMaterialInstance)
+	{
+		const float Progress = FMath::Fmod(TotalTime, Loop) / Loop;
+		CompassMaterialInstance->SetScalarParameterValue(TEXT("Progress"), Progress);
+		CompassMaterialInstance->SetScalarParameterValue(TEXT("Time"), TotalTime);
+		CompassMaterialInstance->SetScalarParameterValue(TEXT("Alpha"), Progress);
+	}
+	return TotalTime < Total;
+}
+
 // ----- Marker -------------------------------------------------------------------------------------
 
 AAMLocateMarker::AAMLocateMarker()
@@ -136,9 +198,8 @@ bool AAMLocateMarker::AddAsRepresentation()
 {
 	if (AFGActorRepresentationManager* Manager = AFGActorRepresentationManager::Get(GetWorld()))
 	{
-		// Local: only this player's compass and map. As a resource node representation: the compass
-		// shows it like an ore (top row, kept at the edge, distance, its compass material).
-		mRepresentation = Manager->CreateAndAddNewRepresentation(this, true, UFGResourceNodeRepresentation::StaticClass());
+		// Local: only this player's compass and map; shown like an ore (UAMLocateRepresentation).
+		mRepresentation = Manager->CreateAndAddNewRepresentation(this, true, UAMLocateRepresentation::StaticClass());
 	}
 	return mRepresentation != nullptr;
 }

@@ -2,8 +2,8 @@
 // without a scan (we know where the machine is):
 //   - the scanner's ping sound;
 //   - the machine's icon on the compass and on the map (a local actor representation: only the
-//     player who asked sees it), with its name; made as the game's resource node representation, so
-//     the compass shows it like an ore: top row, kept at the compass edge when not ahead, distance;
+//     player who asked sees it), with its name, shown on the compass like an ore (UAMLocateRepresentation):
+//     top row, kept at the compass edge when not ahead, distance;
 //   - an expanding ring effect on the machine, again every few seconds;
 //   - all of it until the player gets close to the machine (or after a while, or when asked again).
 // Local only: never replicated, never saved.
@@ -12,10 +12,36 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "FGActorRepresentationInterface.h"
+#include "FGActorRepresentation.h"
 #include "AMLocator.generated.h"
 
 class UTexture2D;
 class UFGActorRepresentation;
+
+/**
+ * How the compass shows a located machine: like an ore. The game's resource node representation is
+ * only accepted by the compass for real nodes (it was dropped: "Removed called ... not an existing
+ * entry"), so this one gives the same answers from the game's compass settings: the resource
+ * compass material, the top row, kept at the edge (important), the distance and the near / far
+ * scale, and the scanner's ping effect when it appears.
+ */
+UCLASS()
+class AUTOMATEDMACHINES_API UAMLocateRepresentation : public UFGActorRepresentation
+{
+	GENERATED_BODY()
+
+public:
+	virtual UMaterialInterface* GetRepresentationCompassMaterial() const override;
+	virtual float GetCompassHeightAlignment() const override;
+	virtual bool IsImportantCompassRepresentation() const override { return true; }
+	virtual bool NeedsDynamicCompassRepresentationText() const override { return true; }
+	virtual FText GetDynamicCompassRepresentationText(APlayerController* OwnerPlayerController, float DistanceToPlayer) const override;
+	virtual bool NeedsDynamicCompassRepresentationScale() const override { return true; }
+	virtual float CalculateCompassRepresentationScale(APlayerController* OwnerPlayerController, float DistanceToPlayer) const override;
+	virtual UMaterialInterface* GetRepresentationCompassEffectMaterial() const override;
+	virtual FVector2f GetRepresentationCompassEffectSize() const override;
+	virtual bool UpdateRepresentationCompassEffectMaterial(UMaterialInstanceDynamic* CompassMaterialInstance, APlayerController* OwnerPlayerController, float DistanceToPlayer, float TotalTime) override;
+};
 
 /** The point on the compass and map: a local actor at the machine, implementing the game's representation interface. */
 UCLASS(NotPlaceable, Transient)
