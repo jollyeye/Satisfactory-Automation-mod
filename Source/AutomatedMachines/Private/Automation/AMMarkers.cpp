@@ -5,6 +5,7 @@
 #include "AutomatedMachinesModule.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableWidgetSign.h"
+#include "Buildables/FGBuildableResourceExtractor.h"
 #include "Components/DecalComponent.h"
 #include "Components/MeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -233,10 +234,15 @@ bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
 	const FTransform& ToWorld = Machine->GetActorTransform();
 	const double AnchorZ = ToWorld.GetLocation().Z;
 
-	// The floor: straight down just outside the four sides, the median of what is hit (one side
-	// hanging over a cliff or touching a belt does not count).
+	// The floor is the machine's anchor: where it was built, on a foundation or the ground. Only
+	// extractors (miners) can have their anchor underground (on the resource node): for them the
+	// ground is looked for straight down just outside the four sides (the median of what is hit:
+	// one side hanging over a cliff or touching a belt does not count), and it can only lift the
+	// glow above the anchor, never lower it (a foundation not loaded yet, a foundation's edge).
+	const bool bSearchFloor = Machine->IsA<AFGBuildableResourceExtractor>();
 	TArray<double> FloorHits;
-	if (UWorld* World = GetWorld())
+	UWorld* World = bSearchFloor ? GetWorld() : nullptr;
+	if (World)
 	{
 		FCollisionQueryParams Params(SCENE_QUERY_STAT(AMUnderglowFloor), false, Machine);
 		const double SearchTop = AnchorZ + FMath::Min(static_cast<double>(AMMK_FloorSearchUp), FMath::Max(Box.Max.Z, 50.0));
@@ -255,12 +261,12 @@ bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
 		}
 	}
 	double FloorZ = AnchorZ;
-	const bool bFound = FloorHits.Num() >= 2;
-	if (bFound)
+	const bool bFound = !bSearchFloor || FloorHits.Num() >= 2;
+	if (bSearchFloor && bFound)
 	{
 		FloorHits.Sort();
 		const int32 Middle = FloorHits.Num() / 2;
-		FloorZ = FloorHits.Num() % 2 == 0 ? (FloorHits[Middle - 1] + FloorHits[Middle]) * 0.5 : FloorHits[Middle];
+		FloorZ = FMath::Max(AnchorZ, FloorHits.Num() % 2 == 0 ? (FloorHits[Middle - 1] + FloorHits[Middle]) * 0.5 : FloorHits[Middle]);
 	}
 
 	// A decal projects along its own X: pitched down, its X points at the floor, its Y stays the
