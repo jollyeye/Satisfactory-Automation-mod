@@ -14,6 +14,7 @@ Notes for the next session working on this mod. The design (what the mod does an
 | Wrong input / Input correct; Pass wrong items through (straight onto the output belt, products first), also on the Assembler (2 inputs) | 5 Nov 2026 |
 | Options strip with the game-like switch | 5 Nov 2026 |
 | Miner: Automation tab in its one-page window (tabs side by side, switching, same height), its events and actions, Delete output | 5 Nov 2026 |
+| Storage Container / Industrial Storage Container: Automation tab (one-page window, frame named `WidgetWindowDarkMode`), same height | 5 Nov 2026 |
  Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
 
 ## Setup on the developer's PC (Windows)
@@ -177,10 +178,10 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Machines: `CanAutomate` also accepts `AFGBuildableResourceExtractor` (miners, and water / oil / well extractors, same class). `AMRules::IsConditionAvailable` / `IsActionAvailable` list what each machine type has; the dropdowns show only those (the current choice stays), and `SetRules` drops the rest. `HasPassWrongItems`: production machines only; the Options section is hidden otherwise.
 - Output full on an extractor: the output inventory has no room for one more cycle (`GetNumExtractedItemsPerCycle` of the node's `GetResourceClass`). Delete output: its output inventory.
 
-## Storage containers (5 Nov 2026, untested)
+## Storage containers (5 Nov 2026, tab works)
 
 - Window: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Storage.Widget_Storage_C` (from `mInteractWidgetSoftClass` of `Build_StorageContainerMk1` and `Mk2`, both `AFGBuildableStorage`). The asset has `Widget_Window_DarkMode`, `WindowBody`, no `Widget_SlidingTabs`: a one-page window (kind B in `GAME-UI-GUIDE.md`). Its variables include `mInventoryVertBox`, `mScrollableContent`, `mSortbuttonHbox`, `mSortButton`, `mGrabAllButton`, `mDumpAllButton`, `mStorageActor`. The hook goes into `mInventoryVertBox` (confirmed by the dump: `WindowBody` > `StoragePanel` (CanvasPanel) > `mInventoryVertBox`). First try: no tab, because the frame variable is `WidgetWindowDarkMode` here; `GetWindowFrame` now finds the frame by class. First-first try crashed at start: SML's generic slot setup on a VerticalBox parent (see the guide).
-- `CanAutomate`: `AFGBuildableStorage` except `AFGCentralStorageContainer` (Dimensional Depot uploader). Events `StorageFull`, `StorageNotFull`, `StorageEmpty`, `StorageNotEmpty`, `FillAbove`, `FillBelow` (fill level = sum of items / slot size over slots, `GetSlotSize`), action `DeleteContents` (`DeleteAllItems(GetStorageInventory())`). Machines and containers each see only their own events and actions; a new row starts on the first one the machine has.
+- `CanAutomate`: `AFGBuildableStorage` except `AFGCentralStorageContainer` (Dimensional Depot uploader). Events `StorageFull`, `StorageNotFull`, `StorageEmpty`, `StorageNotEmpty`, `FillAbove`, `FillBelow` (fill level = sum of items / slot size over slots, `GetSlotSize`), action `DeleteContents` (`DeleteAllItems(GetStorageInventory())`). Machines and containers each see only their own events and actions; a new row starts on the first one the machine has. Belt blocked / Belt flowing (added after): the item waiting at an input belt's end (`Factory_PeekOutput`) has no room (`HasEnoughSpaceForItem`), which can happen before Full (its stacks full, no empty slot).
 
 ## The widget dump
 

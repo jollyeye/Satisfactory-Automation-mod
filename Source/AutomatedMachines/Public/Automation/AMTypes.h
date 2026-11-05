@@ -42,6 +42,8 @@ enum class EAMCondition : uint8
 	StorageNotEmpty    UMETA(DisplayName = "Not empty"),
 	FillAbove          UMETA(DisplayName = "Filled above"),
 	FillBelow          UMETA(DisplayName = "Filled below"),
+	BeltBlocked        UMETA(DisplayName = "Belt blocked"),
+	BeltFlowing        UMETA(DisplayName = "Belt flowing"),
 	Count              UMETA(Hidden)
 };
 

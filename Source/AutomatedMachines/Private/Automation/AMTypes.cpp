@@ -46,6 +46,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::StorageNotEmpty:   return AMTY_Text(TEXT("Not empty"));
 	case EAMCondition::FillAbove:         return AMTY_Text(TEXT("Filled above"));
 	case EAMCondition::FillBelow:         return AMTY_Text(TEXT("Filled below"));
+	case EAMCondition::BeltBlocked:       return AMTY_Text(TEXT("Belt blocked"));
+	case EAMCondition::BeltFlowing:       return AMTY_Text(TEXT("Belt flowing"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -118,6 +120,10 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the container is filled above the percentage you set. 100% is every slot holding a full stack; a slot with half a stack counts as half a slot.\n\nUse it to slow down or pause the machines that fill it before it is completely full."));
 	case EAMCondition::FillBelow:
 		return AMTY_Text(TEXT("Rings when the container is filled below the percentage you set (counted like Filled above).\n\nUse it to start the machines that fill it again before it runs empty."));
+	case EAMCondition::BeltBlocked:
+		return AMTY_Text(TEXT("Rings when a belt brings an item the container has no room for, so the belt stops. This can happen before the container is full: the item's stacks are full and there is no empty slot left for it.\n\nUse it to pause the machines that fill it, or to empty the container."));
+	case EAMCondition::BeltFlowing:
+		return AMTY_Text(TEXT("Rings when the container can take the items of every belt again."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -268,7 +274,8 @@ float AMRules::CleanValue(const FValueInfo& Info, float Value)
 
 bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machine)
 {
-	const bool bStorageEvent = Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::FillBelow;
+	const bool bStorageEvent = (Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::FillBelow)
+		|| Condition == EAMCondition::BeltBlocked || Condition == EAMCondition::BeltFlowing;
 	if (!Machine)
 	{
 		return true;

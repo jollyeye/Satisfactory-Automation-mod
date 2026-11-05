@@ -583,6 +583,8 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::StorageNotEmpty:   return GetFillLevel(Factory) > 0.f;
 	case EAMCondition::FillAbove:         return GetFillLevel(Factory) * 100.f > Rule.Value;
 	case EAMCondition::FillBelow:         return GetFillLevel(Factory) * 100.f < Rule.Value;
+	case EAMCondition::BeltBlocked:       return IsBeltBlocked(Factory);
+	case EAMCondition::BeltFlowing:       return !IsBeltBlocked(Factory);
 	default:                              return false;
 	}
 }
@@ -607,6 +609,31 @@ float AAMAutomationSubsystem::GetFillLevel(const AFGBuildableFactory* Factory)
 		}
 	}
 	return static_cast<float>(Filled / Inventory->GetSizeLinear());
+}
+
+bool AAMAutomationSubsystem::IsBeltBlocked(const AFGBuildableFactory* Factory)
+{
+	// The item waiting at the end of an input belt has no room in the container.
+	AFGBuildableStorage* Storage = const_cast<AFGBuildableStorage*>(Cast<AFGBuildableStorage>(Factory));
+	const UFGInventoryComponent* Inventory = Storage ? Storage->GetStorageInventory() : nullptr;
+	if (!Inventory)
+	{
+		return false;
+	}
+	for (const UFGFactoryConnectionComponent* Connection : Storage->GetConnectionComponents())
+	{
+		if (!Connection || Connection->GetDirection() != EFactoryConnectionDirection::FCD_INPUT || !Connection->IsConnected())
+		{
+			continue;
+		}
+		const UFGFactoryConnectionComponent* BeltEnd = Connection->GetConnection();
+		TArray<FInventoryItem> Waiting;
+		if (BeltEnd && BeltEnd->Factory_PeekOutput(Waiting) && Waiting.Num() > 0 && !Inventory->HasEnoughSpaceForItem(Waiting[0]))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 bool AAMAutomationSubsystem::IsInputFull(const AFGBuildableFactory* Factory)

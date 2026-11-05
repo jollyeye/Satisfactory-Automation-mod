@@ -105,6 +105,10 @@ The window has `Widget_SlidingTabs` with its pages side by side in a HorizontalB
 10. Reopening the window (it can be pooled): construct runs again; the setup finds us already in the
     row and only resets to the machine's page.
 
+Windows done this way (tested): the miner (`Widget_ResourceExtractorUI_C`, hook parent `CanvasPanel_3`)
+and the storage containers (`Widget_Storage_C`, hook parent `mInventoryVertBox`, a VerticalBox: no
+slot setup, see 8; its frame variable is `WidgetWindowDarkMode`).
+
 Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabButtonLook`,
 `BindSingleTabButtons`, `SelectSingleTab`, `ShowSinglePage` in `UI/AMAutomationTab.cpp`.
 

@@ -92,6 +92,9 @@ private:
 	/** How full a storage container is, 0..1 (0 for other machines). */
 	static float GetFillLevel(const AFGBuildableFactory* Factory);
 
+	/** A storage container: an input belt has an item waiting that does not fit. */
+	static bool IsBeltBlocked(const AFGBuildableFactory* Factory);
+
 	/**
 	 * A wrong item at the end of an input belt (OutBelt: that belt's end, OutItem: the item), or a
 	 * wrong fluid in an input pipe (OutBelt null). False if the machine has no recipe.
