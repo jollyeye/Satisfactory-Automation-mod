@@ -67,6 +67,10 @@ public:
 	UFUNCTION()
 	void OnLocateHovered();
 
+	/** A machine row's bin: removes at once (one machine only: no hold). */
+	UFUNCTION()
+	void OnSingleBinClicked();
+
 	UFUNCTION()
 	void OnBinReleased();
 
@@ -152,6 +156,9 @@ public:
 	/** Overview: a machine's locate button (finding it in the world comes next). */
 	void OnOverviewLocate(AFGBuildable* Machine, bool bHub, const FString& TargetName);
 	void ExplainOverviewLocate(const FString& TargetName);
+
+	/** Overview: removes the alarm from one machine (or the HUB) at once. */
+	void RemoveFromOne(const FString& Event, bool bRingers, AFGBuildable* Machine, bool bHub, const FString& TargetName);
 
 protected:
 	virtual void NativeOnInitialized() override;

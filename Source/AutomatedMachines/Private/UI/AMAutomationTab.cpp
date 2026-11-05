@@ -3,6 +3,8 @@
 #include "UI/AMRuleRow.h"
 #include "UI/AMUIHelpers.h"
 #include "UI/AMHoldBin.h"
+#include "Automation/AMLocator.h"
+#include "EngineUtils.h"
 #include "Components/ProgressBar.h"
 #include "Brushes/SlateColorBrush.h"
 #include "GameFramework/Pawn.h"
@@ -2224,14 +2226,51 @@ void UAMAutomationTab::ExplainOverviewCount(const FString& Event, bool bRingers)
 
 void UAMAutomationTab::OnOverviewLocate(AFGBuildable* Machine, bool bHub, const FString& TargetName)
 {
-	UE_LOG(LogAutomatedMachines, Log, TEXT("Overview: locate %s (%s)"), *TargetName, Machine ? *Machine->GetName() : (bHub ? TEXT("the HUB") : TEXT("gone")));
-	ShowInfo(FText::FromString(TargetName), FText::FromString(TEXT("Locating comes next: this button will show where it is.")));
+	AFGBuildable* Target = Machine;
+	if (!Target && bHub)
+	{
+		// The HUB: the trading post building (looked for when asked: rare).
+		for (TActorIterator<AFGBuildable> It(GetWorld()); It; ++It)
+		{
+			if (It->GetClass()->GetName().Contains(TEXT("TradingPost")))
+			{
+				Target = *It;
+				break;
+			}
+		}
+	}
+	AAMLocator* Locator = AAMLocator::Get(GetWorld());
+	if (!Target || !Locator)
+	{
+		ShowInfo(FText::FromString(TargetName), FText::FromString(TEXT("Not found in the world.")));
+		return;
+	}
+	if (Locator->Toggle(Target, UFGItemDescriptor::GetSmallIcon(Target->GetBuiltWithDescriptor()), TargetName))
+	{
+		ShowInfo(FText::FromString(FString::Printf(TEXT("Locating %s"), *TargetName)), FText::FromString(
+			TEXT("Its icon is on your compass and your map, and it pulses where it stands. Both go away when you get there.\n\nClick locate again to stop.")));
+	}
+	else
+	{
+		ShowInfo(FText::FromString(TargetName), FText::FromString(TEXT("No longer located.")));
+	}
+}
+
+void UAMAutomationTab::RemoveFromOne(const FString& Event, bool bRingers, AFGBuildable* Machine, bool bHub, const FString& TargetName)
+{
+	// Never all of them: a machine that is gone meanwhile removes nothing.
+	if (!Machine && !bHub)
+	{
+		return;
+	}
+	UAMRemoteCallObject::RequestClearAlarm(GetOwningPlayer(), Event, bRingers, Machine, bHub);
+	ShowInfo(FText::FromString(Event), FText::FromString(FString::Printf(TEXT("Removed from %s."), *TargetName)));
 }
 
 void UAMAutomationTab::ExplainOverviewLocate(const FString& TargetName)
 {
 	ShowInfo(FText::FromString(FString::Printf(TEXT("Locate %s"), *TargetName)),
-		FText::FromString(TEXT("Shows where this machine is in the world, so you can find it.")));
+		FText::FromString(TEXT("Shows where it is: its icon on your compass and your map, and a pulse where it stands, until you get there.")));
 }
 
 void UAMAutomationTab::RebuildMachinesRegion()
@@ -2447,9 +2486,9 @@ void UAMAutomationTab::BuildExpandedRows()
 		}
 		Locate->OnClicked.AddDynamic(Handler, &UAMOverviewHandler::OnLocateClicked);
 		AddIconButton(Locate);
+		// One machine at a time: a click removes it (no hold; an undo may come later).
 		UButton* Bin = AMUI::MakeRemoveButton(WidgetTree, Font);
-		Bin->OnPressed.AddDynamic(Handler, &UAMOverviewHandler::OnBinPressed);
-		Bin->OnReleased.AddDynamic(Handler, &UAMOverviewHandler::OnBinReleased);
+		Bin->OnClicked.AddDynamic(Handler, &UAMOverviewHandler::OnSingleBinClicked);
 		Bin->OnHovered.AddDynamic(Handler, &UAMOverviewHandler::OnBinHovered);
 		AddIconButton(Bin);
 
@@ -2496,8 +2535,8 @@ void UAMAutomationTab::ExplainOverviewBin(const FString& Event, bool bRingers, b
 	if (bOne)
 	{
 		ShowInfo(FText::FromString(FString::Printf(TEXT("Remove from %s"), *TargetName)), FText::FromString(bRingers
-			? FString::Printf(TEXT("Removes the alarm %s from %s only: its alarm rows with this name are deleted.\n\nHold the bin down for 2.5 seconds to do it."), *Event, *TargetName)
-			: FString::Printf(TEXT("Removes the actions of %s on the alarm %s (a sign: its design for it).\n\nHold the bin down for 2.5 seconds to do it."), *TargetName, *Event)));
+			? FString::Printf(TEXT("Removes the alarm %s from %s only: its alarm rows with this name are deleted, at once."), *Event, *TargetName)
+			: FString::Printf(TEXT("Removes the actions of %s on the alarm %s (a sign: its design for it), at once."), *TargetName, *Event)));
 		return;
 	}
 	int32 Ringers = 0;
@@ -2636,6 +2675,14 @@ void UAMOverviewHandler::OnCountHovered()
 	if (Tab)
 	{
 		Tab->ExplainOverviewCount(Event, bRingers);
+	}
+}
+
+void UAMOverviewHandler::OnSingleBinClicked()
+{
+	if (Tab)
+	{
+		Tab->RemoveFromOne(Event, bRingers, Machine.Get(), bHub, TargetName);
 	}
 }
 
