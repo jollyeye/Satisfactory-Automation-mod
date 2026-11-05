@@ -37,8 +37,9 @@ those below was found by dumping the windows at run time.
 
 ## 3. What every game window has: the dark frame
 
-All the windows above use the same frame, `Widget_Window_DarkMode_C` (variable `Widget_Window_DarkMode`
-on the window). Useful parts, all reached by reflection (they are Blueprint):
+All the windows above use the same frame, `Widget_Window_DarkMode_C`. The window's variable for it is
+usually `Widget_Window_DarkMode`, but the storage window calls it `WidgetWindowDarkMode`: find it by
+class (first object variable holding a `Widget_Window_DarkMode_C`), not by name. Useful parts, all reached by reflection (they are Blueprint):
 
 | Name | What |
 |---|---|

@@ -45,6 +45,7 @@ namespace
 	const FName AMAT_ActiveTabChangedProperty(TEXT("OnActiveTabChanged"));
 	const FName AMAT_ProductionPageName(TEXT("mManufacturingTab"));
 	const FName AMAT_WindowBodyProperty(TEXT("WindowBody"));
+	const TCHAR* const AMAT_FrameClass = TEXT("Widget_Window_DarkMode_C");
 
 	/** Made by Tools/create_assets.py. */
 	const TCHAR* const AMAT_TabIconPath = TEXT("/AutomatedMachines/Icons/T_AM_TabIcon.T_AM_TabIcon");
@@ -210,7 +211,26 @@ UUserWidget* UAMAutomationTab::GetHostWindow() const
 
 UObject* UAMAutomationTab::GetWindowFrame() const
 {
-	return AMAT_GetObject(GetHostWindow(), AMAT_FrameProperty);
+	// Usually "Widget_Window_DarkMode"; the storage window calls it "WidgetWindowDarkMode". Else the
+	// first variable holding a Widget_Window_DarkMode_C.
+	const UUserWidget* Host = GetHostWindow();
+	if (UObject* Frame = AMAT_GetObject(Host, AMAT_FrameProperty))
+	{
+		return Frame;
+	}
+	if (!Host)
+	{
+		return nullptr;
+	}
+	for (TFieldIterator<FObjectPropertyBase> It(Host->GetClass()); It; ++It)
+	{
+		UObject* Value = It->GetObjectPropertyValue_InContainer(Host);
+		if (Value && Value->GetClass()->GetName() == AMAT_FrameClass)
+		{
+			return Value;
+		}
+	}
+	return nullptr;
 }
 
 UTextBlock* UAMAutomationTab::MakeText(const FString& Text, int32 FontSize, const FLinearColor& Color)
