@@ -4,7 +4,7 @@
 //
 // "Sign Designer" is the sign's normal design; each other tab is the design the sign shows when its
 // alarm rings. The game's own designer below edits whichever tab is selected: switching tabs keeps
-// the edited design and loads the next one into it ("Set Sign Data"). "+ Alarm" picks an alarm (or a
+// the edited design and loads the next one into it ("Set Sign Data"). "+ AutoDesign" picks an alarm (or a
 // new name) and makes a design for it, starting as a copy of the one being edited.
 // The designs are sent to the server when they change and when the window closes; the server then
 // shows on the sign the design it should show (its last rung alarm's, or the normal one).
@@ -77,7 +77,7 @@ private:
 	void Setup();
 
 public:
-	/** Our tab row: Normal + one per design + "+ Alarm" (made again on every change). */
+	/** Our tab row: Normal + one per design + "+ AutoDesign" (made again on every change). */
 	void RebuildTabs();
 
 private:
@@ -136,7 +136,7 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UAMSignTabHandler>> mHandlers;
 
-	/** Our own row of tabs in the window's title bar, and its "+ Alarm" button (where the picker opens). */
+	/** Our own row of tabs in the window's title bar, and its "+ AutoDesign" button (where the picker opens). */
 	UPROPERTY()
 	TObjectPtr<class UHorizontalBox> mTabRow;
 

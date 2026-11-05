@@ -37,7 +37,7 @@ namespace
 	const FName AMST_SignProperty(TEXT("mSign"));
 	const FName AMST_SignDataProperty(TEXT("mSignData"));
 	const FName AMST_SetSignDataFunction(TEXT("Set Sign Data"));
-	const TCHAR* const AMST_AddTitle = TEXT("+ Alarm");
+	const TCHAR* const AMST_AddTitle = TEXT("+ AutoDesign");
 	const TCHAR* const AMST_TabIconPath = TEXT("/AutomatedMachines/Icons/T_AM_TabIcon.T_AM_TabIcon");
 
 	UObject* AMST_GetObject(const UObject* Owner, FName Name)
@@ -487,7 +487,7 @@ void UAMSignTabs::RebuildTabs()
 			}
 		}
 		USizeBox* TabSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		TabSize->SetWidthOverride(bDesign ? Width - TabHeight : Width);
+		TabSize->SetWidthOverride(bDesign ? Width - TabHeight - 10.f : Width);
 		TabSize->SetHeightOverride(TabHeight);
 		TabSize->AddChild(TabButton);
 		Tab->AddChildToHorizontalBox(TabSize);
@@ -497,7 +497,8 @@ void UAMSignTabs::RebuildTabs()
 			AMUI::SetButtonColor(Remove, Colour);
 			Remove->OnClicked.AddDynamic(Handler, &UAMSignTabHandler::OnRemoveClicked);
 			USizeBox* RemoveSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-			RemoveSize->SetWidthOverride(TabHeight);
+			// Room for the button's padding around the 21 px bin (36 was too narrow: squished).
+			RemoveSize->SetWidthOverride(TabHeight + 10.f);
 			RemoveSize->SetHeightOverride(TabHeight);
 			RemoveSize->AddChild(Remove);
 			Tab->AddChildToHorizontalBox(RemoveSize);
@@ -639,7 +640,7 @@ void UAMSignTabs::OpenPicker(UWidget* Anchor)
 	SearchSize->AddChild(SearchField);
 	mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
 	mPickerSearch->SetFont(Font);
-	mPickerSearch->SetHintText(FText::FromString(TEXT("alarm name: pick or type a new one")));
+	mPickerSearch->SetHintText(FText::FromString(TEXT("design for which alarm?")));
 	mPickerSearch->OnTextChanged.AddDynamic(this, &UAMSignTabs::OnPickerSearchChanged);
 	mPickerSearch->OnTextCommitted.AddDynamic(this, &UAMSignTabs::OnPickerSearchCommitted);
 	SearchField->AddChild(mPickerSearch);
