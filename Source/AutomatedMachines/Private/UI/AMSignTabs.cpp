@@ -222,6 +222,39 @@ void UAMSignTabs::Watch()
 	{
 		UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: the window made its tab buttons again, ours again"));
 		RebuildTabs();
+		return;
+	}
+
+	// A window with one tab shows its tab bar as a title, not clickable (HitTestInvisible): after
+	// reopening it can set that again after our setup. Keep the bar and our buttons clickable.
+	auto MakeClickable = [](UWidget* Widget, const TCHAR* What)
+	{
+		if (Widget && (Widget->GetVisibility() == ESlateVisibility::HitTestInvisible || !Widget->GetIsEnabled()))
+		{
+			UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: %s %s was not clickable (visibility %d, enabled %d)"),
+				What, *Widget->GetName(), static_cast<int32>(Widget->GetVisibility()), Widget->GetIsEnabled() ? 1 : 0);
+			Widget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+			Widget->SetIsEnabled(true);
+		}
+	};
+	MakeClickable(Cast<UWidget>(TabsContainer), TEXT("tab bar"));
+	MakeClickable(const_cast<UPanelWidget*>(Buttons), TEXT("tab button panel"));
+	for (const TWeakObjectPtr<UWidget>& Button : mBoundButtons)
+	{
+		MakeClickable(Button.Get(), TEXT("tab button"));
+		if (UUserWidget* ButtonWidget = Cast<UUserWidget>(Button.Get()))
+		{
+			if (UWidget* Inner = Cast<UWidget>(AMST_GetObject(ButtonWidget, TEXT("mButton"))))
+			{
+				if (!Inner->GetIsEnabled() || Inner->GetVisibility() != ESlateVisibility::Visible)
+				{
+					UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: inner button of %s was off (visibility %d, enabled %d)"),
+						*ButtonWidget->GetName(), static_cast<int32>(Inner->GetVisibility()), Inner->GetIsEnabled() ? 1 : 0);
+					Inner->SetVisibility(ESlateVisibility::Visible);
+					Inner->SetIsEnabled(true);
+				}
+			}
+		}
 	}
 }
 
@@ -548,6 +581,7 @@ void UAMSignTabs::RebuildTabs()
 
 void UAMSignTabs::SelectTab(int32 Index)
 {
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: tab %d clicked"), Index);
 	const int32 AddIndex = mDesigns.Num() + 1;
 	if (Index == AddIndex)
 	{
