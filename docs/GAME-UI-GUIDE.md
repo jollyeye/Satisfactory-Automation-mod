@@ -161,6 +161,8 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
 - Typing in our fields does not close the window with E (tested).
 
 - **Our look rule: a text input's box is much darker while typing in it** (darker than the side panel, not black) (`AMUI::MarkAsInputBox` on every input's border; UMG text fields have no focus events, so a ticker checks `HasFocusedDescendants()`).
+- A long `AutoWrapText` text still asks for its whole one-line width, and the game window grows to
+  it (5 Nov 2026, the joined-grids warning). Give long texts `SetWrapTextAt(width)` (and no auto wrap).
 
 ## 7. Other game systems we hooked into (tested)
 
