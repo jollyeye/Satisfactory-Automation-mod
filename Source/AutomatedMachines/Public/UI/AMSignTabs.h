@@ -153,9 +153,17 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UAMSignTabHandler>> mHandlers;
 
-	/** Our own row of tabs in the window's title bar, and its "+ AutoDesign" button (where the picker opens). */
+	/**
+	 * Our own row of tabs in the window's title bar, and its "+ AutoDesign" button (where the picker
+	 * opens): [Default][ alarm tabs, scrolling sideways ][+ AutoDesign], filling the title bar's width.
+	 */
 	UPROPERTY()
 	TObjectPtr<class UHorizontalBox> mTabRow;
+
+	/** The alarm tabs' scroll box (its offset is kept when the row is made again). */
+	UPROPERTY()
+	TObjectPtr<class UScrollBox> mTabScroll;
+	float mTabScrollOffset = 0.f;
 
 	UPROPERTY()
 	TObjectPtr<class UButton> mAddButton;

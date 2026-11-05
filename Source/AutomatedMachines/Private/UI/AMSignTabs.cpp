@@ -17,6 +17,7 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 #include "Components/PanelWidget.h"
+#include "Components/PanelSlot.h"
 #include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
@@ -563,25 +564,42 @@ void UAMSignTabs::RebuildTabs()
 			{
 				Start = ContainerSlot->GetPosition();
 			}
-			RowSlot->SetAnchors(FAnchors(0.f, 0.f));
+			// Stretched across the title bar: from right of the window's title to its right end
+			// (offsets: left, top, right margin, height). The alarm tabs scroll inside it.
+			RowSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 0.f));
 			RowSlot->SetAlignment(FVector2D::ZeroVector);
-			RowSlot->SetAutoSize(true);
-			RowSlot->SetPosition(FVector2D(Start.X + TitleSize.X + 4.0, Start.Y));
+			RowSlot->SetAutoSize(false);
+			RowSlot->SetOffsets(FMargin(static_cast<float>(Start.X + TitleSize.X + 4.0), static_cast<float>(Start.Y),
+				4.f, static_cast<float>(TitleSize.Y) + 5.f));
 			RowSlot->SetZOrder(100);
 		}
 	}
 	mTabRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	if (mTabScroll)
+	{
+		mTabScrollOffset = mTabScroll->GetScrollOffset();
+	}
 	mTabRow->ClearChildren();
 	mHandlers.Reset();
 
+	// The alarm tabs: a sideways scroll box between Default and + AutoDesign (mouse wheel or the thin
+	// bar under the tabs), so any number of designs fits in the title bar.
+	mTabScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+	mTabScroll->SetOrientation(Orient_Horizontal);
+	mTabScroll->SetScrollbarThickness(FVector2D(3.f, 3.f));
+	mTabScroll->SetScrollbarPadding(FMargin(0.f, 2.f, 0.f, 0.f));
+	mTabScroll->SetConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible);
+	UHorizontalBox* DesignRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	mTabScroll->AddChild(DesignRow);
+	UWidget* SelectedTab = nullptr;
+
 	const FSlateFontInfo Font = GetFont();
 	UTexture2D* Icon = LoadObject<UTexture2D>(nullptr, AMST_TabIconPath);
-	const int32 TabCount = mDesigns.Num() + 1;
-	const float TabWidth = TabCount > 4 ? FMath::Max(130.f, 4.f * 200.f / TabCount) : 200.f;
 	const float TabHeight = static_cast<float>(TitleSize.Y);
 
 	// One tab: [icon] [name] [bin], the bin a button of its own next to the tab button (not inside it).
-	auto AddTab = [&](int32 Index, const FString& Title, bool bDesign, float Width)
+	// Width 0: as wide as the name (at least 110), so a long name never runs under its bin.
+	auto AddTab = [&](UPanelWidget* Target, int32 Index, const FString& Title, bool bDesign, float Width)
 	{
 		UAMSignTabHandler* Handler = NewObject<UAMSignTabHandler>(this);
 		Handler->Owner = this;
@@ -620,7 +638,14 @@ void UAMSignTabs::RebuildTabs()
 			}
 		}
 		USizeBox* TabSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		TabSize->SetWidthOverride(bDesign ? Width - TabHeight - 10.f : Width);
+		if (Width > 0.f)
+		{
+			TabSize->SetWidthOverride(Width);
+		}
+		else
+		{
+			TabSize->SetMinDesiredWidth(110.f);
+		}
 		TabSize->SetHeightOverride(TabHeight);
 		TabSize->AddChild(TabButton);
 		Tab->AddChildToHorizontalBox(TabSize);
@@ -636,19 +661,39 @@ void UAMSignTabs::RebuildTabs()
 			RemoveSize->AddChild(Remove);
 			Tab->AddChildToHorizontalBox(RemoveSize);
 		}
-		if (UHorizontalBoxSlot* TabSlot = mTabRow->AddChildToHorizontalBox(Tab))
+		if (UPanelSlot* TabSlot = Target->AddChild(Tab))
 		{
-			TabSlot->SetPadding(FMargin(Index == 0 ? 0.f : 4.f, 0.f, 0.f, 0.f));
+			if (UHorizontalBoxSlot* RowSlot = Cast<UHorizontalBoxSlot>(TabSlot))
+			{
+				RowSlot->SetPadding(FMargin(Index == 0 ? 0.f : 4.f, 0.f, 0.f, 0.f));
+				RowSlot->SetVerticalAlignment(VAlign_Top);
+			}
+		}
+		if (bSelected)
+		{
+			SelectedTab = Tab;
 		}
 		return TabButton;
 	};
 
-	AddTab(0, TEXT("Default"), false, 140.f);
+	AddTab(mTabRow, 0, TEXT("Default"), false, 140.f);
+	if (UHorizontalBoxSlot* ScrollSlot = mTabRow->AddChildToHorizontalBox(mTabScroll))
+	{
+		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		ScrollSlot->SetPadding(FMargin(0.f, 0.f, 4.f, 0.f));
+	}
 	for (int32 Index = 0; Index < mDesigns.Num(); ++Index)
 	{
-		AddTab(Index + 1, mDesigns[Index].Event, true, TabWidth);
+		AddTab(DesignRow, Index + 1, mDesigns[Index].Event, true, 0.f);
 	}
-	mAddButton = AddTab(mDesigns.Num() + 1, AMST_AddTitle, false, 130.f);
+	mAddButton = AddTab(mTabRow, mDesigns.Num() + 1, AMST_AddTitle, false, 130.f);
+
+	// Where it was before, and the selected tab in view.
+	mTabScroll->SetScrollOffset(mTabScrollOffset);
+	if (SelectedTab && mSelected > 0)
+	{
+		mTabScroll->ScrollWidgetIntoView(SelectedTab, true, EDescendantScrollDestination::IntoView);
+	}
 }
 
 void UAMSignTabs::SelectTab(int32 Index)
