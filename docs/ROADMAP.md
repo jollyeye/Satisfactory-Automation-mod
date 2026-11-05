@@ -30,7 +30,7 @@ No settings tab in the HUB. Nothing in the mod needs a world setting: every beha
 ## Useful optional features
 
 - **Find an alarm's machines**: clicking an alarm name in the HUB overview lists the machines that ring it and listen to it (name, distance, direction), optionally with a map marker.
-- **World events in the HUB** (its Alarms panel is ready for them): night falls / day breaks, a power circuit's fuse blows / is reset, power storage low.
+- **More world events in the HUB** (Milestone completed is the first, 5 Nov 2026): night falls / day breaks, a power circuit's fuse blows / is reset, power storage low, Space Elevator phase completed, MAM research completed.
 - **More alarm logic**: ring another alarm (chains); "A and B rang"; a delay ("N seconds after"); a cooldown so a flapping machine does not ring 10 times a second; "every Nth time".
 - **Glow shows the state**: flashes when the machine rings an alarm, another colour while the automation keeps it paused; option to show glows only while the build gun is out.
 - **Alarm history in the HUB**: when each alarm last rang and who rang it, how often in the last hour.

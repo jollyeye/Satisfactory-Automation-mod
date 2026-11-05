@@ -52,6 +52,8 @@ enum class EAMCondition : uint8
 	LoadBelow          UMETA(DisplayName = "Load below"),
 	FuseBlown          UMETA(DisplayName = "Fuse blown"),
 	FuseReset          UMETA(DisplayName = "Fuse reset"),
+	// World events: rung by the HUB (its Automation tab), not by machines.
+	MilestoneCompleted UMETA(DisplayName = "Milestone completed"),
 	Count              UMETA(Hidden)
 };
 
@@ -297,6 +299,9 @@ namespace AMRules
 	 * Automation tab, not on machines.
 	 */
 	AUTOMATEDMACHINES_API bool IsWorldAction(EAMAction Action);
+
+	/** A world event: only the HUB rings it (e.g. a milestone is completed); machines never offer it. */
+	AUTOMATEDMACHINES_API bool IsWorldCondition(EAMCondition Condition);
 
 	/** Longest message text kept. */
 	constexpr int32 MaxMessageLength = 120;

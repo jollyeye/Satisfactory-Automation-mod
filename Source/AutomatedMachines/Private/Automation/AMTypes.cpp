@@ -56,6 +56,7 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::LoadBelow:         return AMTY_Text(TEXT("Load below"));
 	case EAMCondition::FuseBlown:         return AMTY_Text(TEXT("Fuse blown"));
 	case EAMCondition::FuseReset:         return AMTY_Text(TEXT("Fuse reset"));
+	case EAMCondition::MilestoneCompleted: return AMTY_Text(TEXT("Milestone completed"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -146,6 +147,8 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the fuse of the generator's power grid blows: the machines used more power than the generators make, so the whole grid is off until someone resets the fuse."));
 	case EAMCondition::FuseReset:
 		return AMTY_Text(TEXT("Rings when the fuse of the generator's power grid is reset and the grid is on again."));
+	case EAMCondition::MilestoneCompleted:
+		return AMTY_Text(TEXT("Rings when a milestone is completed in the HUB (any milestone, by any player).\n\nUse it to show a message, play a sound, or start machines waiting for the next tier."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -257,6 +260,11 @@ bool AMRules::IsWorldAction(EAMAction Action)
 	return Action == EAMAction::ShowMessage || Action == EAMAction::PlaySound;
 }
 
+bool AMRules::IsWorldCondition(EAMCondition Condition)
+{
+	return Condition == EAMCondition::MilestoneCompleted;
+}
+
 bool AMRules::ActionNeedsSound(EAMAction Action)
 {
 	return Action == EAMAction::PlaySound;
@@ -322,6 +330,11 @@ float AMRules::CleanValue(const FValueInfo& Info, float Value)
 
 bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machine)
 {
+	// World events belong to the HUB, never to a machine.
+	if (IsWorldCondition(Condition))
+	{
+		return false;
+	}
 	const bool bStorageEvent = Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::ItemCountBelow;
 	const bool bGeneratorEvent = Condition >= EAMCondition::FuelEmpty && Condition <= EAMCondition::FuseReset;
 	if (!Machine)

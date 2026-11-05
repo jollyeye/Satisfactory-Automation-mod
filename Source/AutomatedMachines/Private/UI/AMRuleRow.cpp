@@ -483,7 +483,7 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 		{
 			const EAMCondition Condition = static_cast<EAMCondition>(Value);
 			// Only what this machine has (a miner has no input or recipe); the current one stays listed.
-			if (!AMRules::IsConditionAvailable(Condition, mTab->GetMachineObject()) && !(Rule && Rule->Condition == Condition))
+			if (!mTab->IsConditionAvailableHere(Condition) && !(Rule && Rule->Condition == Condition))
 			{
 				continue;
 			}
@@ -846,7 +846,7 @@ void UAMRuleRow::OpenPicker(EAMChoiceKind Kind, UWidget* Anchor)
 		{
 			const EAMCondition Condition = static_cast<EAMCondition>(Value);
 			const bool bCurrent = Rule && Rule->Condition == Condition;
-			if (AMRules::IsConditionAvailable(Condition, mTab->GetMachineObject()) || bCurrent)
+			if (mTab->IsConditionAvailableHere(Condition) || bCurrent)
 			{
 				Add(AMRules::GetConditionText(Condition).ToString(), Value, bCurrent);
 			}

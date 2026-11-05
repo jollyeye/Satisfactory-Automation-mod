@@ -495,9 +495,9 @@ void UAMAutomationTab::BuildLayout()
 	}
 	else if (bWorldMode)
 	{
-		// The HUB rings no alarms yet (world events come later), so no add button.
+		// The HUB rings alarms on world events (e.g. a milestone completed).
 		MakePanel(TEXT("Alarms"), TEXT("Alarm Name"), AMRowLayout::AlarmName, TEXT("World Event"), AMRowLayout::MachineEvent,
-			FString(), mFireRowsBox, 0.f, AMAT_AlarmsWidth);
+			TEXT("+ Add alarm"), mFireRowsBox, 0.f, AMAT_AlarmsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
 	}
 	else
 	{
@@ -635,8 +635,8 @@ void UAMAutomationTab::ShowDefaultInfo()
 	}
 	if (bWorldMode)
 	{
-		ShowInfo(FText::FromString(TEXT("Actions for the whole world")),
-			FText::FromString(TEXT("The HUB hears every alarm in the world. These actions need no machine: they happen whenever the alarm rings, rung by any machine.\n\nClick an action or an alarm to see what it does.")));
+		ShowInfo(FText::FromString(TEXT("Alarms and actions of the whole world")),
+			FText::FromString(TEXT("On the left: alarms the world rings, on world events such as a milestone completed.\n\nOn the right: what happens when an alarm rings, rung by any machine or by the world. These actions need no machine.\n\nClick a world event, an action or an alarm to see what it does.")));
 		return;
 	}
 	ShowInfo(FText::FromString(TEXT("Alarms connect your machines")),
@@ -688,6 +688,7 @@ void UAMAutomationTab::LoadRules()
 	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
 	if (bWorldMode)
 	{
+		mFires = Subsystem->GetWorldFires();
 		mReactions = Subsystem->GetWorldActions();
 	}
 	else if (const FAMMachineRules* Rules = Subsystem->FindRules(Machine))
@@ -1124,7 +1125,7 @@ void UAMAutomationTab::RebuildRows()
 			AddRowWidget(mFireRowsBox, Row->GetRootWidget());
 		}
 	}
-	if (mFires.Num() == 0 && !bWorldMode)
+	if (mFires.Num() == 0)
 	{
 		if (mFireRowsBox)
 		{
@@ -1175,7 +1176,7 @@ void UAMAutomationTab::OnRulesEdited()
 {
 	if (bWorldMode)
 	{
-		UAMRemoteCallObject::RequestSetWorldActions(GetOwningPlayer(), mReactions);
+		UAMRemoteCallObject::RequestSetWorldRules(GetOwningPlayer(), mFires, mReactions);
 	}
 	else if (AFGBuildable* Machine = Cast<AFGBuildable>(GetMachine()))
 	{
@@ -1350,13 +1351,18 @@ void UAMAutomationTab::ScrollToEndLater(UWidget* Rows)
 	});
 }
 
+bool UAMAutomationTab::IsConditionAvailableHere(EAMCondition Condition) const
+{
+	return bWorldMode ? AMRules::IsWorldCondition(Condition) : AMRules::IsConditionAvailable(Condition, GetMachine());
+}
+
 void UAMAutomationTab::OnAddFireClicked()
 {
 	FAMFireRule& NewRule = mFires.AddDefaulted_GetRef();
 	// The first machine event this machine has (a container has no "Output full").
 	for (uint8 Value = 0; Value < static_cast<uint8>(EAMCondition::Count); ++Value)
 	{
-		if (AMRules::IsConditionAvailable(static_cast<EAMCondition>(Value), GetMachine()))
+		if (IsConditionAvailableHere(static_cast<EAMCondition>(Value)))
 		{
 			NewRule.Condition = static_cast<EAMCondition>(Value);
 			NewRule.Value = AMRules::GetConditionValueInfo(NewRule.Condition).Default;
@@ -2335,11 +2341,14 @@ void UAMAutomationTab::AddExpandedList()
 		Added.Distance = static_cast<float>(FVector::Dist(From, Machine->GetActorLocation()));
 	}
 	mExpandedEntries.Sort([](const FAMOverviewEntry& A, const FAMOverviewEntry& B) { return A.Distance < B.Distance; });
-	if (!bExpandedRingers && Subsystem->GetWorldActions().ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; }))
+	const bool bHubUses = bExpandedRingers
+		? Subsystem->GetWorldFires().ContainsByPredicate([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; })
+		: Subsystem->GetWorldActions().ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
+	if (bHubUses)
 	{
 		FAMOverviewEntry Hub;
 		Hub.bHub = true;
-		Hub.Name = TEXT("The HUB (world actions)");
+		Hub.Name = bExpandedRingers ? TEXT("The HUB (world events)") : TEXT("The HUB (world actions)");
 		Hub.Distance = -1.f;
 		mExpandedEntries.Insert(Hub, 0);
 	}

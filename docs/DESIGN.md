@@ -62,7 +62,7 @@ Do                     when event
 
 Some actions have nothing to do with a machine: they only need to hear an alarm (Show message; later maybe a sound, ringing another alarm, "A and B rang"). They live in an **Automation tab of the HUB terminal**, next to Milestones.
 
-- The HUB **listens**: "when alarm X rings, do Y". It has an Alarms section too, for world events to come later (e.g. night falls, a fuse blows); for now it rings nothing.
+- The HUB **listens**: "when alarm X rings, do Y". It also **rings** alarms on **world events** (decided 5 Nov 2026): its Alarms section has "+ Add alarm" and the World Event column offers world events only (machines never offer them). First world event: **Milestone completed** (any milestone, by any player). More later (night falls, a fuse blows, power storage low). The Alarms Overview counts the HUB as a ringer ("The HUB (world events)").
 - World actions: **Show message** (our notification: Wi-Fi icon, the alarm's name, your text or "Rung by <machine>"; stacked at the side with the game's notifications) and **Play sound** (one of 5 short game sounds: Blip, Ping, Warning, Alert, Success), for every player.
 - Show message moves there from the machines; machine rules with Show message from older saves are moved to the HUB on load.
 

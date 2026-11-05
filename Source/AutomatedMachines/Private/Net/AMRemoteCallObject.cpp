@@ -21,15 +21,15 @@ void UAMRemoteCallObject::ServerSetRules_Implementation(AFGBuildable* Machine, c
 	}
 }
 
-void UAMRemoteCallObject::ServerSetWorldActions_Implementation(const TArray<FAMReactionRule>& Actions)
+void UAMRemoteCallObject::ServerSetWorldRules_Implementation(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions)
 {
 	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(GetOuter()))
 	{
-		Subsystem->SetWorldActions(Actions);
+		Subsystem->SetWorldRules(Fires, Actions);
 	}
 }
 
-void UAMRemoteCallObject::RequestSetWorldActions(APlayerController* Player, const TArray<FAMReactionRule>& Actions)
+void UAMRemoteCallObject::RequestSetWorldRules(APlayerController* Player, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions)
 {
 	if (!Player)
 	{
@@ -39,7 +39,7 @@ void UAMRemoteCallObject::RequestSetWorldActions(APlayerController* Player, cons
 	{
 		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Player))
 		{
-			Subsystem->SetWorldActions(Actions);
+			Subsystem->SetWorldRules(Fires, Actions);
 		}
 		return;
 	}
@@ -47,7 +47,7 @@ void UAMRemoteCallObject::RequestSetWorldActions(APlayerController* Player, cons
 	UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr;
 	if (RCO)
 	{
-		RCO->ServerSetWorldActions(Actions);
+		RCO->ServerSetWorldRules(Fires, Actions);
 	}
 	else
 	{

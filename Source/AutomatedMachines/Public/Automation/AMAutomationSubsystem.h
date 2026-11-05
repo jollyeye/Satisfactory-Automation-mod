@@ -60,6 +60,9 @@ public:
 	/** Actions of the whole world (the HUB terminal's Automation tab): they need no machine. */
 	const TArray<FAMReactionRule>& GetWorldActions() const { return mWorldActions; }
 
+	/** Alarms the world rings (the HUB terminal's Automation tab): world events, e.g. a milestone completed. */
+	const TArray<FAMFireRule>& GetWorldFires() const { return mWorldFires; }
+
 	/**
 	 * Replaces a sign's designs (server only): its normal design and one per alarm. The sign then
 	 * shows the design it should (a second later, after the game's own save of the open window).
@@ -75,7 +78,7 @@ public:
 		void ClearAlarm(const FString& Event, bool bRingers, const AActor* OnlyMachine = nullptr, bool bOnlyHub = false);
 
 	/** Replaces the world actions (server only). Only world actions are kept. */
-	void SetWorldActions(const TArray<FAMReactionRule>& Actions);
+	void SetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions);
 
 	/** True if this machine type can be automated (for now: Smelter, Constructor and other manufacturers). */
 	static bool CanAutomate(const AActor* Machine);
@@ -167,6 +170,19 @@ private:
 
 	UPROPERTY(SaveGame, ReplicatedUsing = OnRep_Machines)
 	TArray<FAMReactionRule> mWorldActions;
+
+	UPROPERTY(SaveGame, ReplicatedUsing = OnRep_Machines)
+	TArray<FAMFireRule> mWorldFires;
+
+	/** Server: the game's schematic manager tells us about milestones (bound once it exists). */
+	void BindWorldEvents();
+	FTimerHandle mBindWorldEventsTimer;
+
+	UFUNCTION()
+	void OnSchematicPurchased(TSubclassOf<class UFGSchematic> Schematic);
+
+	/** Rings the world alarms with this world event (rung by the HUB). */
+	void FireWorldEvent(EAMCondition Condition, const FString& Detail);
 
 	/** Runs one world action; Ringer is the machine that rang the alarm. */
 	void ApplyWorldAction(const FAMReactionRule& Rule, const AActor* Ringer);

@@ -1,5 +1,8 @@
 #include "Automation/AMAutomationSubsystem.h"
 #include "Automation/AMMarkers.h"
+#include "FGSchematicManager.h"
+#include "FGSchematic.h"
+#include "EngineUtils.h"
 #include "AutomatedMachinesModule.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableFactory.h"
@@ -148,11 +151,16 @@ void AAMAutomationSubsystem::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(AAMAutomationSubsystem, mMachines);
 	DOREPLIFETIME(AAMAutomationSubsystem, mWorldActions);
+	DOREPLIFETIME(AAMAutomationSubsystem, mWorldFires);
 }
 
 void AAMAutomationSubsystem::BeginPlay()
 {
 	Super::BeginPlay();
+	if (HasAuthority())
+	{
+		BindWorldEvents();
+	}
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem started (%d automated machines)"), mMachines.Num());
 
 	if (HasAuthority())
@@ -325,6 +333,10 @@ void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, con
 			}
 		}
 	}
+	if (bRingers && !OnlyMachine)
+	{
+		Removed += mWorldFires.RemoveAll([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; });
+	}
 	if (!bRingers && !OnlyMachine)
 	{
 		Removed += mWorldActions.RemoveAll([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
@@ -466,11 +478,22 @@ FAMReactionRule AAMAutomationSubsystem::CleanReaction(const FAMReactionRule& Rul
 	return Clean;
 }
 
-void AAMAutomationSubsystem::SetWorldActions(const TArray<FAMReactionRule>& Actions)
+void AAMAutomationSubsystem::SetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions)
 {
 	if (!HasAuthority())
 	{
 		return;
+	}
+	mWorldFires.Reset();
+	for (const FAMFireRule& Rule : Fires)
+	{
+		FAMFireRule Clean = Rule;
+		Clean.Event = AMRules::NormalizeEventName(Rule.Event);
+		Clean.Item = nullptr;
+		if (!Clean.Event.IsEmpty() && AMRules::IsWorldCondition(Clean.Condition))
+		{
+			mWorldFires.Add(Clean);
+		}
 	}
 	mWorldActions.Reset();
 	for (const FAMReactionRule& Rule : Actions)
@@ -481,7 +504,7 @@ void AAMAutomationSubsystem::SetWorldActions(const TArray<FAMReactionRule>& Acti
 			mWorldActions.Add(Clean);
 		}
 	}
-	UE_LOG(LogAutomatedMachines, Log, TEXT("World actions: %d"), mWorldActions.Num());
+	UE_LOG(LogAutomatedMachines, Log, TEXT("World alarms: %d, world actions: %d"), mWorldFires.Num(), mWorldActions.Num());
 	ForceNetUpdate();
 	OnRulesChanged.Broadcast();
 }
@@ -523,6 +546,10 @@ TArray<FString> AAMAutomationSubsystem::GetAllEventNames() const
 	{
 		Names.Add(Rule.Event);
 	}
+	for (const FAMFireRule& Rule : mWorldFires)
+	{
+		Names.Add(Rule.Event);
+	}
 	for (const FAMMachineRules& Entry : mMachines)
 	{
 		for (const FAMFireRule& Rule : Entry.Fires)
@@ -559,10 +586,14 @@ void AAMAutomationSubsystem::CountEventUses(const FString& Event, int32& OutRing
 			++OutActors;
 		}
 	}
-	// The HUB listens too.
+	// The HUB listens, and rings world events, too.
 	if (mWorldActions.ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; }))
 	{
 		++OutActors;
+	}
+	if (mWorldFires.ContainsByPredicate([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; }))
+	{
+		++OutRingers;
 	}
 }
 
@@ -778,6 +809,7 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::LoadBelow:         return GetLoad(Factory) * 100.f < Rule.Value;
 	case EAMCondition::FuseBlown:         return IsFuseBlown(Factory);
 	case EAMCondition::FuseReset:         return !IsFuseBlown(Factory);
+	case EAMCondition::MilestoneCompleted: return false;
 	default:                              return false;
 	}
 }
@@ -1234,4 +1266,65 @@ int32 AAMAutomationSubsystem::DeleteAllItems(UFGInventoryComponent* Inventory)
 		}
 	}
 	return Slots;
+}
+
+void AAMAutomationSubsystem::BindWorldEvents()
+{
+	UWorld* World = GetWorld();
+	AFGSchematicManager* Schematics = World ? AFGSchematicManager::Get(World) : nullptr;
+	if (!Schematics)
+	{
+		// Not there yet (early in the load): again in a second.
+		if (World)
+		{
+			World->GetTimerManager().SetTimer(mBindWorldEventsTimer, this, &AAMAutomationSubsystem::BindWorldEvents, 1.f, false);
+		}
+		return;
+	}
+	Schematics->PurchasedSchematicDelegate.AddUniqueDynamic(this, &AAMAutomationSubsystem::OnSchematicPurchased);
+	UE_LOG(LogAutomatedMachines, Log, TEXT("World events: listening for milestones"));
+}
+
+void AAMAutomationSubsystem::OnSchematicPurchased(TSubclassOf<UFGSchematic> Schematic)
+{
+	if (!HasAuthority() || !Schematic || UFGSchematic::GetType(Schematic) != ESchematicType::EST_Milestone)
+	{
+		return;
+	}
+	// Not the milestones the game gives back while a save loads.
+	if (const UWorld* World = GetWorld())
+	{
+		if (World->GetTimeSeconds() < 10.0)
+		{
+			return;
+		}
+	}
+	FireWorldEvent(EAMCondition::MilestoneCompleted, UFGSchematic::GetSchematicDisplayName(Schematic).ToString());
+}
+
+void AAMAutomationSubsystem::FireWorldEvent(EAMCondition Condition, const FString& Detail)
+{
+	// The HUB rings them: the trading post building, if there is one.
+	const AActor* Hub = nullptr;
+	for (TActorIterator<AFGBuildable> It(GetWorld()); It; ++It)
+	{
+		if (It->GetClass()->GetName().Contains(TEXT("TradingPost")))
+		{
+			Hub = *It;
+			break;
+		}
+	}
+	TArray<FString> Events;
+	for (const FAMFireRule& Rule : mWorldFires)
+	{
+		if (Rule.Condition == Condition)
+		{
+			Events.AddUnique(Rule.Event);
+		}
+	}
+	for (const FString& Event : Events)
+	{
+		UE_LOG(LogAutomatedMachines, Log, TEXT("World event %s (%s): rings %s"), *AMRules::GetConditionText(Condition).ToString(), *Detail, *Event);
+		FireEvent(Event, Hub);
+	}
 }

@@ -125,6 +125,9 @@ public:
 	/** The machine this window is for (e.g. a Smelter). */
 	UObject* GetMachineObject() const { return GetMachine(); }
 
+	/** Can an alarm row here use this event? The HUB: world events only; a machine: its own events. */
+	bool IsConditionAvailableHere(EAMCondition Condition) const;
+
 	/**
 	 * A dropdown window floating over the page: a search field exactly over the clicked dropdown
 	 * (Anchor), with the choices under it in a scrolling list. Typing filters the list; Enter picks

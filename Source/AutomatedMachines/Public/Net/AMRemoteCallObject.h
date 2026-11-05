@@ -20,7 +20,7 @@ public:
 	void ServerSetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options);
 
 	UFUNCTION(Server, Reliable)
-	void ServerSetWorldActions(const TArray<FAMReactionRule>& Actions);
+	void ServerSetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions);
 
 	UFUNCTION(Server, Reliable)
 	void ServerClearAlarm(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub);
@@ -44,7 +44,7 @@ public:
 	static void RequestSetRules(APlayerController* Player, AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options);
 
 	/** Changes the world actions (HUB terminal): directly on the server, through the server on a client. */
-	static void RequestSetWorldActions(APlayerController* Player, const TArray<FAMReactionRule>& Actions);
+	static void RequestSetWorldRules(APlayerController* Player, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions);
 
 private:
 	// An RCO needs at least one replicated property for its RPCs to work.
