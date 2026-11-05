@@ -18,6 +18,7 @@ Notes for the next session working on this mod. The design (what the mod does an
 | Storage events, Delete contents, Item count with the searchable dropdown window (all row dropdowns), recipe icons | 5 Nov 2026 |
 | Copy / paste of automation (Ctrl+C / Ctrl+V, window buttons, container buttons), middle click sample | 5 Nov 2026 |
 | Biomass Burner: Automation tab (one-page window, hooked via the standby button's panel), its events and actions | 5 Nov 2026 |
+| Signs: design tabs (own tab row in the title bar), designs saved per alarm and shown when the alarm rings | 5 Nov 2026 |
  Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
 
 ## Setup on the developer's PC (Windows)
@@ -207,7 +208,7 @@ Not offered: production boost (Somersloops are items, not a setting).
 
 `AAMMarkers::Rebuild`: a line trace (Visibility) from the top of the machine's bounds up 120 cm; if it hits another actor, the marker goes to the machine's front instead (`GetActorForwardVector`, bounds depth along it + 60 cm, at the bounds' centre height). Markers are placed again every 5 s (a looping timer), so stacking something later moves the marker. Second version (the first used the actor's forward vector, which for containers is a side, not the door): the marker goes in front of the face (+-X / +-Y of `CalculateComponentsBoundingBoxInLocalSpace`) the local camera is most in front of, checked 5 times a second (`AAMMarkers::Tick`, `UpdateInstanceTransform` only when the face changes).
 
-## Signs (5 Nov 2026, untested)
+## Signs (5 Nov 2026, works)
 
 - Window: `/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C` (from `mInteractWidgetSoftClass` of `Build_StandaloneWidgetSign_*`). One-page window, frame `Widget_Window_DarkMode` (one tab, "Sign Designer"), page `CanvasPanel_144` in `WindowBody`. Variables: `mSign` (the `AFGBuildableWidgetSign`), `mSignData` (the design being edited, `FPrefabSignData`), `mOriginalSignData`, `mSaveFileSignData`, `mChangesWereMade`; functions `Set Sign Data(FPrefabSignData)`, `SaveData()`, `On Apply Changes Close(bool)`, `GenerateSettings()`, `OnFactoryClipboardPasted` (event).
 - `UAMSignTabs` (not the Automation page) is hooked with `Indirect_Child` on `mSaveButton` (its parent is the page canvas). On the tick after construct (retried while `mTabs` is empty) it sets `mTabs` = [window tab] + one per design + "+ Alarm", copies it to the tabs container's `mButtons`, `GenerateButtons`, lays the buttons out (220 wide, narrower above 4), `SetTitle` / `SetIcon`, a bin (`AMUI::MakeRemoveButton`) in each design tab's `mContent`, and binds each tab's inner `mButton`. Switching tabs: read `mSignData` into the old slot, `Set Sign Data` with the new slot. Changes to the tab list happen on the next tick (not inside a click).
