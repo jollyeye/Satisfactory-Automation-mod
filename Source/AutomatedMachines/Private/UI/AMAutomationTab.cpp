@@ -8,6 +8,9 @@
 #include "Components/Button.h"
 #include "Components/ButtonSlot.h"
 #include "Components/Image.h"
+#include "Components/NamedSlot.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Engine/Texture2D.h"
@@ -42,6 +45,7 @@ namespace
 	const TCHAR* const AMAT_HubWindowClass = TEXT("BPW_Hub_C");
 	const FName AMAT_ActiveTabChangedProperty(TEXT("OnActiveTabChanged"));
 	const FName AMAT_ProductionPageName(TEXT("mManufacturingTab"));
+	const FName AMAT_WindowBodyProperty(TEXT("WindowBody"));
 
 	/** Made by Tools/create_assets.py. */
 	const TCHAR* const AMAT_TabIconPath = TEXT("/AutomatedMachines/Icons/T_AM_TabIcon.T_AM_TabIcon");
@@ -812,6 +816,14 @@ void UAMAutomationTab::ApplyGameFonts()
 	const UTextBlock* Source = Host && Host->WidgetTree ? Cast<UTextBlock>(Host->WidgetTree->FindWidget(AMAT_FontSourceWidget)) : nullptr;
 	if (!Source)
 	{
+		// No recipe name in this window (miners): the tab buttons' font.
+		UObject* TabsContainer = AMAT_GetObject(GetWindowFrame(), AMAT_TabsContainerProperty);
+		const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
+		const UUserWidget* FirstButton = Buttons && Buttons->GetChildrenCount() > 0 ? Cast<UUserWidget>(Buttons->GetChildAt(0)) : nullptr;
+		Source = FirstButton && FirstButton->WidgetTree ? Cast<UTextBlock>(FirstButton->WidgetTree->FindWidget(AMAT_TabTitleWidget)) : nullptr;
+	}
+	if (!Source)
+	{
 		return;
 	}
 	mGameFont = Source->GetFont();
@@ -839,7 +851,14 @@ void UAMAutomationTab::NativeOnInitialized()
 	// In the HUB terminal: world actions only.
 	const UUserWidget* Host = GetHostWindow();
 	bWorldMode = Host && Host->GetClass()->GetName() == AMAT_HubWindowClass;
+	// No sliding pages (the miner's window): we make our own switch between its page and ours.
+	bSinglePageMode = Host && !bWorldMode && !FindFProperty<FObjectPropertyBase>(Host->GetClass(), AMAT_SlidingTabsProperty);
 	BuildLayout();
+	if (bSinglePageMode)
+	{
+		// Until we have moved next to the machine's page (we start inside it).
+		SetVisibility(ESlateVisibility::Collapsed);
+	}
 	// The tab entry is added in NativeConstruct: while the window is still being initialized, its
 	// variables (the frame) are not set yet.
 }
@@ -882,6 +901,10 @@ void UAMAutomationTab::NativeConstruct()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::EnsureTabButtonExists));
+		if (bSinglePageMode)
+		{
+			World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::SetupSinglePage));
+		}
 	}
 
 	ApplyGameFonts();
@@ -919,6 +942,11 @@ void UAMAutomationTab::NativeDestruct()
 void UAMAutomationTab::OnWindowTabButtonClicked(int32 ButtonIndex)
 {
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: tab button %d clicked"), ButtonIndex);
+	if (bSinglePageMode)
+	{
+		ShowSinglePage(ButtonIndex == TabIndex && TabIndex != INDEX_NONE);
+		return;
+	}
 	if (ButtonIndex == TabIndex)
 	{
 		ShowThisTab();
@@ -960,20 +988,88 @@ void UAMAutomationTab::OnActiveTabChanged(UWidget* PreviouslyActiveWidget, UWidg
 
 void UAMAutomationTab::HideInventory()
 {
+	SetInventoryShown(false);
+}
+
+void UAMAutomationTab::SetInventoryShown(bool bShow)
+{
 	UObject* Frame = GetWindowFrame();
-	AMAT_Call(Frame, TEXT("SetInventoryVisibility"), [](UFunction* Function, uint8* Params)
+	AMAT_Call(Frame, TEXT("SetInventoryVisibility"), [bShow](UFunction* Function, uint8* Params)
 	{
-		// (bool mShowInventory, bool Animate): hide, animated.
+		// (bool mShowInventory, bool Animate): animated.
 		int32 BoolIndex = 0;
 		for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
 		{
 			if (const FBoolProperty* BoolParam = CastField<FBoolProperty>(*It))
 			{
-				BoolParam->SetPropertyValue_InContainer(Params, BoolIndex != 0);
+				BoolParam->SetPropertyValue_InContainer(Params, BoolIndex == 0 ? bShow : true);
 				++BoolIndex;
 			}
 		}
 	});
+}
+
+void UAMAutomationTab::SetupSinglePage()
+{
+	UNamedSlot* Body = Cast<UNamedSlot>(AMAT_GetObject(GetWindowFrame(), AMAT_WindowBodyProperty));
+	if (!Body)
+	{
+		UE_LOG(LogAutomatedMachines, Warning, TEXT("Automation tab: the window has no body to put our page in"));
+		return;
+	}
+	UWidget* Content = Body->GetContent();
+	if (Content && Content == mSinglePageOverlay)
+	{
+		// Already set up (the window was opened before): start on the machine's page.
+		ShowSinglePage(false);
+		return;
+	}
+	if (!Content)
+	{
+		return;
+	}
+
+	// Body: [machine page] becomes Body: Overlay [machine page, our page].
+	mMachinePage = Content;
+	mMachinePageVisibility = Content->GetVisibility();
+	RemoveFromParent();
+	mSinglePageOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("AMSinglePageOverlay"));
+	Body->SetContent(mSinglePageOverlay);
+	for (UWidget* Child : {static_cast<UWidget*>(mMachinePage), static_cast<UWidget*>(this)})
+	{
+		if (UOverlaySlot* ChildSlot = mSinglePageOverlay->AddChildToOverlay(Child))
+		{
+			ChildSlot->SetHorizontalAlignment(HAlign_Fill);
+			ChildSlot->SetVerticalAlignment(VAlign_Fill);
+		}
+	}
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: placed next to the machine's page %s"), *mMachinePage->GetName());
+	ShowSinglePage(false);
+}
+
+void UAMAutomationTab::ShowSinglePage(bool bAutomation)
+{
+	if (!mMachinePage)
+	{
+		return;
+	}
+	if (bAutomation)
+	{
+		// As tall as the machine's page, so the window keeps its height.
+		if (USizeBox* Root = Cast<USizeBox>(WidgetTree ? WidgetTree->RootWidget : nullptr))
+		{
+			Root->SetMinDesiredHeight(FMath::Max(560.f, static_cast<float>(mMachinePage->GetDesiredSize().Y)));
+		}
+		mMachinePage->SetVisibility(ESlateVisibility::Collapsed);
+		SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+		SetInventoryShown(false);
+	}
+	else
+	{
+		SetVisibility(ESlateVisibility::Collapsed);
+		mMachinePage->SetVisibility(mMachinePageVisibility);
+		SetInventoryShown(true);
+	}
 }
 
 void UAMAutomationTab::ShowThisTab()

@@ -18,6 +18,11 @@ namespace
 	const TCHAR* const AMWH_HubWindow = TEXT("/Game/FactoryGame/Buildable/Factory/TradingPost/UI/BPW_Hub.BPW_Hub_C");
 	const TCHAR* const AMWH_HubPages = TEXT("HorizontalBox_25");
 
+	// Miners (Mk1-3): a window with one page (no tab pages). Our widget goes into that page first,
+	// then moves itself next to it (UAMAutomationTab::SetupSinglePage).
+	const TCHAR* const AMWH_ExtractorWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Widget_ResourceExtractorUI.Widget_ResourceExtractorUI_C");
+	const TCHAR* const AMWH_ExtractorPage = TEXT("CanvasPanel_3");
+
 	bool AMWH_Registered = false;
 
 	/** Adds UAMAutomationTab as the last page of a window's tab pages. */
@@ -56,6 +61,7 @@ namespace
 		AMWH_Registered = true;
 		AMWH_HookPages(HookManager, AMWH_ManufacturingWindow, AMWH_ManufacturingPages, TEXT("AM_ManufacturingAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_HubWindow, AMWH_HubPages, TEXT("AM_HubAutomationTabHook"));
+		AMWH_HookPages(HookManager, AMWH_ExtractorWindow, AMWH_ExtractorPage, TEXT("AM_ExtractorAutomationTabHook"));
 	}
 }
 

@@ -123,6 +123,30 @@ private:
 	/** Our page has its own info panel, so the window's inventory panel is hidden on it. */
 	void HideInventory();
 
+	/** Shows or hides the window's inventory panel. */
+	void SetInventoryShown(bool bShow);
+
+	/**
+	 * One-page windows (miners): the window body gets an overlay holding the machine's page and
+	 * ours; the tab buttons show one or the other. Done once per window, on the tick after construct.
+	 */
+	void SetupSinglePage();
+
+	/** One-page windows: shows our page (true) or the machine's own page (false). */
+	void ShowSinglePage(bool bAutomation);
+
+	/** True in windows with one page and no sliding pages (miners). */
+	bool bSinglePageMode = false;
+
+	/** One-page windows: the overlay in the window body, and the machine's own page in it. */
+	UPROPERTY()
+	TObjectPtr<class UOverlay> mSinglePageOverlay;
+
+	UPROPERTY()
+	TObjectPtr<UWidget> mMachinePage;
+
+	ESlateVisibility mMachinePageVisibility = ESlateVisibility::SelfHitTestInvisible;
+
 	UTextBlock* MakeText(const FString& Text, int32 FontSize, const FLinearColor& Color);
 
 	/** Shows the options' state (On / Off) on their buttons. */
