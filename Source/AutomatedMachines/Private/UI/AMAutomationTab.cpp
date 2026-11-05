@@ -361,6 +361,9 @@ void UAMAutomationTab::BuildLayout()
 	mNoticeText = MakeText(TEXT(""), 14, AMUI::Orange);
 	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
 	AddTo(mContentBox, mNoticeText, 6.f);
+	mGridWarningText = MakeText(TEXT("Power Grid A and B are joined by a cable somewhere else: they are one grid. This switch separates nothing, and the A / B usage and power alarms cannot ring until the cable is removed."), 14, AMUI::Orange);
+	mGridWarningText->SetVisibility(ESlateVisibility::Collapsed);
+	AddTo(mContentBox, mGridWarningText, 6.f);
 
 	UHorizontalBox* Panels = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMPanels"));
 	AddTo(mContentBox, Panels, 14.f, true);
@@ -1668,6 +1671,13 @@ void UAMAutomationTab::NativeConstruct()
 	UpdateMachineName();
 	LoadRules();
 
+	// Power switches: watch for the two grids being joined by a cable.
+	if (UWorld* World = GetWorld(); World && !bWorldMode)
+	{
+		CheckJoinedGrids();
+		World->GetTimerManager().SetTimer(mGridCheckTimer, FTimerDelegate::CreateUObject(this, &UAMAutomationTab::CheckJoinedGrids), 1.f, true);
+	}
+
 	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
 	{
 		if (!mRulesChangedHandle.IsValid())
@@ -1680,6 +1690,10 @@ void UAMAutomationTab::NativeConstruct()
 void UAMAutomationTab::NativeDestruct()
 {
 	StopOverviewHold(false);
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(mGridCheckTimer);
+	}
 	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
 	{
 		Subsystem->OnRulesChanged.Remove(mRulesChangedHandle);
@@ -1708,6 +1722,31 @@ void UAMAutomationTab::NativeDestruct()
 		bBoundToPages = false;
 	}
 	Super::NativeDestruct();
+}
+
+void UAMAutomationTab::CheckJoinedGrids()
+{
+	if (!mGridWarningText)
+	{
+		return;
+	}
+	// Both connections on the same circuit: only a cable does that (a switch in between keeps two
+	// circuits, it only lets them share power). The circuit IDs are replicated: works on clients too.
+	const AFGBuildableCircuitSwitch* Switch = Cast<AFGBuildableCircuitSwitch>(GetMachine());
+	const bool bJoined = Switch && Switch->GetCircuitID0() != INDEX_NONE && Switch->GetCircuitID0() == Switch->GetCircuitID1();
+	const ESlateVisibility Wanted = bJoined ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+	if (mGridWarningText->GetVisibility() != Wanted)
+	{
+		mGridWarningText->SetVisibility(Wanted);
+	}
+	if (!Switch && GetMachine())
+	{
+		// Not a switch: nothing to watch in this window.
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(mGridCheckTimer);
+		}
+	}
 }
 
 void UAMAutomationTab::OnWindowTabButtonClicked(int32 ButtonIndex)

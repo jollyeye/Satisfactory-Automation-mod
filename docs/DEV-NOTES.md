@@ -234,6 +234,7 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Events: Switched on / off (`IsSwitchOn()`); A usage > / < B usage, A power > / < B power (margin 0.1 MW or 1%). Grid A = `GetCircuitID0()` (left graph), B = `GetCircuitID1()`.
 - **While the switch is on, both circuits report the joined grid's numbers** (`mPowerConsumed`, `mPowerProduced`, also `GetStats`): measured 5 Nov 2026. So each side is summed from its own buildings: the circuit's private `mPowerInfos` (read by name), `GetActualConsumption()` and `GetBaseProduction() + GetDynamicProductionCapacity()` (capacity: what is made now always equals the usage, so "power" compares capacity), once per check per circuit.
 - Actions: Turn on / off / Turn on or off (`SetSwitchOn`), Set priority 0..8 (`SetPriority`, priority switches only).
+- A cable elsewhere joining A and B puts both connections on **one circuit** (same ID); another switch between them keeps two circuits. The tab shows an orange warning then (`CheckJoinedGrids`, every second; circuit IDs replicate, so clients too). The grid alarms cannot ring while joined.
 - Messages name the switch with its tag: "Power Switch MAIN BASE" (`HasBuildingTag_Implementation`, `GetBuildingTag_Implementation`).
 
 ## Fuel generators (5 Nov 2026, Biomass Burner works)

@@ -348,6 +348,15 @@ private:
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mNoticeText;
 
+	/**
+	 * Power switches: a warning while a cable elsewhere joins Power Grid A and B into one grid (both
+	 * sides on the same circuit). Checked every second while the tab is open.
+	 */
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mGridWarningText;
+	FTimerHandle mGridCheckTimer;
+	void CheckJoinedGrids();
+
 	/** Labels of the "+ Add" buttons (they get the row font). */
 	UPROPERTY()
 	TArray<TObjectPtr<UTextBlock>> mAddLabels;
