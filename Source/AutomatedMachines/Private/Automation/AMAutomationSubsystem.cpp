@@ -11,6 +11,8 @@
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Buildables/FGBuildableStorage.h"
 #include "Buildables/FGBuildableGeneratorFuel.h"
+#include "Buildables/FGBuildableCircuitSwitch.h"
+#include "Buildables/FGBuildablePriorityPowerSwitch.h"
 #include "FGPowerInfoComponent.h"
 #include "Buildables/FGCentralStorageContainer.h"
 #include "Resources/FGExtractableResourceInterface.h"
@@ -617,9 +619,11 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 	// extractors: they are the same class).
 	// Storage containers too (not the Dimensional Depot uploader: its own window, later).
 	// Fuel generators: Biomass Burner, Coal, Fuel, Nuclear (one class; their windows come one by one).
+	// Power switches and priority power switches (the priority switch is a subclass).
 	return Machine && (Machine->IsA<AFGBuildableManufacturer>() || Machine->IsA<AFGBuildableResourceExtractor>()
 		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
-		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>());
+		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
+		|| Machine->IsA<AFGBuildableCircuitSwitch>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -698,7 +702,9 @@ void AAMAutomationSubsystem::EvaluateFireRules()
 	for (const FAMMachineRules& Entry : mMachines)
 	{
 		const AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Entry.Machine);
-		if (!Factory || Entry.Fires.Num() == 0)
+		const AFGBuildableCircuitSwitch* Switch = Cast<AFGBuildableCircuitSwitch>(Entry.Machine);
+		const AFGBuildable* Machine = Entry.Machine;
+		if ((!Factory && !Switch) || Entry.Fires.Num() == 0)
 		{
 			continue;
 		}
@@ -728,14 +734,14 @@ void AAMAutomationSubsystem::EvaluateFireRules()
 		for (int32 Index = 0; Index < Entry.Fires.Num(); ++Index)
 		{
 			const FAMFireRule& Rule = Entry.Fires[Index];
-			const bool bNow = IsConditionTrue(Factory, Rule, bRecipeChanged);
+			const bool bNow = Switch ? IsSwitchConditionTrue(Switch, Rule) : IsConditionTrue(Factory, Rule, bRecipeChanged);
 			const bool bBecameTrue = bNow && LastValues[Index] != 1;
 			LastValues[Index] = bNow ? 1 : 0;
 			if (bBecameTrue)
 			{
-				UE_LOG(LogAutomatedMachines, Log, TEXT("%s fires %s (%s)"), *AMAS_Describe(Factory), *Rule.Event,
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s fires %s (%s)"), *AMAS_Describe(Machine), *Rule.Event,
 					*AMRules::GetConditionText(Rule.Condition).ToString());
-				EventsToFire.Emplace(Rule.Event, Factory);
+				EventsToFire.Emplace(Rule.Event, Machine);
 			}
 		}
 	}
@@ -769,6 +775,18 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringe
 				Entry.SignShowing = Event;
 				AMSign::Show(Sign, *Design);
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s shows its %s design"), *AMAS_Describe(Sign), *Event);
+			}
+			continue;
+		}
+		// Power switches.
+		if (AFGBuildableCircuitSwitch* Switch = Cast<AFGBuildableCircuitSwitch>(Entry.Machine))
+		{
+			for (const FAMReactionRule& Rule : Entry.Reactions)
+			{
+				if (Rule.Event == Event)
+				{
+					ApplySwitchAction(Switch, Rule);
+				}
 			}
 			continue;
 		}
@@ -825,6 +843,8 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::FuseReset:         return !IsFuseBlown(Factory);
 	case EAMCondition::MilestoneCompleted: return false;
 	case EAMCondition::ResearchCompleted: return false;
+	case EAMCondition::SwitchedOn:        return false;
+	case EAMCondition::SwitchedOff:       return false;
 	default:                              return false;
 	}
 }
@@ -1213,6 +1233,48 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 	}
 }
 
+bool AAMAutomationSubsystem::IsSwitchConditionTrue(const AFGBuildableCircuitSwitch* Switch, const FAMFireRule& Rule)
+{
+	switch (Rule.Condition)
+	{
+	case EAMCondition::SwitchedOn:  return Switch->IsSwitchOn();
+	case EAMCondition::SwitchedOff: return !Switch->IsSwitchOn();
+	default:                        return false;
+	}
+}
+
+void AAMAutomationSubsystem::ApplySwitchAction(AFGBuildableCircuitSwitch* Switch, const FAMReactionRule& Rule)
+{
+	switch (Rule.Action)
+	{
+	case EAMAction::SwitchOn:
+	case EAMAction::SwitchOff:
+	case EAMAction::ToggleSwitch:
+	{
+		const bool bOn = Rule.Action == EAMAction::SwitchOn ? true : Rule.Action == EAMAction::SwitchOff ? false : !Switch->IsSwitchOn();
+		if (Switch->IsSwitchOn() != bOn)
+		{
+			Switch->SetSwitchOn(bOn);
+			UE_LOG(LogAutomatedMachines, Log, TEXT("%s turned %s"), *AMAS_Describe(Switch), bOn ? TEXT("on") : TEXT("off"));
+		}
+		break;
+	}
+	case EAMAction::SetPriority:
+		if (AFGBuildablePriorityPowerSwitch* Priority = Cast<AFGBuildablePriorityPowerSwitch>(Switch))
+		{
+			const int32 Target = FMath::Clamp(FMath::RoundToInt(Rule.Value), 0, 8);
+			if (Priority->GetPriority() != Target)
+			{
+				Priority->SetPriority(Target);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s priority %d"), *AMAS_Describe(Switch), Target);
+			}
+		}
+		break;
+	default:
+		break;
+	}
+}
+
 void AAMAutomationSubsystem::ApplyWorldAction(const FAMReactionRule& Rule, const AActor* Ringer, const FString& RungBy)
 {
 	switch (Rule.Action)
@@ -1241,7 +1303,20 @@ FString AAMAutomationSubsystem::GetMachineName(const AActor* Machine)
 {
 	// AFGBuildable::mDisplayName is protected: read it by name.
 	const FTextProperty* NameProperty = Machine ? FindFProperty<FTextProperty>(Machine->GetClass(), TEXT("mDisplayName")) : nullptr;
-	return NameProperty ? NameProperty->GetPropertyValue_InContainer(Machine).ToString() : AMAS_Describe(Machine);
+	const FString Name = NameProperty ? NameProperty->GetPropertyValue_InContainer(Machine).ToString() : AMAS_Describe(Machine);
+	// Power switches have a name the player gave them (their tag): "Power Switch MAIN BASE".
+	if (const AFGBuildableCircuitSwitch* Switch = Cast<AFGBuildableCircuitSwitch>(Machine))
+	{
+		if (Switch->HasBuildingTag_Implementation())
+		{
+			const FString Tag = Switch->GetBuildingTag_Implementation().TrimStartAndEnd();
+			if (!Tag.IsEmpty())
+			{
+				return FString::Printf(TEXT("%s %s"), *Name, *Tag);
+			}
+		}
+	}
+	return Name;
 }
 
 void AAMAutomationSubsystem::MulticastPlaySound_Implementation(uint8 SoundIndex)

@@ -56,6 +56,9 @@ enum class EAMCondition : uint8
 	MilestoneCompleted UMETA(DisplayName = "Milestone completed"),
 	// World events of the MAM (its Automation tab).
 	ResearchCompleted  UMETA(DisplayName = "Research completed"),
+	// Power switches and priority power switches.
+	SwitchedOn         UMETA(DisplayName = "Switched on"),
+	SwitchedOff        UMETA(DisplayName = "Switched off"),
 	Count              UMETA(Hidden)
 };
 
@@ -73,6 +76,11 @@ enum class EAMAction : uint8
 	ShowMessage    UMETA(DisplayName = "Show message"),
 	PlaySound      UMETA(DisplayName = "Play sound"),
 	DeleteContents UMETA(DisplayName = "Delete contents"),
+	// Power switches and priority power switches (Set priority: priority switches only).
+	SwitchOn       UMETA(DisplayName = "Turn on"),
+	SwitchOff      UMETA(DisplayName = "Turn off"),
+	ToggleSwitch   UMETA(DisplayName = "Turn on or off"),
+	SetPriority    UMETA(DisplayName = "Set priority"),
 	Count          UMETA(Hidden)
 };
 
@@ -109,7 +117,7 @@ struct AUTOMATEDMACHINES_API FAMReactionRule
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	FString Event;
 
-	/** The number of actions that need one (clock speed %), else unused. */
+	/** The number of actions that need one (clock speed %, priority), else unused. */
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	float Value = 0.f;
 
@@ -283,6 +291,10 @@ namespace AMRules
 	 */
 	AUTOMATEDMACHINES_API bool IsConditionAvailable(EAMCondition Condition, const UObject* Machine);
 	AUTOMATEDMACHINES_API bool IsActionAvailable(EAMAction Action, const UObject* Machine);
+
+	/** Events / actions of power switches (Switched on / off; Turn on / off, Set priority). */
+	AUTOMATEDMACHINES_API bool IsSwitchCondition(EAMCondition Condition);
+	AUTOMATEDMACHINES_API bool IsSwitchAction(EAMAction Action);
 
 	/** True if the machine has the Options section's "Pass wrong items through" (it has input belts). */
 	AUTOMATEDMACHINES_API bool HasPassWrongItems(const UObject* Machine);

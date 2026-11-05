@@ -15,6 +15,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Modules/ModuleManager.h"
+#include "Buildables/FGBuildableCircuitSwitch.h"
 
 namespace
 {
@@ -232,6 +233,14 @@ namespace
 		UE_LOG(LogAutomatedMachines, Log, TEXT("[WidgetDump] ===== end reflection %s ====="), *WidgetClass->GetName());
 	}
 
+	/** The window is the window of a power switch / priority switch (its mInteractObject), 6 Nov 2026. */
+	bool AMWD_IsSwitchWindow(const UUserWidget* Widget)
+	{
+		const FObjectPropertyBase* Property = FindFProperty<FObjectPropertyBase>(Widget->GetClass(), TEXT("mInteractObject"));
+		const UObject* Object = Property ? Property->GetObjectPropertyValue_InContainer(Widget) : nullptr;
+		return Object && Object->IsA<AFGBuildableCircuitSwitch>();
+	}
+
 	void AMWD_CheckWorld(UWorld* World)
 	{
 		TArray<UUserWidget*> Widgets;
@@ -253,7 +262,8 @@ namespace
 					*ClassName, *AMWD_OuterChain(Widget));
 			}
 
-			if (!AMWD_IsTreeClass(ClassName))
+			const bool bSwitchWindow = AMWD_IsSwitchWindow(Widget);
+			if (!AMWD_IsTreeClass(ClassName) && !bSwitchWindow)
 			{
 				continue;
 			}
@@ -265,8 +275,8 @@ namespace
 				continue;
 			}
 
-			UE_LOG(LogAutomatedMachines, Log, TEXT("[WidgetDump] ===== begin %s (inside: %s) ====="),
-				*ClassName, *AMWD_OuterChain(Widget));
+			UE_LOG(LogAutomatedMachines, Log, TEXT("[WidgetDump] ===== begin %s (inside: %s) path %s ====="),
+				*ClassName, *AMWD_OuterChain(Widget), *Widget->GetClass()->GetPathName());
 			int32 Lines = 0;
 			TArray<UUserWidget*> UserWidgets;
 			AMWD_DumpWidget(Widget, 0, Lines, UserWidgets);
@@ -274,7 +284,7 @@ namespace
 
 			for (UUserWidget* Inner : UserWidgets)
 			{
-				if (Inner && AMWD_IsReflectionClass(Inner->GetClass()->GetName()))
+				if (Inner && (AMWD_IsReflectionClass(Inner->GetClass()->GetName()) || (bSwitchWindow && Inner == Widget)))
 				{
 					AMWD_DumpReflection(Inner);
 				}

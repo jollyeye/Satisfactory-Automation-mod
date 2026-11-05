@@ -113,6 +113,9 @@ private:
 
 	/** bRecipeChanged: the machine's recipe changed since the last check. */
 	static bool IsConditionTrue(const AFGBuildableFactory* Factory, const FAMFireRule& Rule, bool bRecipeChanged);
+
+	/** The same for a power switch / priority power switch (not a factory). */
+	static bool IsSwitchConditionTrue(const class AFGBuildableCircuitSwitch* Switch, const FAMFireRule& Rule);
 	static bool IsOutputFull(const AFGBuildableFactory* Factory);
 	static bool IsInputMissing(const AFGBuildableFactory* Factory);
 	static bool IsInputFull(const AFGBuildableFactory* Factory);
@@ -154,6 +157,9 @@ private:
 	UPROPERTY(SaveGame)
 	TArray<FAMHeldItem> mHeldItems;
 	void ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule);
+
+	/** Turn on / off, Set priority on a power switch. */
+	void ApplySwitchAction(class AFGBuildableCircuitSwitch* Switch, const FAMReactionRule& Rule);
 
 	/** Shows a message on the screen of every player (runs on the server and on every client). */
 	UFUNCTION(NetMulticast, Reliable)

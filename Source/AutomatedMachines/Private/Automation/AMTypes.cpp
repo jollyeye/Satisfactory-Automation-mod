@@ -6,6 +6,8 @@
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Buildables/FGBuildableStorage.h"
 #include "Buildables/FGBuildableGeneratorFuel.h"
+#include "Buildables/FGBuildableCircuitSwitch.h"
+#include "Buildables/FGBuildablePriorityPowerSwitch.h"
 #include "FGFactoryConnectionComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -85,6 +87,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::FuseReset:         return AMTY_Text(TEXT("Fuse reset"));
 	case EAMCondition::MilestoneCompleted: return AMTY_Text(TEXT("Milestone completed"));
 	case EAMCondition::ResearchCompleted: return AMTY_Text(TEXT("Research completed"));
+	case EAMCondition::SwitchedOn:        return AMTY_Text(TEXT("Switched on"));
+	case EAMCondition::SwitchedOff:       return AMTY_Text(TEXT("Switched off"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -103,6 +107,10 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::ShowMessage:   return AMTY_Text(TEXT("Show message"));
 	case EAMAction::PlaySound:     return AMTY_Text(TEXT("Play sound"));
 	case EAMAction::DeleteContents: return AMTY_Text(TEXT("Delete contents"));
+	case EAMAction::SwitchOn:      return AMTY_Text(TEXT("Turn on"));
+	case EAMAction::SwitchOff:     return AMTY_Text(TEXT("Turn off"));
+	case EAMAction::ToggleSwitch:  return AMTY_Text(TEXT("Turn on or off"));
+	case EAMAction::SetPriority:   return AMTY_Text(TEXT("Set priority"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -179,6 +187,10 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when a milestone is completed in the HUB (any milestone, by any player).\n\nUse it to show a message, play a sound, or start machines waiting for the next tier."));
 	case EAMCondition::ResearchCompleted:
 		return AMTY_Text(TEXT("Rings when a MAM research is completed (any research, also hard drives): its results can be claimed.\n\nUse it to get a message or a sound while you are away from the MAM."));
+	case EAMCondition::SwitchedOn:
+		return AMTY_Text(TEXT("Rings when the switch is turned on: by a player, or by an action of an alarm. The two power grids it joins are one again."));
+	case EAMCondition::SwitchedOff:
+		return AMTY_Text(TEXT("Rings when the switch is turned off: by a player, by an action of an alarm, or (a priority switch) by the game during a power shortage.\n\nUse it to get a message when a priority switch cuts off part of the factory."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -208,6 +220,14 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Destroys everything in the container. The items are gone for good: no points, no refund.\n\nWith \"Full\" or \"Filled above\" on the same container, it works as an overflow that throws away what nobody uses."));
 	case EAMAction::ChangeRecipe:
 		return AMTY_Text(TEXT("Switches the machine to the recipe you choose.\n\nThe game only allows this with empty slots, so everything in the input and output slots is destroyed first (no refund). Does nothing if the machine already makes this recipe."));
+	case EAMAction::SwitchOn:
+		return AMTY_Text(TEXT("Turns the switch on, like its own button: the power grids on its two sides are joined. Does nothing if it is already on."));
+	case EAMAction::SwitchOff:
+		return AMTY_Text(TEXT("Turns the switch off, like its own button: the power grid behind it is cut off. Does nothing if it is already off."));
+	case EAMAction::ToggleSwitch:
+		return AMTY_Text(TEXT("Turns the switch off if it is on, on if it is off. Handy for one alarm that switches something on and off."));
+	case EAMAction::SetPriority:
+		return AMTY_Text(TEXT("Sets the priority of the switch, like the priority in its window. During a power shortage the game turns off the switches with the highest number first; 0 means the game never turns this one off."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -272,6 +292,16 @@ AMRules::FValueInfo AMRules::GetActionValueInfo(EAMAction Action)
 		Info.Max = 250.f;
 		Info.Default = 100.f;
 	}
+	else if (Action == EAMAction::SetPriority)
+	{
+		// The game's priorities: 1 to 8, 0 = never turned off by the game.
+		Info.bNeeded = true;
+		Info.Label = TEXT("Priority");
+		Info.Min = 0.f;
+		Info.Max = 8.f;
+		Info.Default = 1.f;
+		Info.Unit = TEXT("");
+	}
 	return Info;
 }
 
@@ -298,6 +328,16 @@ bool AMRules::IsWorldCondition(EAMCondition Condition)
 bool AMRules::IsMamCondition(EAMCondition Condition)
 {
 	return Condition == EAMCondition::ResearchCompleted;
+}
+
+bool AMRules::IsSwitchCondition(EAMCondition Condition)
+{
+	return Condition == EAMCondition::SwitchedOn || Condition == EAMCondition::SwitchedOff;
+}
+
+bool AMRules::IsSwitchAction(EAMAction Action)
+{
+	return Action == EAMAction::SwitchOn || Action == EAMAction::SwitchOff || Action == EAMAction::ToggleSwitch || Action == EAMAction::SetPriority;
 }
 
 bool AMRules::ActionNeedsSound(EAMAction Action)
@@ -378,13 +418,18 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 	}
 	const bool bStorageEvent = Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::ItemCountBelow;
 	const bool bGeneratorEvent = Condition >= EAMCondition::FuelEmpty && Condition <= EAMCondition::FuseReset;
+	const bool bSwitchEvent = IsSwitchCondition(Condition);
 	if (!Machine)
 	{
 		return true;
 	}
+	if (Machine->IsA<AFGBuildableCircuitSwitch>())
+	{
+		return bSwitchEvent;
+	}
 	if (Machine->IsA<AFGBuildableManufacturer>())
 	{
-		return !bStorageEvent && !bGeneratorEvent;
+		return !bStorageEvent && !bGeneratorEvent && !bSwitchEvent;
 	}
 	if (Machine->IsA<AFGBuildableStorage>())
 	{
@@ -442,9 +487,14 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	{
 		return true;
 	}
+	if (Machine->IsA<AFGBuildableCircuitSwitch>())
+	{
+		// Set priority: priority switches only.
+		return IsSwitchAction(Action) && (Action != EAMAction::SetPriority || Machine->IsA<AFGBuildablePriorityPowerSwitch>());
+	}
 	if (Machine->IsA<AFGBuildableManufacturer>())
 	{
-		return Action != EAMAction::DeleteContents;
+		return Action != EAMAction::DeleteContents && !IsSwitchAction(Action);
 	}
 	if (Machine->IsA<AFGBuildableStorage>())
 	{
