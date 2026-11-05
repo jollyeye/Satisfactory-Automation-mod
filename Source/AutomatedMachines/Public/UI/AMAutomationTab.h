@@ -140,8 +140,9 @@ private:
 	UPROPERTY()
 	TObjectPtr<class UButton> mPassWrongButton;
 
+	/** The switch picture on the option's row. */
 	UPROPERTY()
-	TObjectPtr<UTextBlock> mPassWrongState;
+	TObjectPtr<class UImage> mPassWrongSwitch;
 
 	FSlateFontInfo mGameFont;
 	bool bHasGameFont = false;

@@ -3,6 +3,9 @@
 #   Tools/Icons/T_AM_MarkerIcon.png  256 x 256, the marker above automated machines
 #   Tools/Icons/T_AM_DropArrow.png   32 x 32, the arrow of our dropdowns
 #   Tools/Icons/T_AM_Trash.png       32 x 32, the remove button
+#   Tools/Icons/T_AM_SwitchOff.png / T_AM_SwitchOn.png  64 x 32, the option switch (like the
+#     game's switches in the power switch window: off = dark with a grey knob on the left,
+#     on = white with a dark knob on the right). Drawn in their own colours, not tinted.
 # Run with normal Python (needs Pillow): python make_icons.py
 # The outputs are committed; Tools/create_assets.py imports them into the mod.
 import math
@@ -86,6 +89,25 @@ def trash(size):
     return img.resize((size, size), Image.LANCZOS)
 
 
+def switch(on, width=64, height=32):
+    big_w, big_h = width * SUPERSAMPLE, height * SUPERSAMPLE
+    img = Image.new("RGBA", (big_w, big_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    s = SUPERSAMPLE
+    box = [2 * s, 3 * s, big_w - 2 * s, big_h - 3 * s]
+    radius = (box[3] - box[1]) / 2
+    if on:
+        draw.rounded_rectangle(box, radius=radius, fill=(255, 255, 255, 255))
+    else:
+        draw.rounded_rectangle(box, radius=radius, fill=(52, 52, 54, 255), outline=(135, 135, 137, 255), width=int(2.2 * s))
+    knob_r = radius * 0.58
+    cy = (box[1] + box[3]) / 2
+    cx = box[2] - radius if on else box[0] + radius
+    colour = (48, 48, 50, 255) if on else (135, 135, 137, 255)
+    draw.ellipse([cx - knob_r, cy - knob_r, cx + knob_r, cy + knob_r], fill=colour)
+    return img.resize((width, height), Image.LANCZOS)
+
+
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     tab = fit_vertically(wifi(64, margin=0.06, stroke=0.085, gap=0.075))
@@ -94,6 +116,8 @@ def main():
     marker.save(os.path.join(OUT_DIR, "T_AM_MarkerIcon.png"))
     drop_arrow(32).save(os.path.join(OUT_DIR, "T_AM_DropArrow.png"))
     trash(32).save(os.path.join(OUT_DIR, "T_AM_Trash.png"))
+    switch(False).save(os.path.join(OUT_DIR, "T_AM_SwitchOff.png"))
+    switch(True).save(os.path.join(OUT_DIR, "T_AM_SwitchOn.png"))
     print("written to", os.path.abspath(OUT_DIR))
 
 

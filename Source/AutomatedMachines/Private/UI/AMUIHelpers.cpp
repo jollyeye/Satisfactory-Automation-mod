@@ -23,6 +23,9 @@ const FLinearColor AMUI::Field(FColor(87, 87, 87));
 const FLinearColor AMUI::Button(FColor(102, 102, 103));
 const FLinearColor AMUI::Option(FColor(110, 110, 111));
 
+const TCHAR* const AMUI::SwitchOffPath = TEXT("/AutomatedMachines/Icons/T_AM_SwitchOff.T_AM_SwitchOff");
+const TCHAR* const AMUI::SwitchOnPath = TEXT("/AutomatedMachines/Icons/T_AM_SwitchOn.T_AM_SwitchOn");
+
 namespace
 {
 	const TCHAR* const AMUIH_DropArrowPath = TEXT("/AutomatedMachines/Icons/T_AM_DropArrow.T_AM_DropArrow");
@@ -92,6 +95,25 @@ UButton* AMUI::MakeButton(UWidgetTree* Tree, const FString& Label, const FSlateF
 		*OutLabel = LabelText;
 	}
 	return Widget;
+}
+
+UImage* AMUI::MakeImage(UWidgetTree* Tree, const TCHAR* Path, const FVector2D& Size)
+{
+	UImage* Image = Tree->ConstructWidget<UImage>(UImage::StaticClass());
+	SetImage(Image, Path);
+	Image->SetDesiredSizeOverride(Size);
+	return Image;
+}
+
+void AMUI::SetImage(UImage* Target, const TCHAR* Path)
+{
+	if (Target)
+	{
+		if (UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, Path))
+		{
+			Target->SetBrushFromTexture(Texture, false);
+		}
+	}
 }
 
 void AMUI::SetButtonColor(UButton* Target, const FLinearColor& Color)

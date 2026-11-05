@@ -44,6 +44,16 @@ namespace AMUI
 	/** A flat button with a centred text label. OutLabel (optional) gets the label, to change it later. */
 	UButton* MakeButton(UWidgetTree* Tree, const FString& Label, const FSlateFontInfo& Font, const FLinearColor& Color, UTextBlock** OutLabel = nullptr);
 
+	/** The option switch pictures (game-like: off = dark, on = white). */
+	extern const TCHAR* const SwitchOffPath;
+	extern const TCHAR* const SwitchOnPath;
+
+	/** An image of one of our textures, shown at Size. */
+	UImage* MakeImage(UWidgetTree* Tree, const TCHAR* Path, const FVector2D& Size);
+
+	/** Shows another of our textures in an image. */
+	void SetImage(UImage* Target, const TCHAR* Path);
+
 	/** Gives a button of MakeButton another colour. */
 	void SetButtonColor(UButton* Target, const FLinearColor& Color);
 

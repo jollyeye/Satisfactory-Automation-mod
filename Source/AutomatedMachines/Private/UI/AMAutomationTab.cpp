@@ -6,6 +6,8 @@
 #include "Net/AMRemoteCallObject.h"
 #include "Buildables/FGBuildable.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
+#include "Components/Image.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Engine/Texture2D.h"
@@ -376,30 +378,38 @@ void UAMAutomationTab::BuildLayout()
 	if (!bWorldMode)
 	{
 		AddTo(mContentBox, MakeText(TEXT("Options"), 15, AMUI::White), 14.f);
+		// As wide as the Alarms panel; each option is one button (the whole row clicks), coloured
+		// like "+ Add alarm": its name on the left, a switch on the right.
+		USizeBox* OptionsSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		OptionsSize->SetWidthOverride(AMAT_AlarmsWidth);
+		AddTo(mContentBox, OptionsSize, 8.f);
 		UBorder* OptionsBody = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(AMAT_PanelPadding));
-		AddTo(mContentBox, OptionsBody, 8.f);
-		UHorizontalBox* OptionRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMOptionPassWrong"));
-		OptionsBody->AddChild(OptionRow);
+		OptionsSize->AddChild(OptionsBody);
 
-		UTextBlock* StateLabel = nullptr;
-		mPassWrongButton = AMUI::MakeButton(WidgetTree, TEXT("Off"), GetGameFont(), AMUI::Button, &StateLabel);
-		mPassWrongState = StateLabel;
-		mAddLabels.Add(StateLabel);
+		mPassWrongButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("AMOptionPassWrong"));
+		AMUI::SetButtonColor(mPassWrongButton, AMUI::Button);
 		mPassWrongButton->OnClicked.AddDynamic(this, &UAMAutomationTab::OnPassWrongClicked);
 		mPassWrongButton->OnHovered.AddDynamic(this, &UAMAutomationTab::OnPassWrongHovered);
-		USizeBox* ToggleSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		ToggleSize->SetWidthOverride(64.f);
-		ToggleSize->AddChild(mPassWrongButton);
-		if (UHorizontalBoxSlot* ToggleSlot = OptionRow->AddChildToHorizontalBox(ToggleSize))
+		OptionsBody->AddChild(mPassWrongButton);
+
+		UHorizontalBox* OptionRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UButtonSlot* RowSlot = Cast<UButtonSlot>(mPassWrongButton->AddChild(OptionRow)))
 		{
-			ToggleSlot->SetVerticalAlignment(VAlign_Center);
+			RowSlot->SetHorizontalAlignment(HAlign_Fill);
+			RowSlot->SetVerticalAlignment(VAlign_Center);
 		}
 		UTextBlock* OptionName = MakeText(TEXT("Pass wrong items through"), 14, AMUI::White);
 		mAddLabels.Add(OptionName);
 		if (UHorizontalBoxSlot* NameSlot = OptionRow->AddChildToHorizontalBox(OptionName))
 		{
-			NameSlot->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
+			NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			NameSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		mPassWrongSwitch = AMUI::MakeImage(WidgetTree, AMUI::SwitchOffPath, FVector2D(40.f, 20.f));
+		if (UHorizontalBoxSlot* SwitchSlot = OptionRow->AddChildToHorizontalBox(mPassWrongSwitch))
+		{
+			SwitchSlot->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
+			SwitchSlot->SetVerticalAlignment(VAlign_Center);
 		}
 		RefreshOptions();
 	}
@@ -610,12 +620,7 @@ void UAMAutomationTab::OnRulesEdited()
 
 void UAMAutomationTab::RefreshOptions()
 {
-	if (mPassWrongButton && mPassWrongState)
-	{
-		const bool bOn = mOptions.bPassWrongItems;
-		AMUI::SetButtonColor(mPassWrongButton, bOn ? AMUI::Orange : AMUI::Button);
-		mPassWrongState->SetText(FText::FromString(bOn ? TEXT("On") : TEXT("Off")));
-	}
+	AMUI::SetImage(mPassWrongSwitch, mOptions.bPassWrongItems ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
 }
 
 void UAMAutomationTab::ShowPassWrongInfo()
