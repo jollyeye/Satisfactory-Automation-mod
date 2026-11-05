@@ -268,6 +268,111 @@ bool UAMSignTabs::CopyOpenEditor(const AFGBuildableWidgetSign* Sign, UObject* Cl
 	return true;
 }
 
+namespace
+{
+	/** "3 texts: Title='IRON' Line1='' ..." of a sign design, for the log. */
+	FString AMST_DescribeTexts(const FPrefabSignData& Data)
+	{
+		FString Out = FString::Printf(TEXT("%d texts:"), Data.TextElementData.Num());
+		for (const TPair<FString, FString>& Text : Data.TextElementData)
+		{
+			Out += FString::Printf(TEXT(" %s='%s'"), *Text.Key, *Text.Value.Left(24));
+		}
+		return Out;
+	}
+
+	/** The sign clipboard objects (with mPrefabSignData) in a player state's factory clipboard. */
+	TArray<UObject*> AMST_SignClipboards(UObject* PlayerState)
+	{
+		TArray<UObject*> Found;
+		const FMapProperty* MapProperty = PlayerState ? FindFProperty<FMapProperty>(PlayerState->GetClass(), TEXT("mFactoryClipboard")) : nullptr;
+		const FObjectPropertyBase* ValueProperty = MapProperty ? CastField<FObjectPropertyBase>(MapProperty->ValueProp) : nullptr;
+		if (!ValueProperty)
+		{
+			return Found;
+		}
+		FScriptMapHelper Map(MapProperty, MapProperty->ContainerPtrToValuePtr<void>(PlayerState));
+		for (int32 Index = 0; Index < Map.GetMaxIndex(); ++Index)
+		{
+			if (!Map.IsValidIndex(Index))
+			{
+				continue;
+			}
+			UObject* Value = ValueProperty->GetObjectPropertyValue(Map.GetValuePtr(Index));
+			const FStructProperty* DataProperty = Value ? FindFProperty<FStructProperty>(Value->GetClass(), TEXT("mPrefabSignData")) : nullptr;
+			if (DataProperty && DataProperty->Struct == FPrefabSignData::StaticStruct())
+			{
+				Found.Add(Value);
+			}
+		}
+		return Found;
+	}
+
+	const FPrefabSignData* AMST_ClipboardData(const UObject* Clipboard)
+	{
+		const FStructProperty* DataProperty = Clipboard ? FindFProperty<FStructProperty>(Clipboard->GetClass(), TEXT("mPrefabSignData")) : nullptr;
+		return DataProperty && DataProperty->Struct == FPrefabSignData::StaticStruct() ? DataProperty->ContainerPtrToValuePtr<FPrefabSignData>(Clipboard) : nullptr;
+	}
+}
+
+void UAMSignTabs::OnGameClipboardCopied(UObject* Object, UObject* PlayerState)
+{
+	const AFGBuildableWidgetSign* Sign = Cast<AFGBuildableWidgetSign>(Object);
+	if (!Sign)
+	{
+		return;
+	}
+	for (UObject* Clipboard : AMST_SignClipboards(PlayerState))
+	{
+		if (const FPrefabSignData* Copied = AMST_ClipboardData(Clipboard))
+		{
+			UE_LOG(LogAutomatedMachines, Log, TEXT("Sign copied by the game (%s): %s"), *Sign->GetName(), *AMST_DescribeTexts(*Copied));
+		}
+		if (CopyOpenEditor(Sign, Clipboard))
+		{
+			if (const FPrefabSignData* Fixed = AMST_ClipboardData(Clipboard))
+			{
+				UE_LOG(LogAutomatedMachines, Log, TEXT("  now the editor's design: %s"), *AMST_DescribeTexts(*Fixed));
+			}
+		}
+	}
+}
+
+void UAMSignTabs::OnGameClipboardPasted(UObject* Object, UObject* PlayerState)
+{
+	const AFGBuildableWidgetSign* Sign = Cast<AFGBuildableWidgetSign>(Object);
+	if (!Sign)
+	{
+		return;
+	}
+	for (UObject* Clipboard : AMST_SignClipboards(PlayerState))
+	{
+		if (const FPrefabSignData* Pasted = AMST_ClipboardData(Clipboard))
+		{
+			UE_LOG(LogAutomatedMachines, Log, TEXT("Sign pasted by the game onto %s: %s"), *Sign->GetName(), *AMST_DescribeTexts(*Pasted));
+		}
+	}
+	// What the editor holds a moment later (the window loads the pasted design itself).
+	UAMSignTabs* Open = AMST_Open.Get();
+	UWorld* World = Open ? Open->GetWorld() : nullptr;
+	if (World && Open->mSetupSign.Get() == Sign)
+	{
+		TWeakObjectPtr<UAMSignTabs> WeakOpen = Open;
+		FTimerHandle Later;
+		World->GetTimerManager().SetTimer(Later, FTimerDelegate::CreateLambda([WeakOpen]()
+		{
+			const UAMSignTabs* Tabs = WeakOpen.Get();
+			const UUserWidget* Host = Tabs ? Tabs->GetHostWindow() : nullptr;
+			const FStructProperty* DataProperty = Host ? FindFProperty<FStructProperty>(Host->GetClass(), AMST_SignDataProperty) : nullptr;
+			if (DataProperty && DataProperty->Struct == FPrefabSignData::StaticStruct())
+			{
+				UE_LOG(LogAutomatedMachines, Log, TEXT("  the editor after the paste (tab %d): %s"), Tabs->mSelected,
+					*AMST_DescribeTexts(*DataProperty->ContainerPtrToValuePtr<FPrefabSignData>(Host)));
+			}
+		}), 0.2f, false);
+	}
+}
+
 UUserWidget* UAMSignTabs::GetHostWindow() const
 {
 	if (const UWidgetTree* Tree = Cast<UWidgetTree>(GetOuter()))

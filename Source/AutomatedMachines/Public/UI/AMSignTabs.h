@@ -66,6 +66,15 @@ public:
 	 */
 	static bool CopyOpenEditor(const class AFGBuildableWidgetSign* Sign, UObject* ClipboardSettings);
 
+	/**
+	 * After the game's factory clipboard copied / pasted an object (AFGPlayerState::CopyFactoryClipboard
+	 * / PasteFactoryClipboard: every copy and paste goes through them). A sign whose designer is open:
+	 * the copy gets the editor's design (CopyOpenEditor); both are logged with their texts, and after
+	 * a paste the editor's texts a moment later (to find where a text goes missing).
+	 */
+	static void OnGameClipboardCopied(UObject* Object, UObject* PlayerState);
+	static void OnGameClipboardPasted(UObject* Object, UObject* PlayerState);
+
 protected:
 	virtual void NativeOnInitialized() override;
 	virtual void NativeConstruct() override;

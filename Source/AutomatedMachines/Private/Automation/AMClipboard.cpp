@@ -183,13 +183,17 @@ void AMClipboard::Install()
 		}
 	});
 
-	// A sign's Copy Settings while its designer is open: the design open in the editor (the
-	// selected tab), not the Default design stored on the sign.
-	SUBSCRIBE_METHOD_VIRTUAL_AFTER(AFGBuildableWidgetSign::CopySettings_Implementation, GetMutableDefault<AFGBuildableWidgetSign>(),
-		[](UFGFactoryClipboardSettings* const& Result, AFGBuildableWidgetSign* Self)
-		{
-			UAMSignTabs::CopyOpenEditor(Self, Result);
-		});
+	// Signs: every copy / paste of the game's factory clipboard (window buttons, keys). While a
+	// sign's designer is open its copy gets the design open in the editor (the selected tab), not
+	// the Default design stored on the sign; copies and pastes of signs are logged with their texts.
+	SUBSCRIBE_METHOD_AFTER(AFGPlayerState::CopyFactoryClipboard, [](AFGPlayerState* Self, UObject* Object)
+	{
+		UAMSignTabs::OnGameClipboardCopied(Object, Self);
+	});
+	SUBSCRIBE_METHOD_AFTER(AFGPlayerState::PasteFactoryClipboard, [](AFGPlayerState* Self, UObject* Object)
+	{
+		UAMSignTabs::OnGameClipboardPasted(Object, Self);
+	});
 
 	// Middle click: remember the sampled machine's automation for this build gun.
 	SUBSCRIBE_METHOD_AFTER(UFGBuildGunStateBuild::SampleClipboardSettingsFromActor, [](UFGBuildGunStateBuild* Self, AActor* Actor)
