@@ -203,9 +203,9 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Window: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C` (`mInteractWidgetSoftClass` of `Build_GeneratorBiomass` and `Build_GeneratorBiomass_Automated`, class `AFGBuildableGeneratorFuel`). One-page window: `Widget_Window_DarkMode`, `WindowBody`, no sliding tabs. The page panel's name is not readable from the asset (names like `CanvasPanel_3` are stored as name + number), so the hook uses **`Indirect_Child` on `Widget_StandbyButton`**: SML takes the named widget's parent panel. No slot setup. The dump is pointed at `Widget_Generator_C`.
 - Engine: `IsOutOfFuel` = `!HasFuel()`; `CountFuel` = items at `GetFuelInventoryIndex()`; `GetLoad` = `GetLoadPercentage()` (0..1); `IsFuseBlown` = `GetPowerInfo()->IsFuseTriggered()`; Input full = the fuel slot has no room for one more of its fuel; Wrong input = a belt item / pipe fluid that is neither `IsValidFuel` nor `IsValidSupplementalResource`; Delete input = `DeleteAllItems(GetFuelInventory())`.
 
-## Marker on stacks (5 Nov 2026, untested)
+## Marker on stacks (5 Nov 2026)
 
-`AAMMarkers::Rebuild`: a line trace (Visibility) from the top of the machine's bounds up 120 cm; if it hits another actor, the marker goes to the machine's front instead (`GetActorForwardVector`, bounds depth along it + 60 cm, at the bounds' centre height). Markers are placed again every 5 s (a looping timer), so stacking something later moves the marker.
+`AAMMarkers::Rebuild`: a line trace (Visibility) from the top of the machine's bounds up 120 cm; if it hits another actor, the marker goes to the machine's front instead (`GetActorForwardVector`, bounds depth along it + 60 cm, at the bounds' centre height). Markers are placed again every 5 s (a looping timer), so stacking something later moves the marker. Second version (the first used the actor's forward vector, which for containers is a side, not the door): the marker goes in front of the face (+-X / +-Y of `CalculateComponentsBoundingBoxInLocalSpace`) the local camera is most in front of, checked 5 times a second (`AAMMarkers::Tick`, `UpdateInstanceTransform` only when the face changes).
 
 ## Signs (5 Nov 2026, untested)
 

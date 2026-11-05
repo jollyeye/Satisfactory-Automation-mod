@@ -114,7 +114,7 @@ In a crowd of machines the player must see at a glance which ones are automated,
 - Optional later: the instance colour shows the state (idle, just fired, paused by automation), through per-instance data, still without saving anything.
 - The square mesh and the Wi-Fi texture are made by our scripts (Python, like Road Maker's icons), so no external 3D tools are needed.
 
-- Stacks (5 Nov 2026): when something sits right on top of an automated machine (stacked containers), its marker floats in front of the machine, halfway up, instead of above it; markers are placed again every 5 seconds.
+- Stacks (5 Nov 2026): when something sits right on top of an automated machine (stacked containers), its marker floats halfway up in front of the side you are looking at (it follows you around), instead of above it; markers are placed again every 5 seconds.
 
 ### Code approach (inspired by Road Maker, not copied)
 

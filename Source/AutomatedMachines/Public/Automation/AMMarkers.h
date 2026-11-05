@@ -33,6 +33,8 @@ public:
 	 */
 	void OnRulesChanged();
 
+	virtual void Tick(float DeltaSeconds) override;
+
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
@@ -43,5 +45,21 @@ private:
 	TWeakObjectPtr<AAMAutomationSubsystem> mSubsystem;
 	FDelegateHandle mRulesChangedHandle;
 	bool bMeshMissingLogged = false;
+
+	/**
+	 * Machines with something on top (stacked): their marker floats in front of the side the local
+	 * player looks at, updated while playing (the box is the machine's own, in its local space).
+	 */
+	struct FStackedMarker
+	{
+		TWeakObjectPtr<const AActor> Machine;
+		int32 Instance = INDEX_NONE;
+		FBox LocalBox;
+		int32 Face = INDEX_NONE;
+	};
+	TArray<FStackedMarker> mStacked;
+
+	/** Moves a stacked machine's marker to the face towards the camera (if that face changed). */
+	void PlaceStacked(FStackedMarker& Marker, const FVector& CameraLocation, bool bForce);
 	FTimerHandle mLaterRebuild;
 };

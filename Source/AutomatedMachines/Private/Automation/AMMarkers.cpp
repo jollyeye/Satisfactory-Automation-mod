@@ -9,6 +9,8 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "CollisionQueryParams.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
 
 namespace
 {
@@ -34,7 +36,8 @@ namespace
 
 AAMMarkers::AAMMarkers()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickInterval = 0.2f;
 	bReplicates = false;
 
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
@@ -88,6 +91,7 @@ void AAMMarkers::OnRulesChanged()
 void AAMMarkers::Rebuild()
 {
 	mInstances->ClearInstances();
+	mStacked.Reset();
 	const AAMAutomationSubsystem* Subsystem = mSubsystem.Get();
 	if (!Subsystem)
 	{
@@ -126,13 +130,74 @@ void AAMMarkers::Rebuild()
 			const FVector End(Origin.X, Origin.Y, Top + AMMK_StackCheckHeight);
 			if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) && Hit.GetActor() != Machine)
 			{
-				const FVector Forward = Machine->GetActorForwardVector().GetSafeNormal2D();
-				const float Depth = static_cast<float>(FMath::Abs(Forward.X) * Extent.X + FMath::Abs(Forward.Y) * Extent.Y);
-				Location = FVector(Origin.X, Origin.Y, Origin.Z) + Forward * (Depth + AMMK_FrontDistance);
+				FStackedMarker& Stacked = mStacked.AddDefaulted_GetRef();
+				Stacked.Machine = Machine;
+				Stacked.LocalBox = Machine->CalculateComponentsBoundingBoxInLocalSpace(true);
+				Stacked.Instance = mInstances->AddInstance(FTransform(Location), true);
+				FVector CameraLocation = Location;
+				if (const APlayerController* Player = World->GetFirstPlayerController())
+				{
+					if (Player->PlayerCameraManager)
+					{
+						CameraLocation = Player->PlayerCameraManager->GetCameraLocation();
+					}
+				}
+				PlaceStacked(Stacked, CameraLocation, true);
+				continue;
 			}
 		}
 		mInstances->AddInstance(FTransform(Location), true);
 	}
+}
+
+void AAMMarkers::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (mStacked.Num() == 0)
+	{
+		return;
+	}
+	const APlayerController* Player = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!Player || !Player->PlayerCameraManager)
+	{
+		return;
+	}
+	const FVector CameraLocation = Player->PlayerCameraManager->GetCameraLocation();
+	for (FStackedMarker& Marker : mStacked)
+	{
+		PlaceStacked(Marker, CameraLocation, false);
+	}
+}
+
+void AAMMarkers::PlaceStacked(FStackedMarker& Marker, const FVector& CameraLocation, bool bForce)
+{
+	const AActor* Machine = Marker.Machine.Get();
+	if (!Machine || Marker.Instance == INDEX_NONE || !Marker.LocalBox.IsValid)
+	{
+		return;
+	}
+	// The side (+X, -X, +Y, -Y of the machine) the camera is most in front of.
+	const FTransform& ToWorld = Machine->GetActorTransform();
+	const FVector Center = Marker.LocalBox.GetCenter();
+	const FVector Extent = Marker.LocalBox.GetExtent();
+	const FVector ToCamera = ToWorld.InverseTransformPosition(CameraLocation) - Center;
+	const double RatioX = Extent.X > 1.0 ? FMath::Abs(ToCamera.X) / Extent.X : 0.0;
+	const double RatioY = Extent.Y > 1.0 ? FMath::Abs(ToCamera.Y) / Extent.Y : 0.0;
+	const int32 Face = RatioX >= RatioY ? (ToCamera.X >= 0.0 ? 0 : 1) : (ToCamera.Y >= 0.0 ? 2 : 3);
+	if (!bForce && Face == Marker.Face)
+	{
+		return;
+	}
+	Marker.Face = Face;
+	FVector Local = Center;
+	switch (Face)
+	{
+	case 0: Local.X += Extent.X + AMMK_FrontDistance; break;
+	case 1: Local.X -= Extent.X + AMMK_FrontDistance; break;
+	case 2: Local.Y += Extent.Y + AMMK_FrontDistance; break;
+	default: Local.Y -= Extent.Y + AMMK_FrontDistance; break;
+	}
+	mInstances->UpdateInstanceTransform(Marker.Instance, FTransform(ToWorld.TransformPosition(Local)), true, true);
 }
 
 void AAMMarkers::EndPlay(const EEndPlayReason::Type Reason)
