@@ -6,6 +6,33 @@
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Buildables/FGBuildableStorage.h"
 #include "Buildables/FGBuildableGeneratorFuel.h"
+#include "FGFactoryConnectionComponent.h"
+#include "GameFramework/Actor.h"
+
+namespace
+{
+	/**
+	 * The building has an input port for belts (whether a belt is attached now or not). The HUB's
+	 * built-in biomass burners have none: nothing can arrive on a belt there.
+	 */
+	bool AMTY_HasBeltInput(const UObject* Machine)
+	{
+		const AActor* Actor = Cast<AActor>(Machine);
+		if (!Actor)
+		{
+			return false;
+		}
+		TInlineComponentArray<UFGFactoryConnectionComponent*> Connections(Actor);
+		for (const UFGFactoryConnectionComponent* Connection : Connections)
+		{
+			if (Connection && Connection->GetDirection() == EFactoryConnectionDirection::FCD_INPUT)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+}
 
 namespace
 {
@@ -340,6 +367,12 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 {
 	// World events belong to the HUB, never to a machine.
 	if (IsWorldCondition(Condition))
+	{
+		return false;
+	}
+	// Wrong input / Input correct watch what arrives on an input belt: not for a building without
+	// an input port (the HUB's biomass burners).
+	if (Machine && (Condition == EAMCondition::WrongInput || Condition == EAMCondition::InputCorrect) && !AMTY_HasBeltInput(Machine))
 	{
 		return false;
 	}
