@@ -218,7 +218,7 @@ g_shape.set_editor_property("code",
     "float2 F = clamp(FadeStart.xy, 0.0, 0.98);\n"
     "float2 D = max(P - F, 0.0) / (1.0 - F);\n"
     "float G = saturate(1.0 - length(D));\n"
-    "G = G * G * (3.0 - 2.0 * G);\n"
+    "G = G * G;\n"
     "float Up = 1.0 - saturate(H / 30.0);\n"
     "float Down = 1.0 - saturate(-H / 400.0);\n"
     "float3 N = normalize(cross(ddx(RP), ddy(RP)));\n"
@@ -239,8 +239,8 @@ link(g_relative, "", g_shape, "RP")
 
 g_colour = node(glow, unreal.MaterialExpressionVectorParameter, -600, 250, parameter_name="Color",
                 default_value=unreal.LinearColor(0.12, 0.7, 1.0, 1.0))
-g_brightness = node(glow, unreal.MaterialExpressionScalarParameter, -600, 400, parameter_name="Brightness", default_value=2.0)
-g_strength = node(glow, unreal.MaterialExpressionScalarParameter, -600, 500, parameter_name="Strength", default_value=0.7)
+g_brightness = node(glow, unreal.MaterialExpressionScalarParameter, -600, 400, parameter_name="Brightness", default_value=0.7)
+g_strength = node(glow, unreal.MaterialExpressionScalarParameter, -600, 500, parameter_name="Strength", default_value=0.45)
 g_tint = node(glow, unreal.MaterialExpressionMultiply, -350, 250)
 link(g_colour, "", g_tint, "A")
 link(g_brightness, "", g_tint, "B")
