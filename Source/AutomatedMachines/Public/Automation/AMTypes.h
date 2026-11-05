@@ -42,6 +42,8 @@ enum class EAMCondition : uint8
 	StorageNotEmpty    UMETA(DisplayName = "Not empty"),
 	FillAbove          UMETA(DisplayName = "Filled above"),
 	FillBelow          UMETA(DisplayName = "Filled below"),
+	ItemCountAbove     UMETA(DisplayName = "Item count above"),
+	ItemCountBelow     UMETA(DisplayName = "Item count below"),
 	Count              UMETA(Hidden)
 };
 
@@ -77,6 +79,10 @@ struct AUTOMATEDMACHINES_API FAMFireRule
 	/** The number of conditions that need one (productivity %), else unused. */
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	float Value = 0.f;
+
+	/** The item of conditions that count one (Item count above / below), else null. */
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
+	TSubclassOf<UFGItemDescriptor> Item;
 };
 
 /** "<Action> when event <Event>" */
@@ -178,6 +184,8 @@ namespace AMRules
 		float Min = 0.f;
 		float Max = 100.f;
 		float Default = 0.f;
+		/** Shown after the number field ("%", or nothing for a count). */
+		const TCHAR* Unit = TEXT("%");
 	};
 	AUTOMATEDMACHINES_API FValueInfo GetConditionValueInfo(EAMCondition Condition);
 	AUTOMATEDMACHINES_API FValueInfo GetActionValueInfo(EAMAction Action);
@@ -191,6 +199,9 @@ namespace AMRules
 
 	/** True if the machine has the Options section's "Pass wrong items through" (it has input belts). */
 	AUTOMATEDMACHINES_API bool HasPassWrongItems(const UObject* Machine);
+
+	/** Machine events that count one item (Item count above / below): the row gets an item picker. */
+	AUTOMATEDMACHINES_API bool ConditionNeedsItem(EAMCondition Condition);
 
 	/** Actions that need a recipe (Change recipe). */
 	AUTOMATEDMACHINES_API bool ActionNeedsRecipe(EAMAction Action);

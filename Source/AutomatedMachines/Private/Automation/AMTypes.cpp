@@ -46,6 +46,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::StorageNotEmpty:   return AMTY_Text(TEXT("Not empty"));
 	case EAMCondition::FillAbove:         return AMTY_Text(TEXT("Filled above"));
 	case EAMCondition::FillBelow:         return AMTY_Text(TEXT("Filled below"));
+	case EAMCondition::ItemCountAbove:    return AMTY_Text(TEXT("Item count above"));
+	case EAMCondition::ItemCountBelow:    return AMTY_Text(TEXT("Item count below"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -118,6 +120,10 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the container is filled above the percentage you set. 100% is every slot holding a full stack; a slot with half a stack counts as half a slot.\n\nUse it to slow down or pause the machines that fill it before it is completely full."));
 	case EAMCondition::FillBelow:
 		return AMTY_Text(TEXT("Rings when the container is filled below the percentage you set (counted like Filled above).\n\nUse it to start the machines that fill it again before it runs empty."));
+	case EAMCondition::ItemCountAbove:
+		return AMTY_Text(TEXT("Rings when the container holds more of one item than the number you set. Pick the item under the alarm.\n\nMade for containers with several kinds of items: e.g. pause the Constructor making Iron Plates when there are more than 500."));
+	case EAMCondition::ItemCountBelow:
+		return AMTY_Text(TEXT("Rings when the container holds less of one item than the number you set. Pick the item under the alarm.\n\nE.g. resume the Constructor making Iron Plates when there are fewer than 200."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -170,6 +176,15 @@ AMRules::FValueInfo AMRules::GetConditionValueInfo(EAMCondition Condition)
 		Info.Min = 0.f;
 		Info.Max = 100.f;
 		Info.Default = Condition == EAMCondition::FillAbove ? 90.f : 10.f;
+	}
+	else if (Condition == EAMCondition::ItemCountAbove || Condition == EAMCondition::ItemCountBelow)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Items");
+		Info.Min = 0.f;
+		Info.Max = 999999.f;
+		Info.Default = Condition == EAMCondition::ItemCountAbove ? 500.f : 200.f;
+		Info.Unit = TEXT("");
 	}
 	return Info;
 }
@@ -268,7 +283,7 @@ float AMRules::CleanValue(const FValueInfo& Info, float Value)
 
 bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machine)
 {
-	const bool bStorageEvent = Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::FillBelow;
+	const bool bStorageEvent = Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::ItemCountBelow;
 	if (!Machine)
 	{
 		return true;
@@ -337,4 +352,9 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 bool AMRules::HasPassWrongItems(const UObject* Machine)
 {
 	return Machine && Machine->IsA<AFGBuildableManufacturer>();
+}
+
+bool AMRules::ConditionNeedsItem(EAMCondition Condition)
+{
+	return Condition == EAMCondition::ItemCountAbove || Condition == EAMCondition::ItemCountBelow;
 }

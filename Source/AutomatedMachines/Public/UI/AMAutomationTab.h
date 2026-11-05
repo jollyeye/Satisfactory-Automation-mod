@@ -53,6 +53,14 @@ public:
 	UObject* GetMachineObject() const { return GetMachine(); }
 
 	/**
+	 * The item window: a scrolling list of items with their icons, floating over the page under the
+	 * clicked dropdown (Anchor). Items in this container come first, then every item the player
+	 * knows from unlocked recipes. Current: shown in orange.
+	 */
+	void OpenItemPicker(UAMRuleRow* Row, UWidget* Anchor, UClass* Current);
+	void CloseItemPicker();
+
+	/**
 	 * True in the HUB terminal: the page has only actions, and only world actions (they need no
 	 * machine), saved for the whole world instead of for a machine.
 	 */
@@ -79,6 +87,10 @@ protected:
 
 	UFUNCTION()
 	void OnPassWrongClicked();
+
+	/** A click outside the item window closes it. */
+	UFUNCTION()
+	void OnPopupBackgroundClicked();
 
 	/**
 	 * One-page windows: bound to the plain button inside each tab button (mButton), because neither
@@ -238,6 +250,22 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mMachineText;
+
+	/** Over the whole page: the item window and a see-through background that closes it. */
+	UPROPERTY()
+	TObjectPtr<class UOverlay> mRootOverlay;
+
+	UPROPERTY()
+	TObjectPtr<class UCanvasPanel> mPopupLayer;
+
+	UPROPERTY()
+	TObjectPtr<UWidget> mPopup;
+
+	UPROPERTY()
+	TArray<TObjectPtr<class UAMChoice>> mPopupHandlers;
+
+	/** Items the player knows (from unlocked recipes), sorted by name; solids only. */
+	TArray<UClass*> GetPickableItems() const;
 
 	/** Our texts with the font size each should get (fonts are copied from the game in ApplyGameFonts). */
 	UPROPERTY()

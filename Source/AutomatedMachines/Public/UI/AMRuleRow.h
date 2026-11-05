@@ -39,6 +39,8 @@ enum class EAMChoiceKind : uint8
 	Action,
 	Recipe,
 	Sound,
+	/** An item (Item count above / below), picked in the tab's item window. */
+	Item,
 };
 
 /** Click and hover handler of one button in a row's list of choices. */
@@ -60,6 +62,10 @@ public:
 	/** The recipe (Recipe). */
 	UPROPERTY()
 	TObjectPtr<UClass> RecipeClass;
+
+	/** The item (Item). */
+	UPROPERTY()
+	TObjectPtr<UClass> ItemClass;
 
 	UFUNCTION()
 	void OnClicked();
@@ -100,6 +106,10 @@ public:
 	/** Action row with Change recipe: the recipe dropdown under the row. */
 	UFUNCTION()
 	void OnRecipeCellClicked();
+
+	/** Alarm row with Item count above / below: opens the item window. */
+	UFUNCTION()
+	void OnItemCellClicked();
 
 	/** Action row with Play sound: the sound dropdown under the row. */
 	UFUNCTION()
@@ -161,6 +171,23 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UTextBlock> mValueLabel;
+
+	/** "%" after the number field (empty for a count). */
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mValueUnit;
+
+	/** The line with the item dropdown, under the alarm row (Item count above / below only). */
+	UPROPERTY()
+	TObjectPtr<UWidget> mItemLine;
+
+	UPROPERTY()
+	TObjectPtr<class UButton> mItemButton;
+
+	UPROPERTY()
+	TObjectPtr<class UImage> mItemIcon;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> mItemLabel;
 
 	UPROPERTY()
 	TObjectPtr<UAMUppercaseText> mValueText;

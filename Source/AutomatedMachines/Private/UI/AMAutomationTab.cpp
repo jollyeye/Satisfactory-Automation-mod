@@ -10,6 +10,16 @@
 #include "Components/Image.h"
 #include "Components/NamedSlot.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/CanvasPanel.h"
+#include "Components/Overlay.h"
+#include "Components/OverlaySlot.h"
+#include "Styling/SlateBrush.h"
+#include "Resources/FGItemDescriptor.h"
+#include "Resources/FGBuildDescriptor.h"
+#include "Buildables/FGBuildableStorage.h"
+#include "FGInventoryComponent.h"
+#include "FGRecipe.h"
+#include "FGRecipeManager.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Engine/Texture2D.h"
@@ -287,8 +297,22 @@ void UAMAutomationTab::BuildLayout()
 	USizeBox* Root = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMRoot"));
 	Root->SetMinDesiredHeight(560.f);
 	WidgetTree->RootWidget = Root;
+	// The page, and over it a layer for the item window (empty and collapsed until one opens).
+	mRootOverlay = WidgetTree->ConstructWidget<UOverlay>(UOverlay::StaticClass(), TEXT("AMRootOverlay"));
+	Root->AddChild(mRootOverlay);
 	UHorizontalBox* Page = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMPage"));
-	Root->AddChild(Page);
+	if (UOverlaySlot* PageInOverlay = mRootOverlay->AddChildToOverlay(Page))
+	{
+		PageInOverlay->SetHorizontalAlignment(HAlign_Fill);
+		PageInOverlay->SetVerticalAlignment(VAlign_Fill);
+	}
+	mPopupLayer = WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(), TEXT("AMPopupLayer"));
+	mPopupLayer->SetVisibility(ESlateVisibility::Collapsed);
+	if (UOverlaySlot* LayerSlot = mRootOverlay->AddChildToOverlay(mPopupLayer))
+	{
+		LayerSlot->SetHorizontalAlignment(HAlign_Fill);
+		LayerSlot->SetVerticalAlignment(VAlign_Fill);
+	}
 
 	mContentBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMContent"));
 	UBorder* PageBorder = AMUI::MakeBox(WidgetTree, AMUI::PageBackground, FMargin(AMAT_PagePadding, 14.f));
@@ -557,8 +581,197 @@ void UAMAutomationTab::LoadRules()
 	RebuildRows();
 }
 
+TArray<UClass*> UAMAutomationTab::GetPickableItems() const
+{
+	TSet<UClass*> Seen;
+	TArray<UClass*> Contents;
+	TArray<UClass*> Known;
+	auto IsPickable = [](UClass* Item)
+	{
+		return Item && Item->IsChildOf(UFGItemDescriptor::StaticClass()) && !Item->IsChildOf(UFGBuildDescriptor::StaticClass())
+			&& UFGItemDescriptor::GetForm(Item) == EResourceForm::RF_SOLID;
+	};
+
+	// What this container holds now, first.
+	if (AFGBuildableStorage* Storage = Cast<AFGBuildableStorage>(GetMachine()))
+	{
+		if (const UFGInventoryComponent* Inventory = Storage->GetStorageInventory())
+		{
+			for (int32 SlotIndex = 0; SlotIndex < Inventory->GetSizeLinear(); ++SlotIndex)
+			{
+				FInventoryStack Stack;
+				UClass* Item = Inventory->GetStackFromIndex(SlotIndex, Stack) && Stack.HasItems() ? Stack.Item.GetItemClass().Get() : nullptr;
+				if (IsPickable(Item) && !Seen.Contains(Item))
+				{
+					Seen.Add(Item);
+					Contents.Add(Item);
+				}
+			}
+		}
+	}
+
+	// Every item of the unlocked recipes (ingredients and products).
+	if (AFGRecipeManager* Recipes = AFGRecipeManager::Get(const_cast<UAMAutomationTab*>(this)))
+	{
+		for (const TSubclassOf<UFGRecipe>& Recipe : Recipes->GetAllAvailableRecipes())
+		{
+			TArray<FItemAmount> Amounts = UFGRecipe::GetProducts(Recipe);
+			Amounts.Append(UFGRecipe::GetIngredients(this, Recipe));
+			for (const FItemAmount& Amount : Amounts)
+			{
+				UClass* Item = Amount.ItemClass.Get();
+				if (IsPickable(Item) && !Seen.Contains(Item))
+				{
+					Seen.Add(Item);
+					Known.Add(Item);
+				}
+			}
+		}
+	}
+	auto ByName = [](const UClass& A, const UClass& B)
+	{
+		return UFGItemDescriptor::GetItemName(const_cast<UClass*>(&A)).ToString() < UFGItemDescriptor::GetItemName(const_cast<UClass*>(&B)).ToString();
+	};
+	Contents.Sort(ByName);
+	Known.Sort(ByName);
+	Contents.Append(Known);
+	return Contents;
+}
+
+void UAMAutomationTab::OpenItemPicker(UAMRuleRow* Row, UWidget* Anchor, UClass* Current)
+{
+	CloseItemPicker();
+	if (!Row || !Anchor || !mPopupLayer || !mRootOverlay)
+	{
+		return;
+	}
+	constexpr float PopupWidth = 300.f;
+	constexpr float PopupHeight = 340.f;
+	const FSlateFontInfo Font = GetRowFont();
+
+	// See-through background over the whole page: a click outside the window closes it.
+	UButton* Background = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+	FButtonStyle Clear;
+	Clear.SetNormal(FSlateNoResource());
+	Clear.SetHovered(FSlateNoResource());
+	Clear.SetPressed(FSlateNoResource());
+	Background->SetStyle(Clear);
+	Background->OnClicked.AddDynamic(this, &UAMAutomationTab::OnPopupBackgroundClicked);
+	if (UCanvasPanelSlot* BackgroundSlot = mPopupLayer->AddChildToCanvas(Background))
+	{
+		BackgroundSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
+		BackgroundSlot->SetOffsets(FMargin(0.f));
+	}
+
+	// The window: a dark box with a scrolling list.
+	USizeBox* WindowSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	WindowSize->SetWidthOverride(PopupWidth);
+	WindowSize->SetHeightOverride(PopupHeight);
+	UBorder* Window = AMUI::MakeBox(WidgetTree, AMUI::SidePanel, FMargin(4.f));
+	WindowSize->AddChild(Window);
+	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+	Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
+	Window->AddChild(Scroll);
+	UVerticalBox* List = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Scroll->AddChild(List);
+
+	const TArray<UClass*> Items = GetPickableItems();
+	if (Items.Num() == 0)
+	{
+		List->AddChildToVerticalBox(AMUI::MakeText(WidgetTree, TEXT("No items known yet."), Font, AMUI::Grey));
+	}
+	for (UClass* Item : Items)
+	{
+		UAMChoice* Handler = NewObject<UAMChoice>(Row);
+		Handler->Row = Row;
+		Handler->Kind = EAMChoiceKind::Item;
+		Handler->ItemClass = Item;
+		mPopupHandlers.Add(Handler);
+
+		UButton* Option = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
+		AMUI::SetButtonColor(Option, AMUI::Option);
+		Option->OnClicked.AddDynamic(Handler, &UAMChoice::OnClicked);
+		Option->OnHovered.AddDynamic(Handler, &UAMChoice::OnHovered);
+		UHorizontalBox* Line = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		if (UButtonSlot* LineSlot = Cast<UButtonSlot>(Option->AddChild(Line)))
+		{
+			LineSlot->SetHorizontalAlignment(HAlign_Fill);
+			LineSlot->SetPadding(FMargin(6.f, 3.f));
+		}
+		UImage* Icon = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass());
+		if (UTexture2D* Texture = UFGItemDescriptor::GetSmallIcon(Item))
+		{
+			Icon->SetBrushFromTexture(Texture, false);
+		}
+		Icon->SetDesiredSizeOverride(FVector2D(28.f, 28.f));
+		USizeBox* IconSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		IconSize->SetWidthOverride(28.f);
+		IconSize->SetHeightOverride(28.f);
+		IconSize->AddChild(Icon);
+		if (UHorizontalBoxSlot* IconSlot = Line->AddChildToHorizontalBox(IconSize))
+		{
+			IconSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		UTextBlock* Name = AMUI::MakeText(WidgetTree, UFGItemDescriptor::GetItemName(Item).ToString(), Font, Item == Current ? AMUI::Orange : AMUI::White);
+		if (UHorizontalBoxSlot* NameSlot = Line->AddChildToHorizontalBox(Name))
+		{
+			NameSlot->SetVerticalAlignment(VAlign_Center);
+			NameSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
+		}
+		if (UVerticalBoxSlot* OptionSlot = List->AddChildToVerticalBox(Option))
+		{
+			OptionSlot->SetPadding(FMargin(0.f, 1.f, 0.f, 0.f));
+		}
+	}
+
+	// Under the dropdown, or above it if there is no room below; inside the page.
+	const FGeometry& PageGeometry = mRootOverlay->GetCachedGeometry();
+	const FGeometry& AnchorGeometry = Anchor->GetCachedGeometry();
+	const FVector2D PageSize = PageGeometry.GetLocalSize();
+	const FVector2D AnchorPosition = AnchorGeometry.GetAbsolutePosition();
+	const FVector2D AnchorSize = AnchorGeometry.GetAbsoluteSize();
+	const FVector2D AnchorTopLeft = PageGeometry.AbsoluteToLocal(AnchorPosition);
+	const FVector2D AnchorBottomRight = PageGeometry.AbsoluteToLocal(AnchorPosition + AnchorSize);
+	float X = static_cast<float>(AnchorTopLeft.X);
+	float Y = static_cast<float>(AnchorBottomRight.Y) + 2.f;
+	if (PageSize.Y > 0.0 && Y + PopupHeight > PageSize.Y)
+	{
+		Y = FMath::Max(0.f, static_cast<float>(AnchorTopLeft.Y) - PopupHeight - 2.f);
+	}
+	if (PageSize.X > 0.0)
+	{
+		X = FMath::Clamp(X, 0.f, FMath::Max(0.f, static_cast<float>(PageSize.X) - PopupWidth));
+	}
+	if (UCanvasPanelSlot* WindowSlot = mPopupLayer->AddChildToCanvas(WindowSize))
+	{
+		WindowSlot->SetAnchors(FAnchors(0.f, 0.f));
+		WindowSlot->SetAlignment(FVector2D::ZeroVector);
+		WindowSlot->SetAutoSize(true);
+		WindowSlot->SetPosition(FVector2D(X, Y));
+	}
+	mPopup = WindowSize;
+	mPopupLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+}
+
+void UAMAutomationTab::CloseItemPicker()
+{
+	if (mPopupLayer)
+	{
+		mPopupLayer->ClearChildren();
+		mPopupLayer->SetVisibility(ESlateVisibility::Collapsed);
+	}
+	mPopup = nullptr;
+	mPopupHandlers.Reset();
+}
+
+void UAMAutomationTab::OnPopupBackgroundClicked()
+{
+	CloseItemPicker();
+}
+
 void UAMAutomationTab::RebuildRows()
 {
+	CloseItemPicker();
 	if (!mReactionRowsBox || (!mFireRowsBox && !bWorldMode))
 	{
 		return;

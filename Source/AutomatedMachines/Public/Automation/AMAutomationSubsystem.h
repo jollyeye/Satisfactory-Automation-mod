@@ -95,6 +95,12 @@ private:
 	/** A storage container: an input belt has an item waiting that does not fit. */
 	static bool IsBeltBlocked(const AFGBuildableFactory* Factory);
 
+public:
+	/** How many of an item a storage container holds (0 for other machines). */
+	static int32 CountItem(const AFGBuildableFactory* Factory, TSubclassOf<class UFGItemDescriptor> Item);
+
+private:
+
 	/**
 	 * A wrong item at the end of an input belt (OutBelt: that belt's end, OutItem: the item), or a
 	 * wrong fluid in an input pipe (OutBelt null). False if the machine has no recipe.

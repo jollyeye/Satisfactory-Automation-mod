@@ -233,6 +233,10 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 		FAMFireRule Clean = Rule;
 		Clean.Event = AMRules::NormalizeEventName(Rule.Event);
 		Clean.Value = AMRules::CleanValue(AMRules::GetConditionValueInfo(Rule.Condition), Rule.Value);
+		if (!AMRules::ConditionNeedsItem(Clean.Condition))
+		{
+			Clean.Item = nullptr;
+		}
 		if (!Clean.Event.IsEmpty() && Clean.Condition < EAMCondition::Count && AMRules::IsConditionAvailable(Clean.Condition, Machine))
 		{
 			NewRules.Fires.Add(Clean);
@@ -256,7 +260,7 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	{
 		const FAMFireRule& Old = mMachines[Index].Fires[RuleIndex];
 		const FAMFireRule& New = NewRules.Fires[RuleIndex];
-		bFiresChanged = Old.Event != New.Event || Old.Condition != New.Condition || Old.Value != New.Value;
+		bFiresChanged = Old.Event != New.Event || Old.Condition != New.Condition || Old.Value != New.Value || Old.Item.Get() != New.Item.Get();
 	}
 
 	if (NewRules.IsEmpty())
@@ -583,6 +587,8 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::StorageNotEmpty:   return GetFillLevel(Factory) > 0.f;
 	case EAMCondition::FillAbove:         return GetFillLevel(Factory) * 100.f > Rule.Value;
 	case EAMCondition::FillBelow:         return GetFillLevel(Factory) * 100.f < Rule.Value;
+	case EAMCondition::ItemCountAbove:    return Rule.Item && CountItem(Factory, Rule.Item) > Rule.Value;
+	case EAMCondition::ItemCountBelow:    return Rule.Item && CountItem(Factory, Rule.Item) < Rule.Value;
 	default:                              return false;
 	}
 }
@@ -607,6 +613,13 @@ float AAMAutomationSubsystem::GetFillLevel(const AFGBuildableFactory* Factory)
 		}
 	}
 	return static_cast<float>(Filled / Inventory->GetSizeLinear());
+}
+
+int32 AAMAutomationSubsystem::CountItem(const AFGBuildableFactory* Factory, TSubclassOf<UFGItemDescriptor> Item)
+{
+	AFGBuildableStorage* Storage = const_cast<AFGBuildableStorage*>(Cast<AFGBuildableStorage>(Factory));
+	const UFGInventoryComponent* Inventory = Storage ? Storage->GetStorageInventory() : nullptr;
+	return Inventory && Item ? Inventory->GetNumItems(Item) : 0;
 }
 
 bool AAMAutomationSubsystem::IsBeltBlocked(const AFGBuildableFactory* Factory)
