@@ -1,6 +1,20 @@
 # Developer notes (Automated Machines)
 
-Notes for the next session working on this mod. The design (what the mod does and why) is in `DESIGN.md`. Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
+Notes for the next session working on this mod. The design (what the mod does and why) is in `DESIGN.md`. **Adding to the game's windows** (tabs, pages, inventory panel): read `GAME-UI-GUIDE.md` first, it is the tested recipe.
+
+## What works (tested in game)
+
+| Feature | Tested |
+|---|---|
+| Automation tab in the production window (Smelter, Constructor; same window for Assembler, Foundry, Manufacturer, Refinery, Blender, Packager, Particle Accelerator, Converter, Quantum Encoder) | 4 Nov 2026 |
+| Alarms and actions, saved and loaded; typing E in fields does not close the window | 4 Nov 2026 |
+| All production machine events and actions (Delete input/output, Change recipe, Set clock speed...) | 4 Nov 2026 |
+| Marker above automated machines, tab icon | 4 Nov 2026 |
+| HUB terminal Automation tab: Show message (stacked notifications), Play sound (5 sounds) | 4 Nov 2026 |
+| Wrong input / Input correct; Pass wrong items through (straight onto the output belt, products first), also on the Assembler (2 inputs) | 5 Nov 2026 |
+| Options strip with the game-like switch | 5 Nov 2026 |
+| Miner: Automation tab in its one-page window (tabs side by side, switching, same height), its events and actions, Delete output | 5 Nov 2026 |
+ Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
 
 ## Setup on the developer's PC (Windows)
 
@@ -145,7 +159,7 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Play sound: the event is loaded by path and played with its own UFUNCTION `UAkAudioEvent::PostOnActor(Actor, delegate, CallbackMask, bStop)`, called by name (`AMSound`), so the mod does not depend on the Wwise plugin. The server calls `MulticastPlaySound(index)`; each game instance plays it on its local players' pawns. The sound's number is stored in the rule's `Value`.
 - Show message tested 4 Nov 2026: our notifications stack at the side of the screen with the game's.
 
-## Wrong input and "Pass wrong items through" (4 Nov 2026, untested)
+## Wrong input and "Pass wrong items through" (4-5 Nov 2026, works)
 
 - Wrong input (`AAMAutomationSubsystem::FindWrongInput`): for each `FCD_INPUT` connection of the machine (`GetConnectionComponents`), its connected belt end (`GetConnection`) is asked `Factory_PeekOutput`: the first item waiting. Wrong if its class is not in `UFGRecipe::GetIngredients`. Pipes: every `UFGPipeConnectionComponent` with `PCT_CONSUMER`, connected, whose `GetFluidDescriptor` is not an ingredient. No recipe: never wrong.
 - Options: `FAMMachineOptions` (SaveGame) inside `FAMMachineRules`; `IsEmpty()` counts it, so the entry and the marker stay while an option is on. `SetRules`, `ServerSetRules` and `RequestSetRules` carry it.
