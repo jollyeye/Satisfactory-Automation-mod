@@ -9,7 +9,7 @@
 #include "Components/MeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "CollisionQueryParams.h"
-#include "InstanceData.h"
+#include "UObject/UnrealType.h"
 #include "Components/SceneComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -151,14 +151,26 @@ FBox AAMMarkers::GetVisibleBox(const AActor* Machine)
 {
 	FBox Box(ForceInit);
 	const FTransform& ToWorld = Machine->GetActorTransform();
-	// The buildings' static parts: the game draws them as instances, listed by the building.
-	if (const AFGBuildable* Buildable = Cast<AFGBuildable>(Machine))
+	// The buildings' static parts: the game draws them as instances, listed in the building's
+	// instance data object (its private "Instances" array, read by reflection: copying FInstanceData
+	// needs functions of the AbstractInstance module, which would have to be linked).
+	const AFGBuildable* Buildable = Cast<AFGBuildable>(Machine);
+	const UObject* InstanceData = Buildable ? reinterpret_cast<const UObject*>(Buildable->GetLightweightInstanceData()) : nullptr;
+	const FArrayProperty* InstancesProperty = InstanceData ? FindFProperty<FArrayProperty>(InstanceData->GetClass(), TEXT("Instances")) : nullptr;
+	const FStructProperty* EntryProperty = InstancesProperty ? CastField<FStructProperty>(InstancesProperty->Inner) : nullptr;
+	const FObjectPropertyBase* MeshField = EntryProperty ? FindFProperty<FObjectPropertyBase>(EntryProperty->Struct, TEXT("StaticMesh")) : nullptr;
+	const FStructProperty* TransformField = EntryProperty ? FindFProperty<FStructProperty>(EntryProperty->Struct, TEXT("RelativeTransform")) : nullptr;
+	if (MeshField && TransformField && TransformField->Struct == TBaseStructure<FTransform>::Get())
 	{
-		for (const FInstanceData& Instance : Buildable->GetActorLightweightInstanceData_Implementation())
+		FScriptArrayHelper Instances(InstancesProperty, InstancesProperty->ContainerPtrToValuePtr<void>(InstanceData));
+		for (int32 Index = 0; Index < Instances.Num(); ++Index)
 		{
-			if (Instance.StaticMesh)
+			const uint8* Entry = Instances.GetRawPtr(Index);
+			const UStaticMesh* StaticMesh = Cast<UStaticMesh>(MeshField->GetObjectPropertyValue_InContainer(Entry));
+			if (StaticMesh)
 			{
-				Box += Instance.StaticMesh->GetBoundingBox().TransformBy(Instance.RelativeTransform);
+				const FTransform& Relative = *TransformField->ContainerPtrToValuePtr<FTransform>(Entry);
+				Box += StaticMesh->GetBoundingBox().TransformBy(Relative);
 			}
 		}
 	}
