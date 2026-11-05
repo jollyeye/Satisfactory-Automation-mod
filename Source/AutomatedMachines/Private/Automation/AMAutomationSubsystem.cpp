@@ -18,6 +18,8 @@
 #include "UI/FGGameUI.h"
 #include "UI/AMNotification.h"
 #include "Automation/AMSound.h"
+#include "Automation/AMClipboard.h"
+#include "FGBuildableSubsystem.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
 #include "EngineUtils.h"
@@ -149,6 +151,14 @@ void AAMAutomationSubsystem::BeginPlay()
 	Super::BeginPlay();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem started (%d automated machines)"), mMachines.Num());
 
+	if (HasAuthority())
+	{
+		if (AFGBuildableSubsystem* Buildables = AFGBuildableSubsystem::Get(this))
+		{
+			Buildables->BuildableConstructedGlobalDelegate.AddDynamic(this, &AAMAutomationSubsystem::OnBuildableConstructed);
+		}
+	}
+
 	if (!IsRunningDedicatedServer() && GetWorld())
 	{
 		FActorSpawnParameters Params;
@@ -201,6 +211,11 @@ void AAMAutomationSubsystem::PostLoadGame_Implementation(int32 SaveVersion, int3
 	RemoveInvalidEntries();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem loaded: %d automated machines, %d events"),
 		mMachines.Num(), GetAllEventNames().Num());
+}
+
+void AAMAutomationSubsystem::OnBuildableConstructed(AFGBuildable* Buildable)
+{
+	AMClipboard::OnBuildableConstructed(this, Buildable);
 }
 
 void AAMAutomationSubsystem::OnRep_Machines()

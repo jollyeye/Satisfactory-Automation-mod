@@ -885,6 +885,12 @@ void UAMRuleRow::OpenPicker(EAMChoiceKind Kind, UWidget* Anchor)
 		for (const TSubclassOf<UFGRecipe>& Recipe : Recipes)
 		{
 			Add(UFGRecipe::GetRecipeName(Recipe).ToString(), 0, Rule && Rule->Recipe.Get() == Recipe.Get())->RecipeClass = Recipe.Get();
+			// The icon of what it makes (its first product).
+			const TArray<FItemAmount> Products = UFGRecipe::GetProducts(Recipe);
+			if (Products.Num() > 0)
+			{
+				Options.Last().Icon = UFGItemDescriptor::GetSmallIcon(Products[0].ItemClass);
+			}
 		}
 		EmptyMessage = TEXT("No recipes available for this machine.");
 		MinWidth = 280.f;

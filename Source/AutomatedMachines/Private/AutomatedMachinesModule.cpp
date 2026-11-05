@@ -3,6 +3,7 @@
 #include "UI/AMWidgetHooks.h"
 #include "Automation/AMAutomationSubsystem.h"
 #include "Net/AMRemoteCallObject.h"
+#include "Automation/AMClipboard.h"
 
 DEFINE_LOG_CATEGORY(LogAutomatedMachines);
 
@@ -19,6 +20,9 @@ void FAutomatedMachinesModule::StartupModule()
 
 	// Automation tab in the machine window (Smelter, Constructor, ...).
 	AMWidgetHooks::Install();
+
+	// Copy / paste of automation with the game's copy / paste and middle click.
+	AMClipboard::Install();
 
 	// Development only: writes the widget tree of open machine windows to the log, so we can find
 	// where the Automation section can be inserted. Removed before release.

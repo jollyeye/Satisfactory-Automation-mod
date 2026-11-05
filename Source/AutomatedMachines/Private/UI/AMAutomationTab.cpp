@@ -21,6 +21,8 @@
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
 #include "FGRecipeManager.h"
+#include "FGPlayerState.h"
+#include "Automation/AMClipboard.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Engine/Texture2D.h"
@@ -470,6 +472,33 @@ void UAMAutomationTab::BuildLayout()
 		RefreshOptions();
 	}
 
+	// Copy / Paste automation settings, for machines the game cannot copy (storage containers);
+	// the others use the game's Copy / Paste Settings and Ctrl+C / Ctrl+V.
+	if (!bWorldMode)
+	{
+		UHorizontalBox* ClipboardRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMClipboardRow"));
+		mClipboardRow = ClipboardRow;
+		auto AddClipboardButton = [this, ClipboardRow](const FString& Label, float LeftPadding) -> UButton*
+		{
+			UTextBlock* ButtonLabel = nullptr;
+			UButton* Button = AMUI::MakeButton(WidgetTree, Label, GetGameFont(), AMUI::Button, &ButtonLabel);
+			mAddLabels.Add(ButtonLabel);
+			Button->OnHovered.AddDynamic(this, &UAMAutomationTab::OnCopyPasteHovered);
+			USizeBox* ButtonSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			ButtonSize->SetWidthOverride(AMAT_AlarmsWidth / 2.f - 4.f);
+			ButtonSize->AddChild(Button);
+			if (UHorizontalBoxSlot* ButtonSlot = ClipboardRow->AddChildToHorizontalBox(ButtonSize))
+			{
+				ButtonSlot->SetPadding(FMargin(LeftPadding, 0.f, 0.f, 0.f));
+			}
+			return Button;
+		};
+		AddClipboardButton(TEXT("Copy automation settings"), 0.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnCopyAutomationClicked);
+		AddClipboardButton(TEXT("Paste automation settings"), 8.f)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnPasteAutomationClicked);
+		ClipboardRow->SetVisibility(ESlateVisibility::Collapsed);
+		AddTo(mContentBox, ClipboardRow, 14.f);
+	}
+
 	// Side panel, full height on the right like the recipe tab's: explains the machine event,
 	// action or alarm last picked or pointed at.
 	USizeBox* InfoSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMInfoSize"));
@@ -571,6 +600,10 @@ void UAMAutomationTab::LoadRules()
 		mOptions = Rules->Options;
 	}
 	bRulesLoaded = true;
+	if (mClipboardRow)
+	{
+		mClipboardRow->SetVisibility(Machine && !AMClipboard::GameCanCopy(Machine) ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	}
 	for (UWidget* OptionsWidget : mOptionsWidgets)
 	{
 		if (OptionsWidget)
@@ -974,6 +1007,97 @@ void UAMAutomationTab::OnRulesEdited()
 	}
 }
 
+void UAMAutomationTab::OnCopyAutomationClicked()
+{
+	AFGPlayerState* Player = GetOwningPlayer() ? GetOwningPlayer()->GetPlayerState<AFGPlayerState>() : nullptr;
+	UObject* Machine = GetMachine();
+	AMClipboard::Copy(Player, Machine);
+	const AMClipboard::FClip* Clip = AMClipboard::Find(Player, Machine);
+	ShowInfo(FText::FromString(TEXT("Copy automation settings")), FText::FromString(Clip
+		? FString::Printf(TEXT("Copied %d alarms and %d actions. Paste them on another machine of this kind with its Paste automation settings button, or with Ctrl+V while looking at it."), Clip->Fires.Num(), Clip->Reactions.Num())
+		: FString(TEXT("This machine has no automation to copy."))));
+}
+
+void UAMAutomationTab::OnPasteAutomationClicked()
+{
+	AFGPlayerState* Player = GetOwningPlayer() ? GetOwningPlayer()->GetPlayerState<AFGPlayerState>() : nullptr;
+	UObject* Machine = GetMachine();
+	const AMClipboard::FClip* Clip = AMClipboard::Find(Player, Machine);
+	if (!Clip)
+	{
+		ShowInfo(FText::FromString(TEXT("Paste automation settings")), FText::FromString(TEXT("Nothing copied for this kind of machine yet: copy one with Copy automation settings, or Ctrl+C while looking at it.")));
+		return;
+	}
+	// Show it here at once (the server's copy comes back the same).
+	mFires = Clip->Fires;
+	mReactions = Clip->Reactions;
+	mOptions = Clip->Options;
+	AMClipboard::Paste(Player, Machine);
+	RebuildRows();
+	RefreshOptions();
+	ShowInfo(FText::FromString(TEXT("Paste automation settings")), FText::FromString(FString::Printf(
+		TEXT("Pasted %d alarms and %d actions: they replace this machine's."), Clip->Fires.Num(), Clip->Reactions.Num())));
+}
+
+void UAMAutomationTab::OnCopyPasteHovered()
+{
+	ShowInfo(FText::FromString(TEXT("Copy and paste")), FText::FromString(
+		TEXT("Copy automation settings: remembers this machine's alarms, actions and options.\n\nPaste automation settings: gives them to this machine, replacing its own. Works between machines of the same kind.\n\nCtrl+C / Ctrl+V while looking at a machine do the same, and so does building after a middle click on an automated machine.")));
+}
+
+void UAMAutomationTab::OnWorldRulesChanged()
+{
+	if (bWorldMode || !bRulesLoaded)
+	{
+		return;
+	}
+	const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this);
+	const FAMMachineRules* Rules = Subsystem ? Subsystem->FindRules(Cast<AFGBuildable>(GetMachine())) : nullptr;
+	const TArray<FAMFireRule> NoFires;
+	const TArray<FAMReactionRule> NoReactions;
+	const TArray<FAMFireRule>& Fires = Rules ? Rules->Fires : NoFires;
+	const TArray<FAMReactionRule>& Reactions = Rules ? Rules->Reactions : NoReactions;
+	bool bSame = Fires.Num() == mFires.Num() && Reactions.Num() == mReactions.Num()
+		&& (Rules ? Rules->Options.bPassWrongItems : false) == mOptions.bPassWrongItems;
+	for (int32 Index = 0; bSame && Index < Fires.Num(); ++Index)
+	{
+		bSame = Fires[Index].Event == mFires[Index].Event && Fires[Index].Condition == mFires[Index].Condition
+			&& Fires[Index].Value == mFires[Index].Value && Fires[Index].Item.Get() == mFires[Index].Item.Get();
+	}
+	for (int32 Index = 0; bSame && Index < Reactions.Num(); ++Index)
+	{
+		bSame = Reactions[Index].Event == mReactions[Index].Event && Reactions[Index].Action == mReactions[Index].Action
+			&& Reactions[Index].Value == mReactions[Index].Value && Reactions[Index].Recipe.Get() == mReactions[Index].Recipe.Get()
+			&& Reactions[Index].Message == mReactions[Index].Message;
+	}
+	if (bSame)
+	{
+		return;
+	}
+	// Changed elsewhere (e.g. the game's Paste Settings on the other tab): show what the world has.
+	// Rows with an empty alarm name are not in the world yet: those are kept by not reloading while
+	// the counts only differ by such rows.
+	for (const FAMFireRule& Rule : mFires)
+	{
+		if (Rule.Event.IsEmpty())
+		{
+			return;
+		}
+	}
+	for (const FAMReactionRule& Rule : mReactions)
+	{
+		if (Rule.Event.IsEmpty())
+		{
+			return;
+		}
+	}
+	mFires = Fires;
+	mReactions = Reactions;
+	mOptions = Rules ? Rules->Options : FAMMachineOptions();
+	RebuildRows();
+	RefreshOptions();
+}
+
 void UAMAutomationTab::RefreshOptions()
 {
 	AMUI::SetImage(mPassWrongSwitch, mOptions.bPassWrongItems ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
@@ -1270,10 +1394,23 @@ void UAMAutomationTab::NativeConstruct()
 	ApplyGameFonts();
 	UpdateMachineName();
 	LoadRules();
+
+	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
+	{
+		if (!mRulesChangedHandle.IsValid())
+		{
+			mRulesChangedHandle = Subsystem->OnRulesChanged.AddUObject(this, &UAMAutomationTab::OnWorldRulesChanged);
+		}
+	}
 }
 
 void UAMAutomationTab::NativeDestruct()
 {
+	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
+	{
+		Subsystem->OnRulesChanged.Remove(mRulesChangedHandle);
+	}
+	mRulesChangedHandle.Reset();
 	UObject* Frame = GetWindowFrame();
 	if (bBoundToFrame && Frame)
 	{

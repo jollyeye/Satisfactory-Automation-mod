@@ -159,6 +159,16 @@ Storage Container and Industrial Storage Container (same window, `Widget_Storage
 - The container's own events are the useful part: e.g. "Filled below 10%" rings an alarm that resumes the machines filling it, "Filled above 90%" pauses them.
 - Not included for now: the Dimensional Depot uploader (its own window), fluid buffers (other kind of building).
 
+### Copy and paste (decided 5 Nov 2026)
+
+Automation is copied together with the game's own machine settings:
+
+- **Ctrl+C / Ctrl+V** while looking at a machine, and the window's **Copy Settings / Paste Settings** buttons: the alarms, actions and options go along.
+- Machines the game cannot copy (storage containers) get our own buttons on the Automation page, **Copy automation settings / Paste automation settings**; Ctrl+C / Ctrl+V work on them too.
+- **Middle click** (sample a building with the build gun) on an automated machine, then build: the new buildings get the same automation.
+- Only between machines of the same kind (the game's rule: e.g. Miner Mk1 to Mk2 if the game allows it). Pasting replaces the machine's automation. Copying a machine without automation does not erase anything: a later paste leaves the other machine's automation as it is.
+- A notification says what was copied / pasted ("AUTOMATION COPIED: 2 alarms, 1 action").
+
 ### Wrong items on a belt (decided 4 Nov 2026)
 
 A machine refuses an item that is not an ingredient of its recipe, so the belt stops behind it. Deleting that item was rejected: it would be a cheat. Instead:

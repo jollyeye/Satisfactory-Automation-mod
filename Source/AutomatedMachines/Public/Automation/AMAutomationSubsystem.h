@@ -76,6 +76,10 @@ protected:
 	UFUNCTION()
 	void OnRep_Machines();
 
+	/** Server: every new buildable (for middle-click sampled automation, AMClipboard). */
+	UFUNCTION()
+	void OnBuildableConstructed(AFGBuildable* Buildable);
+
 private:
 	/** Removes entries of dismantled machines and entries without rules. Returns true if any were removed. */
 	bool RemoveInvalidEntries();

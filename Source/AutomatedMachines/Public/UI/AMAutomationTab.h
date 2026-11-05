@@ -107,6 +107,16 @@ protected:
 	UFUNCTION()
 	void OnPassWrongClicked();
 
+	/** Our own Copy / Paste automation settings buttons (machines without the game's). */
+	UFUNCTION()
+	void OnCopyAutomationClicked();
+
+	UFUNCTION()
+	void OnPasteAutomationClicked();
+
+	UFUNCTION()
+	void OnCopyPasteHovered();
+
 	/** A click outside the dropdown window closes it. */
 	UFUNCTION()
 	void OnPopupBackgroundClicked();
@@ -231,6 +241,14 @@ private:
 	/** The Options section (title and box): hidden on machines without options (miners). */
 	UPROPERTY()
 	TArray<TObjectPtr<UWidget>> mOptionsWidgets;
+
+	/** The Copy / Paste automation settings buttons (shown when the game has no copy for this machine). */
+	UPROPERTY()
+	TObjectPtr<UWidget> mClipboardRow;
+
+	/** Rules changed in the world (a paste, another player): read them again if they differ from ours. */
+	void OnWorldRulesChanged();
+	FDelegateHandle mRulesChangedHandle;
 
 	/** The switch picture on the option's row. */
 	UPROPERTY()
