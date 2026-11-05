@@ -89,10 +89,10 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::ResearchCompleted: return AMTY_Text(TEXT("Research completed"));
 	case EAMCondition::SwitchedOn:        return AMTY_Text(TEXT("Switched on"));
 	case EAMCondition::SwitchedOff:       return AMTY_Text(TEXT("Switched off"));
-	case EAMCondition::GridAUsesMore:     return AMTY_Text(TEXT("Grid A uses more than B"));
-	case EAMCondition::GridBUsesMore:     return AMTY_Text(TEXT("Grid B uses more than A"));
-	case EAMCondition::GridAMakesMore:    return AMTY_Text(TEXT("Grid A makes more than B"));
-	case EAMCondition::GridBMakesMore:    return AMTY_Text(TEXT("Grid B makes more than A"));
+	case EAMCondition::GridAUsesMore:     return AMTY_Text(TEXT("A usage > B usage"));
+	case EAMCondition::GridBUsesMore:     return AMTY_Text(TEXT("A usage < B usage"));
+	case EAMCondition::GridAMakesMore:    return AMTY_Text(TEXT("A power > B power"));
+	case EAMCondition::GridBMakesMore:    return AMTY_Text(TEXT("A power < B power"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -196,13 +196,13 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	case EAMCondition::SwitchedOff:
 		return AMTY_Text(TEXT("Rings when the switch is turned off: by a player, by an action of an alarm, or (a priority switch) by the game during a power shortage.\n\nUse it to get a message when a priority switch cuts off part of the factory."));
 	case EAMCondition::GridAUsesMore:
-		return AMTY_Text(TEXT("Rings when the machines of Power Grid A (the left graph in the switch's window) use more power than those of Power Grid B.\n\nPair it with \"Grid B uses more than A\", which rings when it turns the other way."));
+		return AMTY_Text(TEXT("Rings when the machines of Power Grid A (the left graph in the switch's window) use more power than those of Power Grid B.\n\nPair it with \"A usage < B usage\", which rings when it turns the other way."));
 	case EAMCondition::GridBUsesMore:
-		return AMTY_Text(TEXT("Rings when the machines of Power Grid B (the right graph in the switch's window) use more power than those of Power Grid A."));
+		return AMTY_Text(TEXT("Rings when the machines of Power Grid A use less power than those of Power Grid B (the right graph in the switch's window)."));
 	case EAMCondition::GridAMakesMore:
-		return AMTY_Text(TEXT("Rings when the generators of Power Grid A make more power than those of Power Grid B.\n\nPair it with \"Grid B makes more than A\", which rings when it turns the other way."));
+		return AMTY_Text(TEXT("Rings when the generators of Power Grid A make more power than those of Power Grid B.\n\nPair it with \"A power < B power\", which rings when it turns the other way."));
 	case EAMCondition::GridBMakesMore:
-		return AMTY_Text(TEXT("Rings when the generators of Power Grid B make more power than those of Power Grid A."));
+		return AMTY_Text(TEXT("Rings when the generators of Power Grid A make less power than those of Power Grid B."));
 	default:
 		return FText::GetEmpty();
 	}

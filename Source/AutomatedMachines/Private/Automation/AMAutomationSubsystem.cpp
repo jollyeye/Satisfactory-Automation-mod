@@ -1261,12 +1261,48 @@ namespace
 		return true;
 	}
 
+	/** Every 5 s per switch with grid alarms: what each side reads (to check the comparisons). */
+	void AMAS_LogGrids(const AFGBuildableCircuitSwitch* Switch)
+	{
+		static TMap<TWeakObjectPtr<const AActor>, double> LastLog;
+		const UWorld* World = Switch->GetWorld();
+		const double Now = World ? World->GetTimeSeconds() : 0.0;
+		double& Last = LastLog.FindOrAdd(Switch, -100.0);
+		if (Now - Last < 5.0)
+		{
+			return;
+		}
+		Last = Now;
+		AFGCircuitSubsystem* Circuits = AFGCircuitSubsystem::GetCircuitSubsystem(const_cast<AFGBuildableCircuitSwitch*>(Switch));
+		FString Text;
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const int32 CircuitID = Side == 0 ? Switch->GetCircuitID0() : Switch->GetCircuitID1();
+			UFGCircuit* Any = Circuits && CircuitID != INDEX_NONE ? Circuits->FindCircuit(CircuitID) : nullptr;
+			UFGPowerCircuit* Circuit = Cast<UFGPowerCircuit>(Any);
+			float Consumed = -1.f;
+			float Produced = -1.f;
+			AMAS_GetGridPower(Switch, Side, true, Consumed);
+			AMAS_GetGridPower(Switch, Side, false, Produced);
+			FPowerCircuitStats Stats;
+			if (Circuit)
+			{
+				Circuit->GetStats(Stats);
+			}
+			Text += FString::Printf(TEXT(" | grid %s: id %d, %s, used %.1f made %.1f (stats used %.1f made %.1f capacity %.1f)"),
+				Side == 0 ? TEXT("A") : TEXT("B"), CircuitID, Any ? *Any->GetClass()->GetName() : TEXT("no circuit"),
+				Consumed, Produced, Circuit ? Stats.PowerConsumed : -1.f, Circuit ? Stats.PowerProduced : -1.f, Circuit ? Stats.PowerProductionCapacity : -1.f);
+		}
+		UE_LOG(LogAutomatedMachines, Log, TEXT("%s (%s)%s"), *AMAS_Describe(Switch), Switch->IsSwitchOn() ? TEXT("on") : TEXT("off"), *Text);
+	}
+
 	/**
 	 * Side A has more than side B: by a small margin (0.1 MW, or 1% of the larger), so two nearly
 	 * equal grids do not ring the pair of alarms over and over.
 	 */
 	bool AMAS_GridHasMore(const AFGBuildableCircuitSwitch* Switch, int32 Side, bool bConsumed)
 	{
+		AMAS_LogGrids(Switch);
 		float Mine = 0.f;
 		float Other = 0.f;
 		if (!AMAS_GetGridPower(Switch, Side, bConsumed, Mine) || !AMAS_GetGridPower(Switch, 1 - Side, bConsumed, Other))
