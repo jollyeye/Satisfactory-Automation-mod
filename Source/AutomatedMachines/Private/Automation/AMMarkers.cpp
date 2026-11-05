@@ -16,13 +16,17 @@ namespace
 	const TCHAR* const AMMK_GlowMaterialPath = TEXT("/AutomatedMachines/Marker/M_AM_Underglow.M_AM_Underglow");
 
 	/** How far the glow reaches out from the machine's edge, in cm. */
-	constexpr float AMMK_Margin = 120.f;
+	constexpr float AMMK_Margin = 60.f;
 
-	/** The projection box: from this high above the machine's base ... */
-	constexpr float AMMK_Above = 40.f;
+	/**
+	 * The projection box, around the machine's anchor (its actor location: where it stands on the
+	 * floor or the resource node; its lowest point can be underground, like a miner's): from this
+	 * high above it (the material fades the light out over the first 30 cm) ...
+	 */
+	constexpr float AMMK_Above = 60.f;
 
-	/** ... to this far below it, in cm (the floor may be a little lower than the machine's base). */
-	constexpr float AMMK_Below = 160.f;
+	/** ... to this far below it, in cm (the ground may be lower than the anchor; the material fades with depth). */
+	constexpr float AMMK_Below = 200.f;
 
 	/** Glows smaller than this part of the screen are not drawn (far away). */
 	constexpr float AMMK_FadeScreenSize = 0.004f;
@@ -132,7 +136,7 @@ UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine)
 	}
 	const FVector Extent = LocalBox.GetExtent();
 	const FTransform& ToWorld = Machine->GetActorTransform();
-	const FVector LocalBase(LocalBox.GetCenter().X, LocalBox.GetCenter().Y, LocalBox.Min.Z);
+	const FVector LocalBase(LocalBox.GetCenter().X, LocalBox.GetCenter().Y, 0.0);
 
 	UDecalComponent* Glow = NewObject<UDecalComponent>(this);
 	Glow->SetupAttachment(GetRootComponent());
@@ -155,6 +159,8 @@ UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine)
 	UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(mGlowMaterial, Glow);
 	Material->SetVectorParameterValue(TEXT("Inner"), FLinearColor(
 		static_cast<float>(Extent.X) / HalfZ, static_cast<float>(Extent.Y) / HalfY, 0.f, 0.f));
+	// The floor height the light belongs to: above it the light fades out quickly, below it slowly.
+	Material->SetScalarParameterValue(TEXT("BaseZ"), static_cast<float>(ToWorld.GetLocation().Z));
 	Glow->SetDecalMaterial(Material);
 	AddInstanceComponent(Glow);
 	Glow->RegisterComponent();

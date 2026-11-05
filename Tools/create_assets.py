@@ -180,7 +180,8 @@ log("  material: unlit, masked, two-sided, camera-facing")
 
 # --- Underglow material (decal under automated machines) ---------------------------------------
 # Projected down onto the floor around a machine: cyan light, brightest at the machine's edge and
-# fading out with a rounded shape. Only emissive and opacity are connected, so the decal adds light
+# fading out with a rounded shape; fading out above the machine's anchor (30 cm), with depth below
+# it (180 cm), and on surfaces that do not face up (legs, foundation edges, grass blades). Only emissive and opacity are connected, so the decal adds light
 # and leaves the floor's own colour alone. "Inner" (set per machine by AAMMarkers) is the machine's
 # footprint as a part of the decal: R along U, G along V.
 glow_path = ROOT + "/Marker/M_AM_Underglow"
@@ -196,6 +197,19 @@ glow.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DE
 glow.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
 
 g_uv = node(glow, unreal.MaterialExpressionTextureCoordinate, -900, 0)
+# Height of the lit pixel above the machine's anchor (BaseZ, per machine), and its position
+# relative to the camera (small numbers, for the surface's slope from screen derivatives).
+g_world = node(glow, unreal.MaterialExpressionWorldPosition, -1300, 600)
+g_world_z = node(glow, unreal.MaterialExpressionComponentMask, -1100, 600, r=False, g=False, b=True, a=False)
+link(g_world, "", g_world_z, "")
+g_base_z = node(glow, unreal.MaterialExpressionScalarParameter, -1100, 700, parameter_name="BaseZ", default_value=0.0)
+g_height = node(glow, unreal.MaterialExpressionSubtract, -900, 650)
+link(g_world_z, "", g_height, "A")
+link(g_base_z, "", g_height, "B")
+g_camera = node(glow, unreal.MaterialExpressionCameraPositionWS, -1300, 800)
+g_relative = node(glow, unreal.MaterialExpressionSubtract, -900, 800)
+link(g_world, "", g_relative, "A")
+link(g_camera, "", g_relative, "B")
 g_inner = node(glow, unreal.MaterialExpressionVectorParameter, -900, 150, parameter_name="Inner",
                default_value=unreal.LinearColor(0.6, 0.6, 0.0, 0.0))
 g_shape = node(glow, unreal.MaterialExpressionCustom, -600, 50)
@@ -204,22 +218,29 @@ g_shape.set_editor_property("code",
     "float2 In = clamp(Inner.xy, 0.0, 0.98);\n"
     "float2 D = max(P - In, 0.0) / (1.0 - In);\n"
     "float G = saturate(1.0 - length(D));\n"
-    "return G * G * (3.0 - 2.0 * G);")
+    "G = G * G * (3.0 - 2.0 * G);\n"
+    "float Up = 1.0 - saturate(H / 30.0);\n"
+    "float Down = 1.0 - saturate(-H / 180.0);\n"
+    "float3 N = normalize(cross(ddx(RP), ddy(RP)));\n"
+    "float Flat = saturate((abs(N.z) - 0.55) / 0.35);\n"
+    "return G * Up * Down * Flat;")
 g_shape.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
 g_shape.set_editor_property("description", "UnderglowShape")
 g_inputs = []
-for name in ("UV", "Inner"):
+for name in ("UV", "Inner", "H", "RP"):
     ci = unreal.CustomInput()
     ci.set_editor_property("input_name", name)
     g_inputs.append(ci)
 g_shape.set_editor_property("inputs", g_inputs)
 link(g_uv, "", g_shape, "UV")
 link(g_inner, "", g_shape, "Inner")
+link(g_height, "", g_shape, "H")
+link(g_relative, "", g_shape, "RP")
 
 g_colour = node(glow, unreal.MaterialExpressionVectorParameter, -600, 250, parameter_name="Color",
                 default_value=unreal.LinearColor(0.12, 0.7, 1.0, 1.0))
-g_brightness = node(glow, unreal.MaterialExpressionScalarParameter, -600, 400, parameter_name="Brightness", default_value=6.0)
-g_strength = node(glow, unreal.MaterialExpressionScalarParameter, -600, 500, parameter_name="Strength", default_value=0.85)
+g_brightness = node(glow, unreal.MaterialExpressionScalarParameter, -600, 400, parameter_name="Brightness", default_value=2.0)
+g_strength = node(glow, unreal.MaterialExpressionScalarParameter, -600, 500, parameter_name="Strength", default_value=0.7)
 g_tint = node(glow, unreal.MaterialExpressionMultiply, -350, 250)
 link(g_colour, "", g_tint, "A")
 link(g_brightness, "", g_tint, "B")

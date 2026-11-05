@@ -120,7 +120,7 @@ If a player stops using the mod, **their machines must stay exactly where they a
 
 In a crowd of machines the player must see at a glance which ones are automated, without spoiling the factory's look:
 
-- **A glow on the floor under the machine, like a tuned car's underglow**: cyan / light blue like the build hologram, emissive so it blooms, brightest at the machine's edge and fading out about 1.2 m around it with a rounded shape.
+- **A glow on the floor under the machine, like a tuned car's underglow**: cyan / light blue like the build hologram, emissive so it blooms, brightest at the machine's edge and fading out about 60 cm around it with a rounded shape. Subtle: it must not wash the floor out.
 - **Projected onto the floor** (a decal), not a flat plane: it lies on whatever is below (foundations, ground, the machine underneath in a stack), and leaves the floor's own colour alone (it only adds light).
 - **Signs never glow** (nothing may change how a sign looks except its own designs).
 - **Never saved**: made when the world loads, from our own data; gone with the mod.
