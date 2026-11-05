@@ -38,6 +38,9 @@ namespace
 	const FName AMST_SignDataProperty(TEXT("mSignData"));
 	const FName AMST_SetSignDataFunction(TEXT("Set Sign Data"));
 	const TCHAR* const AMST_AddTitle = TEXT("+ AutoDesign");
+	/** The sign designer open on this game instance (there is one window at a time). */
+	TWeakObjectPtr<UAMSignTabs> AMST_Open;
+
 	const TCHAR* const AMST_TabIconPath = TEXT("/AutomatedMachines/Icons/T_AM_TabIcon.T_AM_TabIcon");
 
 	UObject* AMST_GetObject(const UObject* Owner, FName Name)
@@ -238,7 +241,31 @@ void UAMSignTabs::NativeDestruct()
 	RestoreWindowTabs();
 	bSetUp = false;
 	mSetupSign = nullptr;
+	if (AMST_Open.Get() == this)
+	{
+		AMST_Open = nullptr;
+	}
 	Super::NativeDestruct();
+}
+
+bool UAMSignTabs::CopyOpenEditor(const AFGBuildableWidgetSign* Sign, UObject* ClipboardSettings)
+{
+	const UAMSignTabs* Open = AMST_Open.Get();
+	if (!Open || !Open->bSetUp || !Sign || Open->mSetupSign.Get() != Sign || !ClipboardSettings)
+	{
+		return false;
+	}
+	const UUserWidget* Host = Open->GetHostWindow();
+	const FStructProperty* EditorData = Host ? FindFProperty<FStructProperty>(Host->GetClass(), AMST_SignDataProperty) : nullptr;
+	const FStructProperty* CopiedData = FindFProperty<FStructProperty>(ClipboardSettings->GetClass(), TEXT("mPrefabSignData"));
+	if (!EditorData || !CopiedData || EditorData->Struct != CopiedData->Struct)
+	{
+		UE_LOG(LogAutomatedMachines, Warning, TEXT("Sign Copy Settings: the editor's design could not be copied (no mSignData / mPrefabSignData)"));
+		return false;
+	}
+	EditorData->Struct->CopyScriptStruct(CopiedData->ContainerPtrToValuePtr<void>(ClipboardSettings), EditorData->ContainerPtrToValuePtr<void>(Host));
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign Copy Settings: copied the design open in the editor (tab %d)"), Open->mSelected);
+	return true;
 }
 
 UUserWidget* UAMSignTabs::GetHostWindow() const
@@ -392,6 +419,7 @@ void UAMSignTabs::Setup()
 	}
 	bSetUp = true;
 	mSetupSign = Sign;
+	AMST_Open = this;
 	RebuildTabs();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs for %s: %d alarm designs, tab %d selected"), *Sign->GetName(), mDesigns.Num(), mSelected);
 }
@@ -510,7 +538,7 @@ void UAMSignTabs::RebuildTabs()
 		return TabButton;
 	};
 
-	AddTab(0, TEXT("Normal"), false, 140.f);
+	AddTab(0, TEXT("Default"), false, 140.f);
 	for (int32 Index = 0; Index < mDesigns.Num(); ++Index)
 	{
 		AddTab(Index + 1, mDesigns[Index].Event, true, TabWidth);

@@ -12,6 +12,7 @@
 #include "Patching/NativeHookManager.h"
 #include "UObject/ObjectKey.h"
 #include "Buildables/FGBuildableWidgetSign.h"
+#include "UI/AMSignTabs.h"
 
 namespace
 {
@@ -181,6 +182,14 @@ void AMClipboard::Install()
 			Paste(Self->GetPlayerState<AFGPlayerState>(), Target);
 		}
 	});
+
+	// A sign's Copy Settings while its designer is open: the design open in the editor (the
+	// selected tab), not the Default design stored on the sign.
+	SUBSCRIBE_METHOD_VIRTUAL_AFTER(AFGBuildableWidgetSign::CopySettings_Implementation, GetMutableDefault<AFGBuildableWidgetSign>(),
+		[](UFGFactoryClipboardSettings* const& Result, AFGBuildableWidgetSign* Self)
+		{
+			UAMSignTabs::CopyOpenEditor(Self, Result);
+		});
 
 	// Middle click: remember the sampled machine's automation for this build gun.
 	SUBSCRIBE_METHOD_AFTER(UFGBuildGunStateBuild::SampleClipboardSettingsFromActor, [](UFGBuildGunStateBuild* Self, AActor* Actor)

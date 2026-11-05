@@ -1,8 +1,8 @@
 // Alarm designs in the Sign Designer: one tab per design in the window's tab bar.
 //
-//   [ Sign Designer ][ PLATES BACKED UP x ][ PLATES FLOWING x ][ + Alarm ]
+//   [ Default ][ PLATES BACKED UP x ][ PLATES FLOWING x ][ + AutoDesign ]
 //
-// "Sign Designer" is the sign's normal design; each other tab is the design the sign shows when its
+// "Default" is the sign's normal design; each other tab is the design the sign shows when its
 // alarm rings. The game's own designer below edits whichever tab is selected: switching tabs keeps
 // the edited design and loads the next one into it ("Set Sign Data"). "+ AutoDesign" picks an alarm (or a
 // new name) and makes a design for it, starting as a copy of the one being edited.
@@ -57,6 +57,14 @@ public:
 	void SelectTab(int32 Index);
 	void RemoveDesign(int32 Index);
 	void AddDesign(const FString& Alarm);
+
+	/**
+	 * The game's Copy Settings of a sign (window button or Ctrl+C) copies the design stored on the
+	 * sign, which is the Default one. While this sign's designer is open, the copy gets the design
+	 * open in the editor instead (whichever tab is selected, with its unsaved changes): copied into
+	 * the clipboard object's mPrefabSignData. Returns true if it did.
+	 */
+	static bool CopyOpenEditor(const class AFGBuildableWidgetSign* Sign, UObject* ClipboardSettings);
 
 protected:
 	virtual void NativeOnInitialized() override;
