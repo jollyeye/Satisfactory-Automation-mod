@@ -44,7 +44,10 @@ public:
 	bool bRingers = true;
 
 	UFUNCTION()
-	void OnBinClicked();
+	void OnBinPressed();
+
+	UFUNCTION()
+	void OnBinReleased();
 
 	UFUNCTION()
 	void OnBinHovered();
@@ -108,8 +111,9 @@ public:
 	 */
 	bool IsWorldMode() const { return bWorldMode; }
 
-	/** Overview: a bin was clicked (once: asks to click again; twice within a few seconds: clears). */
-	void OnOverviewBin(const FString& Event, bool bRingers);
+	/** Overview: a bin is held down (2.5 s with the big bin filling up in the middle of the screen: clears), or let go. */
+	void StartOverviewHold(const FString& Event, bool bRingers);
+	void StopOverviewHold(bool bDone);
 	void ExplainOverviewBin(const FString& Event, bool bRingers);
 
 protected:
@@ -331,10 +335,22 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UAMOverviewHandler>> mOverviewHandlers;
 
-	/** Overview: the bin clicked once, waiting for a second click. */
-	FString mPendingClearEvent;
-	bool bPendingClearRingers = false;
-	double mPendingClearTime = 0.0;
+	/** Overview: the bin being held down, since when, and the big bin shown meanwhile. */
+	FString mHoldEvent;
+	bool bHoldRingers = false;
+	bool bHolding = false;
+	double mHoldStart = 0.0;
+	FTimerHandle mHoldTimer;
+	void TickOverviewHold();
+
+	UPROPERTY()
+	TObjectPtr<class UAMHoldBin> mHoldBin;
+
+	/** Rules changed while a bin was held: the rows are made again when it is let go. */
+	bool bOverviewDirty = false;
+
+	/** The overview tab's title is longer than the others: a smaller font on its button. */
+	void FitOverviewTabTitle();
 
 	/** Index of our tab button and page; INDEX_NONE until the tab entry is added. */
 	int32 TabIndex = INDEX_NONE;

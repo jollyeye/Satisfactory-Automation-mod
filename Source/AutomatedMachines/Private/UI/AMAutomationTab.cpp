@@ -2,6 +2,9 @@
 #include "AutomatedMachinesModule.h"
 #include "UI/AMRuleRow.h"
 #include "UI/AMUIHelpers.h"
+#include "UI/AMHoldBin.h"
+#include "Framework/Application/SlateApplication.h"
+#include "InputCoreTypes.h"
 #include "Automation/AMAutomationSubsystem.h"
 #include "Net/AMRemoteCallObject.h"
 #include "Buildables/FGBuildable.h"
@@ -413,7 +416,6 @@ void UAMAutomationTab::BuildLayout()
 	if (bOverviewMode)
 	{
 		// Automation Overview: one table, every alarm of the world.
-		constexpr float NameWidth = 300.f;
 		constexpr float CountWidth = 170.f;
 		UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		USizeBox* ColumnSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
@@ -429,19 +431,27 @@ void UAMAutomationTab::BuildLayout()
 		UVerticalBox* Inside = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Body->AddChild(Inside);
 		UHorizontalBox* Header = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		auto AddHeader = [this, Header](const FString& Name, float Width)
+		// The name takes all the room the two counts leave (Width 0 = fill).
+		auto AddHeader = [this, Header](const FString& Name, float Width, float RightGap)
 		{
 			USizeBox* Cell = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-			Cell->SetWidthOverride(Width);
+			if (Width > 0.f)
+			{
+				Cell->SetWidthOverride(Width);
+			}
 			Cell->AddChild(MakeText(Name, 13, AMUI::Grey));
 			if (UHorizontalBoxSlot* CellSlot = Header->AddChildToHorizontalBox(Cell))
 			{
-				CellSlot->SetPadding(FMargin(2.f, 0.f, AMRowLayout::Gap, 0.f));
+				CellSlot->SetPadding(FMargin(2.f, 0.f, RightGap, 0.f));
+				if (Width <= 0.f)
+				{
+					CellSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				}
 			}
 		};
-		AddHeader(TEXT("Alarm Name"), NameWidth);
-		AddHeader(TEXT("Rung by"), CountWidth);
-		AddHeader(TEXT("Listening"), CountWidth);
+		AddHeader(TEXT("Alarm Name"), 0.f, AMRowLayout::Gap - 2.f);
+		AddHeader(TEXT("Rung by"), CountWidth - 2.f, AMRowLayout::Gap);
+		AddHeader(TEXT("Listening"), CountWidth - 2.f, 0.f);
 		AddTo(Inside, Header, 0.f);
 		UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
 		Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
@@ -586,7 +596,7 @@ void UAMAutomationTab::ShowDefaultInfo()
 	if (bOverviewMode)
 	{
 		ShowInfo(FText::FromString(TEXT("Every alarm in the world")),
-			FText::FromString(TEXT("Rung by: how many machines ring the alarm. Listening: how many machines, signs and the HUB do something when it rings.\n\nAn alarm nobody rings never makes its listeners act; one nobody listens to does nothing.\n\nThe bins remove the alarm from all of them at once.")));
+			FText::FromString(TEXT("Rung by: how many machines ring the alarm. Listening: how many machines, signs and the HUB do something when it rings.\n\nAn alarm nobody rings never makes its listeners act; one nobody listens to does nothing.\n\nThe bins remove the alarm from all of them at once: hold one down for 2.5 seconds.")));
 		return;
 	}
 	if (bWorldMode)
@@ -1371,6 +1381,7 @@ void UAMAutomationTab::EnsureTabButtonExists()
 		// The frame made its buttons before our entry was in the list: make them again.
 		RegenerateTabButtons();
 	}
+	FitOverviewTabTitle();
 }
 
 void UAMAutomationTab::ApplyGameFonts()
@@ -1486,6 +1497,7 @@ void UAMAutomationTab::NativeConstruct()
 
 void UAMAutomationTab::NativeDestruct()
 {
+	StopOverviewHold(false);
 	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
 	{
 		Subsystem->OnRulesChanged.Remove(mRulesChangedHandle);
@@ -1907,6 +1919,13 @@ void UAMAutomationTab::RebuildOverview()
 	{
 		return;
 	}
+	if (bHolding)
+	{
+		// Not while a bin is held: its button would be gone. Made again when it is let go.
+		bOverviewDirty = true;
+		return;
+	}
+	bOverviewDirty = false;
 	mOverviewRows->ClearChildren();
 	mOverviewHandlers.Reset();
 	const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this);
@@ -1918,7 +1937,6 @@ void UAMAutomationTab::RebuildOverview()
 		mOverviewRows->AddChildToVerticalBox(AMUI::MakeText(WidgetTree, TEXT("No alarms in the world yet."), Font, AMUI::Grey));
 		return;
 	}
-	constexpr float NameWidth = 300.f;
 	constexpr float CountWidth = 170.f;
 	for (const FString& Alarm : Alarms)
 	{
@@ -1936,19 +1954,23 @@ void UAMAutomationTab::RebuildOverview()
 			mOverviewHandlers.Add(Handler);
 			return Handler;
 		};
-		// The name: pointing at it explains the alarm.
+		// The name, taking the rest of the row: pointing at it explains the alarm. A button only to
+		// hear the pointer; it looks the same hovered and pressed, so it does not seem clickable.
 		UTextBlock* NameLabel = nullptr;
 		UButton* NameButton = AMUI::MakeButton(WidgetTree, Alarm, Font, AMUI::Field, &NameLabel);
 		if (UButtonSlot* NameSlot = NameLabel ? Cast<UButtonSlot>(NameLabel->Slot) : nullptr)
 		{
 			NameSlot->SetHorizontalAlignment(HAlign_Left);
 		}
+		FButtonStyle NameStyle = NameButton->GetStyle();
+		NameStyle.Hovered = NameStyle.Normal;
+		NameStyle.Pressed = NameStyle.Normal;
+		NameButton->SetStyle(NameStyle);
+		NameButton->SetCursor(EMouseCursor::Default);
 		NameButton->OnHovered.AddDynamic(MakeHandler(true), &UAMOverviewHandler::OnNameHovered);
-		USizeBox* NameCell = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		NameCell->SetWidthOverride(NameWidth);
-		NameCell->AddChild(NameButton);
-		if (UHorizontalBoxSlot* NameCellSlot = Row->AddChildToHorizontalBox(NameCell))
+		if (UHorizontalBoxSlot* NameCellSlot = Row->AddChildToHorizontalBox(NameButton))
 		{
+			NameCellSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			NameCellSlot->SetPadding(FMargin(0.f, 0.f, AMRowLayout::Gap, 0.f));
 		}
 
@@ -1967,7 +1989,8 @@ void UAMAutomationTab::RebuildOverview()
 			{
 				UAMOverviewHandler* Handler = MakeHandler(bRingers);
 				UButton* Bin = AMUI::MakeRemoveButton(WidgetTree, Font);
-				Bin->OnClicked.AddDynamic(Handler, &UAMOverviewHandler::OnBinClicked);
+				Bin->OnPressed.AddDynamic(Handler, &UAMOverviewHandler::OnBinPressed);
+				Bin->OnReleased.AddDynamic(Handler, &UAMOverviewHandler::OnBinReleased);
 				Bin->OnHovered.AddDynamic(Handler, &UAMOverviewHandler::OnBinHovered);
 				USizeBox* BinSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 				BinSize->SetWidthOverride(AMRowLayout::Remove + 10.f);
@@ -1982,7 +2005,7 @@ void UAMAutomationTab::RebuildOverview()
 			CellSize->AddChild(Cell);
 			if (UHorizontalBoxSlot* CellSlot = Row->AddChildToHorizontalBox(CellSize))
 			{
-				CellSlot->SetPadding(FMargin(0.f, 0.f, AMRowLayout::Gap, 0.f));
+				CellSlot->SetPadding(FMargin(0.f, 0.f, bRingers ? AMRowLayout::Gap : 0.f, 0.f));
 			}
 		};
 		AddCount(Ringers, true);
@@ -2004,32 +2027,137 @@ void UAMAutomationTab::ExplainOverviewBin(const FString& Event, bool bRingers)
 	}
 	ShowInfo(FText::FromString(bRingers ? TEXT("Remove from the machines ringing it") : TEXT("Remove from the listeners")),
 		FText::FromString(bRingers
-			? FString::Printf(TEXT("Removes the alarm %s from the %d machine%s that ring it: their alarm rows with this name are deleted.\n\nClick the bin twice to do it."), *Event, Ringers, Ringers == 1 ? TEXT("") : TEXT("s"))
-			: FString::Printf(TEXT("Removes every action on the alarm %s from the %d listener%s (machines, the HUB), and the signs' designs for it.\n\nClick the bin twice to do it."), *Event, Listeners, Listeners == 1 ? TEXT("") : TEXT("s"))));
+			? FString::Printf(TEXT("Removes the alarm %s from the %d machine%s that ring it: their alarm rows with this name are deleted.\n\nHold the bin down for 2.5 seconds to do it."), *Event, Ringers, Ringers == 1 ? TEXT("") : TEXT("s"))
+			: FString::Printf(TEXT("Removes every action on the alarm %s from the %d listener%s (machines, the HUB), and the signs' designs for it.\n\nHold the bin down for 2.5 seconds to do it."), *Event, Listeners, Listeners == 1 ? TEXT("") : TEXT("s"))));
 }
 
-void UAMAutomationTab::OnOverviewBin(const FString& Event, bool bRingers)
+namespace
 {
-	const double Now = FPlatformTime::Seconds();
-	if (mPendingClearEvent == Event && bPendingClearRingers == bRingers && Now - mPendingClearTime < 4.0)
+	/** How long a bin is held down to remove (seconds). */
+	constexpr double AMAT_HoldSeconds = 2.5;
+}
+
+void UAMAutomationTab::StartOverviewHold(const FString& Event, bool bRingers)
+{
+	UWorld* World = GetWorld();
+	if (!World)
 	{
-		mPendingClearEvent.Reset();
-		UAMRemoteCallObject::RequestClearAlarm(GetOwningPlayer(), Event, bRingers);
-		ShowInfo(FText::FromString(Event), FText::FromString(bRingers ? TEXT("Removed from the machines that rang it.") : TEXT("Removed from every listener.")));
 		return;
 	}
-	mPendingClearEvent = Event;
-	bPendingClearRingers = bRingers;
-	mPendingClearTime = Now;
-	ShowInfo(FText::FromString(TEXT("Click the bin again")), FText::FromString(FString::Printf(
-		TEXT("Click the same bin again within a few seconds to remove %s from %s."), *Event, bRingers ? TEXT("every machine that rings it") : TEXT("every listener"))));
+	mHoldEvent = Event;
+	bHoldRingers = bRingers;
+	bHolding = true;
+	mHoldStart = FPlatformTime::Seconds();
+	if (!mHoldBin)
+	{
+		mHoldBin = CreateWidget<UAMHoldBin>(this, UAMHoldBin::StaticClass());
+	}
+	if (mHoldBin)
+	{
+		mHoldBin->SetLabel(FString::Printf(TEXT("Hold to remove %s from %s"), *Event, bRingers ? TEXT("the machines ringing it") : TEXT("its listeners")));
+		mHoldBin->SetProgress(0.f);
+		if (!mHoldBin->IsInViewport())
+		{
+			mHoldBin->AddToViewport(10000);
+		}
+	}
+	World->GetTimerManager().SetTimer(mHoldTimer, this, &UAMAutomationTab::TickOverviewHold, 1.f / 60.f, true);
 }
 
-void UAMOverviewHandler::OnBinClicked()
+void UAMAutomationTab::TickOverviewHold()
+{
+	if (!bHolding)
+	{
+		StopOverviewHold(false);
+		return;
+	}
+	// Let go somewhere the button did not hear it: stop.
+	if (FSlateApplication::IsInitialized() && !FSlateApplication::Get().GetPressedMouseButtons().Contains(EKeys::LeftMouseButton))
+	{
+		StopOverviewHold(false);
+		return;
+	}
+	const float Progress = static_cast<float>((FPlatformTime::Seconds() - mHoldStart) / AMAT_HoldSeconds);
+	if (mHoldBin)
+	{
+		mHoldBin->SetProgress(Progress);
+	}
+	if (Progress >= 1.f)
+	{
+		StopOverviewHold(true);
+	}
+}
+
+void UAMAutomationTab::StopOverviewHold(bool bDone)
+{
+	const bool bWasHolding = bHolding;
+	bHolding = false;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(mHoldTimer);
+	}
+	if (mHoldBin && mHoldBin->IsInViewport())
+	{
+		mHoldBin->RemoveFromParent();
+	}
+	if (!bWasHolding)
+	{
+		return;
+	}
+	if (bDone)
+	{
+		UAMRemoteCallObject::RequestClearAlarm(GetOwningPlayer(), mHoldEvent, bHoldRingers);
+		ShowInfo(FText::FromString(mHoldEvent), FText::FromString(bHoldRingers ? TEXT("Removed from the machines that rang it.") : TEXT("Removed from every listener.")));
+	}
+	else
+	{
+		ShowInfo(FText::FromString(TEXT("Not removed")), FText::FromString(TEXT("Hold the bin down until the big bin is full (2.5 seconds) to remove.")));
+	}
+	if (bOverviewDirty)
+	{
+		RebuildOverview();
+	}
+}
+
+void UAMAutomationTab::FitOverviewTabTitle()
+{
+	if (!bOverviewMode)
+	{
+		return;
+	}
+	UObject* TabsContainer = AMAT_GetObject(GetWindowFrame(), AMAT_TabsContainerProperty);
+	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
+	UWidget* OurButton = Buttons && TabIndex != INDEX_NONE ? Buttons->GetChildAt(TabIndex) : nullptr;
+	UTextBlock* Title = Cast<UTextBlock>(AMAT_GetObject(OurButton, AMAT_TabTitleWidget));
+	if (!Title || Title->GetText().ToString() != GetTabTitle())
+	{
+		return;
+	}
+	// The font of the first tab's title, a bit smaller (from the first tab, so reopening the HUB with
+	// the same buttons does not shrink it again).
+	const UTextBlock* FirstTitle = Cast<UTextBlock>(AMAT_GetObject(Buttons->GetChildAt(0), AMAT_TabTitleWidget));
+	if (!FirstTitle || FirstTitle == Title)
+	{
+		return;
+	}
+	FSlateFontInfo Font = FirstTitle->GetFont();
+	Font.Size = FMath::Max(8, FMath::RoundToInt(Font.Size * 0.85f));
+	Title->SetFont(Font);
+}
+
+void UAMOverviewHandler::OnBinPressed()
 {
 	if (Tab)
 	{
-		Tab->OnOverviewBin(Event, bRingers);
+		Tab->StartOverviewHold(Event, bRingers);
+	}
+}
+
+void UAMOverviewHandler::OnBinReleased()
+{
+	if (Tab)
+	{
+		Tab->StopOverviewHold(false);
 	}
 }
 
