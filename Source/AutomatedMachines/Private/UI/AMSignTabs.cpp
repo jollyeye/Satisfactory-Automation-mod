@@ -857,6 +857,7 @@ void UAMSignTabs::OpenPicker()
 	SearchSize->SetHeightOverride(36.f);
 	UBorder* SearchField = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 0.f));
 	SearchField->SetVerticalAlignment(VAlign_Center);
+	AMUI::MarkAsInputBox(SearchField);
 	SearchSize->AddChild(SearchField);
 	mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
 	mPickerSearch->SetFont(Font);

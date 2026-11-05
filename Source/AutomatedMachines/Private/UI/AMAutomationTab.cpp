@@ -807,6 +807,7 @@ void UAMAutomationTab::OpenPicker(UAMRuleRow* Row, UWidget* Anchor, TArray<FAMPi
 	SearchSize->SetHeightOverride(AnchorHeight);
 	UBorder* SearchField = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 0.f));
 	SearchField->SetVerticalAlignment(VAlign_Center);
+	AMUI::MarkAsInputBox(SearchField);
 	SearchSize->AddChild(SearchField);
 	mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
 	mPickerSearch->SetFont(Font);
@@ -1292,6 +1293,25 @@ void UAMAutomationTab::RemoveRule(bool bFire, int32 Index)
 	}
 }
 
+void UAMAutomationTab::ScrollToEndLater(UWidget* Rows)
+{
+	// The rows' list scrolls to its end once the new row has been laid out (next tick).
+	UScrollBox* Scroll = Rows ? Cast<UScrollBox>(Rows->GetParent()) : nullptr;
+	UWorld* World = GetWorld();
+	if (!Scroll || !World)
+	{
+		return;
+	}
+	TWeakObjectPtr<UScrollBox> WeakScroll(Scroll);
+	World->GetTimerManager().SetTimerForNextTick([WeakScroll]()
+	{
+		if (UScrollBox* List = WeakScroll.Get())
+		{
+			List->ScrollToEnd();
+		}
+	});
+}
+
 void UAMAutomationTab::OnAddFireClicked()
 {
 	FAMFireRule& NewRule = mFires.AddDefaulted_GetRef();
@@ -1306,6 +1326,7 @@ void UAMAutomationTab::OnAddFireClicked()
 		}
 	}
 	RebuildRows();
+	ScrollToEndLater(mFireRowsBox);
 }
 
 void UAMAutomationTab::OnAddReactionClicked()
@@ -1330,6 +1351,7 @@ void UAMAutomationTab::OnAddReactionClicked()
 		}
 	}
 	RebuildRows();
+	ScrollToEndLater(mReactionRowsBox);
 }
 
 void UAMAutomationTab::AddTabEntry()

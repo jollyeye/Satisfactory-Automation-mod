@@ -114,6 +114,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		mAlarmNameText->OnTextChanged.AddDynamic(this, &UAMRuleRow::OnAlarmNameChanged);
 		mAlarmNameText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnAlarmNameCommitted);
 		Field->AddChild(mAlarmNameText);
+		AMUI::MarkAsInputBox(Field);
 		mAlarmNameField = Field;
 		Add(AMRR_Cell(Tree, AMRowLayout::AlarmName, Field), 0.f);
 		Add(AMRR_Cell(Tree, AMRowLayout::MachineEvent, SecondButton), AMRowLayout::Gap);
@@ -149,6 +150,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		mValueText->SetJustification(ETextJustify::Right);
 		mValueText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnValueCommitted);
 		ValueField->AddChild(mValueText);
+		AMUI::MarkAsInputBox(ValueField);
 		if (UHorizontalBoxSlot* FieldSlot = ValueLine->AddChildToHorizontalBox(AMRR_Cell(Tree, AMRowLayout::ValueField, ValueField)))
 		{
 			FieldSlot->SetPadding(FMargin(8.f, 0.f, 0.f, 0.f));
@@ -232,6 +234,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		mMessageText->SetHintText(FText::FromString(TEXT("empty: which machine rang")));
 		mMessageText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnMessageCommitted);
 		MessageField->AddChild(mMessageText);
+		AMUI::MarkAsInputBox(MessageField);
 		if (UHorizontalBoxSlot* FieldSlot = MessageLine->AddChildToHorizontalBox(
 			AMRR_Cell(Tree, AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm - 70.f, MessageField)))
 		{

@@ -1,4 +1,5 @@
 #include "UI/AMUIHelpers.h"
+#include "Containers/Ticker.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateColorBrush.h"
 #include "Components/Border.h"
@@ -181,4 +182,52 @@ UBorder* AMUI::MakeBox(UWidgetTree* Tree, const FLinearColor& Color, const FMarg
 	Box->SetBrush(FSlateColorBrush(Color));
 	Box->SetPadding(Padding);
 	return Box;
+}
+
+namespace
+{
+	/** How dark an input box gets while typing in it (its colour times this). */
+	constexpr float AMUIH_TypingShade = 0.62f;
+
+	struct FAMUIHInputBox
+	{
+		TWeakObjectPtr<UBorder> Box;
+		bool bDark = false;
+	};
+	TArray<FAMUIHInputBox> AMUIH_InputBoxes;
+	FTSTicker::FDelegateHandle AMUIH_InputTicker;
+
+	bool AMUIH_TickInputBoxes(float DeltaTime)
+	{
+		for (int32 Index = AMUIH_InputBoxes.Num() - 1; Index >= 0; --Index)
+		{
+			FAMUIHInputBox& Entry = AMUIH_InputBoxes[Index];
+			UBorder* Box = Entry.Box.Get();
+			if (!Box)
+			{
+				AMUIH_InputBoxes.RemoveAtSwap(Index);
+				continue;
+			}
+			const bool bTyping = Box->HasFocusedDescendants();
+			if (bTyping != Entry.bDark)
+			{
+				Entry.bDark = bTyping;
+				Box->SetBrushColor(bTyping ? FLinearColor(AMUIH_TypingShade, AMUIH_TypingShade, AMUIH_TypingShade, 1.f) : FLinearColor::White);
+			}
+		}
+		return true;
+	}
+}
+
+void AMUI::MarkAsInputBox(UBorder* Box)
+{
+	if (!Box)
+	{
+		return;
+	}
+	AMUIH_InputBoxes.Add({Box, false});
+	if (!AMUIH_InputTicker.IsValid())
+	{
+		AMUIH_InputTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateStatic(&AMUIH_TickInputBoxes), 0.f);
+	}
 }

@@ -150,6 +150,8 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
   `SetText` in the commit event is ignored until the window is reopened.
 - Typing in our fields does not close the window with E (tested).
 
+- **Our look rule: a text input's box is darker while typing in it** (`AMUI::MarkAsInputBox` on every input's border; UMG text fields have no focus events, so a ticker checks `HasFocusedDescendants()`).
+
 ## 7. Other game systems we hooked into (tested)
 
 - **Notifications** stacked at the side: a `UFGPushNotificationWidget` subclass given to

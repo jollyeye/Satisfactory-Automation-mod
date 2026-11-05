@@ -334,6 +334,9 @@ private:
 	 */
 	void UpdatePageHeight();
 
+	/** After "+ Add alarm" / "+ Add action": the list scrolls to the new row (its last). */
+	void ScrollToEndLater(UWidget* Rows);
+
 	/** Our tab's title: "Automation" or "Alarms Overview". */
 	const TCHAR* GetTabTitle() const;
 
