@@ -175,6 +175,7 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
   `CopyFactoryClipboard` with the window's `mSignData` (both by reflection). Pasting between sign
   sizes of the same ratio works then. (Hooking the sign's `CopySettings_Implementation` did nothing:
   that path was not called.)
+- **Compass / map icons** (locate, 5 Nov 2026): a local actor implementing `IFGActorRepresentationInterface` (pattern: `AFGBuildableRadarTower`, `UFUNCTION() virtual ... override;`) added with `AFGActorRepresentationManager::CreateAndAddNewRepresentation(actor, true /*local*/, OurRepresentationClass)`. The compass only accepts `UFGResourceNodeRepresentation` for real nodes; to look like an ore, subclass `UFGActorRepresentation` and return `UFGCompassMaterialSettings`' resource material, the resource CDO's `GetCompassHeightAlignment()` (top row), `IsImportantCompassRepresentation` true (kept at the edge), distance text and scale; the appear ping: `mResourceScannerPingEffectMaterial`, scalar `EffectAlpha` 0 -> 1 over the loop time. The material multiplies the icon by the representation colour: white. Find such values by hooking the game's own representation (`SUBSCRIBE_METHOD_VIRTUAL_AFTER` on its `Update...Material`) and logging the dynamic material's `ScalarParameterValues`.
 - **Saving without touching the game's objects**: one `AModSubsystem` with `IFGSaveInterface` holds
   all our data, so the mod can be removed and the save still loads.
 

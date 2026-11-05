@@ -9,7 +9,6 @@ Done and tested so far: see the table in `DEV-NOTES.md` ("What works").
 3. **MAM research to unlock the mod** (as early as possible): which tree, node and cost. Until then everything is available from the start.
 4. **Clean-up**:
    - switch off the widget dump (`AMWidgetDump::Install()` in the module), it writes many lines to the log;
-   - remove `AMScanMonitor` (the resource scanner watch) once the locate compass effect copies it;
    - make the sign copy / paste log lines (`UAMSignTabs::OnGameClipboardCopied` / `Pasted`) Verbose;
    - remove the old Wi-Fi marker assets (`M_AM_Marker`, `SM_AM_Marker`, `T_AM_MarkerIcon`) from `Tools/create_assets.py`;
    - the `.uplugin` description still says "events": use the player's words (alarms, actions).

@@ -41,20 +41,7 @@ public:
 	virtual UMaterialInterface* GetRepresentationCompassEffectMaterial() const override;
 	virtual FVector2f GetRepresentationCompassEffectSize() const override;
 	virtual bool UpdateRepresentationCompassEffectMaterial(UMaterialInstanceDynamic* CompassMaterialInstance, APlayerController* OwnerPlayerController, float DistanceToPlayer, float TotalTime) override;
-	virtual void UpdateRepresentationCompassMaterial(UMaterialInstanceDynamic* CompassMaterialInstance, APlayerController* OwnerPlayerController) const override;
 };
-
-/**
- * Development: watches what the game's own resource node representation does with its compass
- * materials while the resource scanner pings ([ScanMonitor] lines: parameter values per frame,
- * capped), and lists the parameters of the compass materials on the first locate, so the located
- * machines can do the same. Removed once copied.
- */
-namespace AMScanMonitor
-{
-	void Install();
-	void DumpMaterialParameters(const TCHAR* Label, class UMaterialInterface* Material);
-}
 
 /** The point on the compass and map: a local actor at the machine, implementing the game's representation interface. */
 UCLASS(NotPlaceable, Transient)
