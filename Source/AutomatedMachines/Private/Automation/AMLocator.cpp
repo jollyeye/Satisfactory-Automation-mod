@@ -14,12 +14,13 @@
 #include "Representation/FGResourceNodeRepresentation.h"
 #include "FGCompassMaterialSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Patching/NativeHookManager.h"
 #include "UObject/UnrealType.h"
 
 namespace
 {
-	/** The cyan of the underglow and the build hologram. */
-	const FLinearColor AMLC_Colour(0.12f, 0.7f, 1.f, 1.f);
+	/** The icon's colour on the compass and the map: white, like the ores (the material multiplies the icon by it). */
+	const FLinearColor AMLC_Colour(1.f, 1.f, 1.f, 1.f);
 
 	/** Closer than this to the machine's edge, in cm (a foundation): arrived, the markers go. */
 	constexpr float AMLC_ArriveDistance = 800.f;
@@ -116,8 +117,29 @@ namespace
 
 // ----- Compass representation ---------------------------------------------------------------------
 
+void UAMLocateRepresentation::UpdateRepresentationCompassMaterial(UMaterialInstanceDynamic* CompassMaterialInstance, APlayerController* OwnerPlayerController) const
+{
+	Super::UpdateRepresentationCompassMaterial(CompassMaterialInstance, OwnerPlayerController);
+	static int32 Logged = 0;
+	if (CompassMaterialInstance && Logged < 3)
+	{
+		++Logged;
+		AMScanMonitor::DumpMaterialParameters(TEXT("our compass icon (after the base update)"), CompassMaterialInstance);
+	}
+}
+
 UMaterialInterface* UAMLocateRepresentation::GetRepresentationCompassMaterial() const
 {
+	static bool bDumped = false;
+	if (!bDumped)
+	{
+		bDumped = true;
+		if (const UFGCompassMaterialSettings* Settings = UFGCompassMaterialSettings::Get())
+		{
+			AMScanMonitor::DumpMaterialParameters(TEXT("resource compass material"), Settings->mResourceCompassMaterial.LoadSynchronous());
+			AMScanMonitor::DumpMaterialParameters(TEXT("scanner ping effect material"), Settings->mResourceScannerPingEffectMaterial.LoadSynchronous());
+		}
+	}
 	const UFGCompassMaterialSettings* Settings = UFGCompassMaterialSettings::Get();
 	UMaterialInterface* Material = Settings ? Settings->mResourceCompassMaterial.LoadSynchronous() : nullptr;
 	return Material ? Material : Super::GetRepresentationCompassMaterial();
@@ -386,4 +408,97 @@ void AAMLocator::EndPlay(const EEndPlayReason::Type Reason)
 		Stop(Index, TEXT("world ends"));
 	}
 	Super::EndPlay(Reason);
+}
+
+// ----- Development: watching the resource scanner -------------------------------------------------
+
+namespace
+{
+	/** At most this many [ScanMonitor] lines per game session. */
+	int32 AMSM_Lines = 0;
+	constexpr int32 AMSM_MaxLines = 400;
+
+	FString AMSM_Values(const UMaterialInstance* Material)
+	{
+		FString Out;
+		if (!Material)
+		{
+			return TEXT("(no material)");
+		}
+		for (const FScalarParameterValue& Value : Material->ScalarParameterValues)
+		{
+			Out += FString::Printf(TEXT(" %s=%.3f"), *Value.ParameterInfo.Name.ToString(), Value.ParameterValue);
+		}
+		for (const FVectorParameterValue& Value : Material->VectorParameterValues)
+		{
+			Out += FString::Printf(TEXT(" %s=(%.2f,%.2f,%.2f,%.2f)"), *Value.ParameterInfo.Name.ToString(),
+				Value.ParameterValue.R, Value.ParameterValue.G, Value.ParameterValue.B, Value.ParameterValue.A);
+		}
+		for (const FTextureParameterValue& Value : Material->TextureParameterValues)
+		{
+			Out += FString::Printf(TEXT(" %s=%s"), *Value.ParameterInfo.Name.ToString(), Value.ParameterValue ? *Value.ParameterValue->GetName() : TEXT("none"));
+		}
+		return Out.IsEmpty() ? FString(TEXT(" (no values set)")) : Out;
+	}
+}
+
+void AMScanMonitor::DumpMaterialParameters(const TCHAR* Label, UMaterialInterface* Material)
+{
+	if (!Material)
+	{
+		UE_LOG(LogAutomatedMachines, Log, TEXT("[ScanMonitor] %s: none"), Label);
+		return;
+	}
+	TArray<FMaterialParameterInfo> Infos;
+	TArray<FGuid> Ids;
+	FString Names;
+	Material->GetAllScalarParameterInfo(Infos, Ids);
+	for (const FMaterialParameterInfo& Info : Infos)
+	{
+		float Default = 0.f;
+		Material->GetScalarParameterDefaultValue(Info, Default);
+		Names += FString::Printf(TEXT(" scalar %s (default %.3f);"), *Info.Name.ToString(), Default);
+	}
+	Material->GetAllVectorParameterInfo(Infos, Ids);
+	for (const FMaterialParameterInfo& Info : Infos)
+	{
+		Names += FString::Printf(TEXT(" vector %s;"), *Info.Name.ToString());
+	}
+	Material->GetAllTextureParameterInfo(Infos, Ids);
+	for (const FMaterialParameterInfo& Info : Infos)
+	{
+		Names += FString::Printf(TEXT(" texture %s;"), *Info.Name.ToString());
+	}
+	UE_LOG(LogAutomatedMachines, Log, TEXT("[ScanMonitor] %s %s:%s"), Label, *Material->GetPathName(), *Names);
+	if (const UMaterialInstance* Instance = Cast<UMaterialInstance>(Material))
+	{
+		UE_LOG(LogAutomatedMachines, Log, TEXT("[ScanMonitor]   values set:%s"), *AMSM_Values(Instance));
+	}
+}
+
+void AMScanMonitor::Install()
+{
+	// The ping effect on the compass of a node the scanner found: the values the game sets, per frame.
+	SUBSCRIBE_METHOD_VIRTUAL_AFTER(UFGResourceNodeRepresentation::UpdateRepresentationCompassEffectMaterial, GetMutableDefault<UFGResourceNodeRepresentation>(),
+		[](const bool& bResult, UFGResourceNodeRepresentation* Self, UMaterialInstanceDynamic* Material, APlayerController* Player, float Distance, float TotalTime)
+		{
+			if (AMSM_Lines < AMSM_MaxLines)
+			{
+				++AMSM_Lines;
+				UE_LOG(LogAutomatedMachines, Log, TEXT("[ScanMonitor] effect %s t=%.3f dist=%.0f returns %d:%s"),
+					Self ? *Self->GetName() : TEXT("?"), TotalTime, Distance, bResult ? 1 : 0, *AMSM_Values(Material));
+			}
+		});
+	// The icon's own compass material of such a node (its texture and colour parameters).
+	SUBSCRIBE_METHOD_VIRTUAL_AFTER(UFGResourceNodeRepresentation::UpdateRepresentationCompassMaterial, GetMutableDefault<UFGResourceNodeRepresentation>(),
+		[](const UFGResourceNodeRepresentation* Self, UMaterialInstanceDynamic* Material, APlayerController* Player)
+		{
+			if (AMSM_Lines < AMSM_MaxLines)
+			{
+				++AMSM_Lines;
+				UE_LOG(LogAutomatedMachines, Log, TEXT("[ScanMonitor] icon %s material %s:%s"), Self ? *Self->GetName() : TEXT("?"),
+					Material && Material->Parent ? *Material->Parent->GetName() : TEXT("?"), *AMSM_Values(Material));
+			}
+		});
+	UE_LOG(LogAutomatedMachines, Log, TEXT("[ScanMonitor] installed: use the resource scanner to log what it does on the compass"));
 }
