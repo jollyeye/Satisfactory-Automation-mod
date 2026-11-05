@@ -9,6 +9,7 @@
 #include "Components/ButtonSlot.h"
 #include "Components/Image.h"
 #include "Components/NamedSlot.h"
+#include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/ScrollBox.h"
 #include "Engine/Texture2D.h"
@@ -1078,6 +1079,37 @@ void UAMAutomationTab::RegenerateTabButtons()
 		AMAT_CallNoParams(TabsContainer, TEXT("GenerateButtons"));
 	}
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: tab buttons made by the tabs container, now %d buttons"), Buttons->GetChildrenCount());
+
+	// A window made for one tab stretches its button over the whole bar: put the buttons side by
+	// side at the container's button size, like the production window's.
+	FVector2D ButtonSize(220.0, 36.0);
+	if (const FStructProperty* SizeProperty = FindFProperty<FStructProperty>(TabsContainer->GetClass(), TEXT("mButtonSize")))
+	{
+		if (SizeProperty->Struct == TBaseStructure<FVector2D>::Get())
+		{
+			ButtonSize = *SizeProperty->ContainerPtrToValuePtr<FVector2D>(TabsContainer);
+		}
+	}
+	for (int32 Index = 0; Index < Buttons->GetChildrenCount(); ++Index)
+	{
+		UWidget* Button = Buttons->GetChildAt(Index);
+		UCanvasPanelSlot* ButtonSlot = Button ? Cast<UCanvasPanelSlot>(Button->Slot) : nullptr;
+		if (!ButtonSlot)
+		{
+			continue;
+		}
+		const FAnchors Anchors = ButtonSlot->GetAnchors();
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: button %d %s vis=%d pos=%s size=%s anchors=(%.2f,%.2f)-(%.2f,%.2f) auto=%d"),
+			Index, *Button->GetName(), static_cast<int32>(Button->GetVisibility()), *ButtonSlot->GetPosition().ToString(), *ButtonSlot->GetSize().ToString(),
+			Anchors.Minimum.X, Anchors.Minimum.Y, Anchors.Maximum.X, Anchors.Maximum.Y, ButtonSlot->GetAutoSize() ? 1 : 0);
+		ButtonSlot->SetAnchors(FAnchors(0.f, 0.f));
+		ButtonSlot->SetAlignment(FVector2D::ZeroVector);
+		ButtonSlot->SetAutoSize(false);
+		ButtonSlot->SetPosition(FVector2D(ButtonSize.X * Index, 0.0));
+		ButtonSlot->SetSize(ButtonSize);
+		// The single button of a one-tab window is a title (not clickable): make them all clickable.
+		Button->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
 }
 
 void UAMAutomationTab::ShowSinglePage(bool bAutomation)
