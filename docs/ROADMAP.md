@@ -13,6 +13,10 @@ Done and tested so far: see the table in `DEV-NOTES.md` ("What works").
    - the `.uplugin` description still says "events": use the player's words (alarms, actions).
 5. **Release**: mod icon, ficsit.app page text (what it does, "safe to uninstall: machines keep the last state the automation gave them"), version 0.1.0 → 1.0.0, upload.
 
+## Settings (decided 5 Nov 2026: none for now)
+
+No settings tab in the HUB. Nothing in the mod needs a world setting: every behaviour is per machine, in its Automation tab. The only candidates are personal display preferences (underglow on / off / only with the build gun, brightness; notification sound on / off). If players ask for them, they go in SML's own mod configuration (main menu > Mods > Automated Machines), per player, not in the save or the HUB.
+
 ## More machines (one at a time, like so far)
 
 - Generators: Coal (fuel + water), Fuel (fluid fuel), Nuclear (fuel rods, waste output), Geothermal (nothing to feed: power events only).
