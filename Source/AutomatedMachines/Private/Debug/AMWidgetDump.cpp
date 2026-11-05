@@ -66,9 +66,25 @@ namespace
 		return false;
 	}
 
+	/** Also every window whose class name contains one of these (the MAM's research window, 5 Nov 2026). */
+	const TCHAR* const AMWD_TreeKeywords[] = {
+		TEXT("MAM"), TEXT("Research"),
+	};
+
 	bool AMWD_IsTreeClass(const FString& ClassName)
 	{
-		return AMWD_IsOneOf(ClassName, AMWD_TreeClasses, UE_ARRAY_COUNT(AMWD_TreeClasses));
+		if (AMWD_IsOneOf(ClassName, AMWD_TreeClasses, UE_ARRAY_COUNT(AMWD_TreeClasses)))
+		{
+			return true;
+		}
+		for (const TCHAR* Keyword : AMWD_TreeKeywords)
+		{
+			if (ClassName.Contains(Keyword))
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	bool AMWD_IsReflectionClass(const FString& ClassName)
