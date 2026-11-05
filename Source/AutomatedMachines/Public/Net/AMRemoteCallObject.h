@@ -20,13 +20,13 @@ public:
 	void ServerSetRules(AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options);
 
 	UFUNCTION(Server, Reliable)
-	void ServerSetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions);
+	void ServerSetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions, bool bMam);
 
 	UFUNCTION(Server, Reliable)
-	void ServerClearAlarm(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub);
+	void ServerClearAlarm(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub, bool bMam);
 
 	/** Removes an alarm's ringers or listeners from the whole world: directly on the server, through the server on a client. */
-	static void RequestClearAlarm(APlayerController* Player, const FString& Event, bool bRingers, AFGBuildable* OnlyMachine = nullptr, bool bOnlyHub = false);
+	static void RequestClearAlarm(APlayerController* Player, const FString& Event, bool bRingers, AFGBuildable* OnlyMachine = nullptr, bool bOnlyHub = false, bool bMam = false);
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetSignDesigns(AFGBuildable* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs);
@@ -44,7 +44,7 @@ public:
 	static void RequestSetRules(APlayerController* Player, AFGBuildable* Machine, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Reactions, const FAMMachineOptions& Options);
 
 	/** Changes the world actions (HUB terminal): directly on the server, through the server on a client. */
-	static void RequestSetWorldRules(APlayerController* Player, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions);
+	static void RequestSetWorldRules(APlayerController* Player, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions, bool bMam = false);
 
 private:
 	// An RCO needs at least one replicated property for its RPCs to work.

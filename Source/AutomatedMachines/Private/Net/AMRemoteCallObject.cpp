@@ -21,15 +21,15 @@ void UAMRemoteCallObject::ServerSetRules_Implementation(AFGBuildable* Machine, c
 	}
 }
 
-void UAMRemoteCallObject::ServerSetWorldRules_Implementation(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions)
+void UAMRemoteCallObject::ServerSetWorldRules_Implementation(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions, bool bMam)
 {
 	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(GetOuter()))
 	{
-		Subsystem->SetWorldRules(Fires, Actions);
+		Subsystem->SetWorldRules(Fires, Actions, bMam);
 	}
 }
 
-void UAMRemoteCallObject::RequestSetWorldRules(APlayerController* Player, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions)
+void UAMRemoteCallObject::RequestSetWorldRules(APlayerController* Player, const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions, bool bMam)
 {
 	if (!Player)
 	{
@@ -39,7 +39,7 @@ void UAMRemoteCallObject::RequestSetWorldRules(APlayerController* Player, const 
 	{
 		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Player))
 		{
-			Subsystem->SetWorldRules(Fires, Actions);
+			Subsystem->SetWorldRules(Fires, Actions, bMam);
 		}
 		return;
 	}
@@ -47,7 +47,7 @@ void UAMRemoteCallObject::RequestSetWorldRules(APlayerController* Player, const 
 	UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr;
 	if (RCO)
 	{
-		RCO->ServerSetWorldRules(Fires, Actions);
+		RCO->ServerSetWorldRules(Fires, Actions, bMam);
 	}
 	else
 	{
@@ -123,15 +123,15 @@ void UAMRemoteCallObject::RequestSetSignDesigns(APlayerController* Player, AFGBu
 	}
 }
 
-void UAMRemoteCallObject::ServerClearAlarm_Implementation(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub)
+void UAMRemoteCallObject::ServerClearAlarm_Implementation(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub, bool bMam)
 {
 	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(GetOuter()))
 	{
-		Subsystem->ClearAlarm(Event, bRingers, OnlyMachine, bOnlyHub);
+		Subsystem->ClearAlarm(Event, bRingers, OnlyMachine, bOnlyHub, bMam);
 	}
 }
 
-void UAMRemoteCallObject::RequestClearAlarm(APlayerController* Player, const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub)
+void UAMRemoteCallObject::RequestClearAlarm(APlayerController* Player, const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub, bool bMam)
 {
 	if (!Player)
 	{
@@ -141,13 +141,13 @@ void UAMRemoteCallObject::RequestClearAlarm(APlayerController* Player, const FSt
 	{
 		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Player))
 		{
-			Subsystem->ClearAlarm(Event, bRingers, OnlyMachine, bOnlyHub);
+			Subsystem->ClearAlarm(Event, bRingers, OnlyMachine, bOnlyHub, bMam);
 		}
 		return;
 	}
 	AFGPlayerController* FGPlayer = Cast<AFGPlayerController>(Player);
 	if (UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr)
 	{
-		RCO->ServerClearAlarm(Event, bRingers, OnlyMachine, bOnlyHub);
+		RCO->ServerClearAlarm(Event, bRingers, OnlyMachine, bOnlyHub, bMam);
 	}
 }

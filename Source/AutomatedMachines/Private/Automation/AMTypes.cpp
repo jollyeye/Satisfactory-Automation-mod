@@ -57,6 +57,7 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::FuseBlown:         return AMTY_Text(TEXT("Fuse blown"));
 	case EAMCondition::FuseReset:         return AMTY_Text(TEXT("Fuse reset"));
 	case EAMCondition::MilestoneCompleted: return AMTY_Text(TEXT("Milestone completed"));
+	case EAMCondition::ResearchCompleted: return AMTY_Text(TEXT("Research completed"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -149,6 +150,8 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the fuse of the generator's power grid is reset and the grid is on again."));
 	case EAMCondition::MilestoneCompleted:
 		return AMTY_Text(TEXT("Rings when a milestone is completed in the HUB (any milestone, by any player).\n\nUse it to show a message, play a sound, or start machines waiting for the next tier."));
+	case EAMCondition::ResearchCompleted:
+		return AMTY_Text(TEXT("Rings when a MAM research is completed (any research, also hard drives): its results can be claimed.\n\nUse it to get a message or a sound while you are away from the MAM."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -262,7 +265,12 @@ bool AMRules::IsWorldAction(EAMAction Action)
 
 bool AMRules::IsWorldCondition(EAMCondition Condition)
 {
-	return Condition == EAMCondition::MilestoneCompleted;
+	return Condition == EAMCondition::MilestoneCompleted || Condition == EAMCondition::ResearchCompleted;
+}
+
+bool AMRules::IsMamCondition(EAMCondition Condition)
+{
+	return Condition == EAMCondition::ResearchCompleted;
 }
 
 bool AMRules::ActionNeedsSound(EAMAction Action)

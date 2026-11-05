@@ -54,6 +54,8 @@ enum class EAMCondition : uint8
 	FuseReset          UMETA(DisplayName = "Fuse reset"),
 	// World events: rung by the HUB (its Automation tab), not by machines.
 	MilestoneCompleted UMETA(DisplayName = "Milestone completed"),
+	// World events of the MAM (its Automation tab).
+	ResearchCompleted  UMETA(DisplayName = "Research completed"),
 	Count              UMETA(Hidden)
 };
 
@@ -302,6 +304,9 @@ namespace AMRules
 
 	/** A world event: only the HUB rings it (e.g. a milestone is completed); machines never offer it. */
 	AUTOMATEDMACHINES_API bool IsWorldCondition(EAMCondition Condition);
+
+	/** A world event of the MAM (its tab), not of the HUB. */
+	AUTOMATEDMACHINES_API bool IsMamCondition(EAMCondition Condition);
 
 	/** Longest message text kept. */
 	constexpr int32 MaxMessageLength = 120;

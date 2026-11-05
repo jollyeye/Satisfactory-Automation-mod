@@ -75,10 +75,17 @@ public:
 	 * action with it (machines, the HUB) and every sign design for it. OnlyMachine: from that one
 	 * machine only; bOnlyHub: from the HUB's actions only (the overview's per-machine bins).
 	 */
-		void ClearAlarm(const FString& Event, bool bRingers, const AActor* OnlyMachine = nullptr, bool bOnlyHub = false);
+		void ClearAlarm(const FString& Event, bool bRingers, const AActor* OnlyMachine = nullptr, bool bOnlyHub = false, bool bMam = false);
+
+	/** The HUB's or the MAM's building (rings their world events; found by class name). */
+	const AActor* FindWorldBuilding(bool bMam) const;
 
 	/** Replaces the world actions (server only). Only world actions are kept. */
-	void SetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions);
+	/**
+	 * The world's alarms and actions from one tab: the HUB's (bMam false: its world alarms and the
+	 * world actions) or the MAM's (bMam true: its world alarms only). The other tab's alarms are kept.
+	 */
+	void SetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions, bool bMam = false);
 
 	/** True if this machine type can be automated (for now: Smelter, Constructor and other manufacturers). */
 	static bool CanAutomate(const AActor* Machine);
@@ -180,6 +187,12 @@ private:
 
 	UFUNCTION()
 	void OnSchematicPurchased(TSubclassOf<class UFGSchematic> Schematic);
+
+	UFUNCTION()
+	void OnResearchCompleted(TSubclassOf<class UFGSchematic> Schematic);
+
+	bool bMilestonesBound = false;
+	bool bResearchBound = false;
 
 	/** Rings the world alarms with this world event (rung by the HUB). */
 	void FireWorldEvent(EAMCondition Condition, const FString& Detail);

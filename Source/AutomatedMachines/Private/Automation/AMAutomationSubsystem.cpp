@@ -1,6 +1,7 @@
 #include "Automation/AMAutomationSubsystem.h"
 #include "Automation/AMMarkers.h"
 #include "FGSchematicManager.h"
+#include "FGResearchManager.h"
 #include "FGSchematic.h"
 #include "EngineUtils.h"
 #include "AutomatedMachinesModule.h"
@@ -286,7 +287,7 @@ void AAMAutomationSubsystem::SetSignDesigns(AFGBuildableWidgetSign* Sign, const 
 	OnRulesChanged.Broadcast();
 }
 
-void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, const AActor* OnlyMachine, bool bOnlyHub)
+void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, const AActor* OnlyMachine, bool bOnlyHub, bool bMam)
 {
 	if (!HasAuthority() || Event.IsEmpty())
 	{
@@ -335,9 +336,13 @@ void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, con
 	}
 	if (bRingers && !OnlyMachine)
 	{
-		Removed += mWorldFires.RemoveAll([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; });
+		// All of them, or (one row of the overview) only the HUB's or only the MAM's.
+		Removed += mWorldFires.RemoveAll([&Event, bOnlyHub, bMam](const FAMFireRule& Rule)
+		{
+			return Rule.Event == Event && (!bOnlyHub || AMRules::IsMamCondition(Rule.Condition) == bMam);
+		});
 	}
-	if (!bRingers && !OnlyMachine)
+	if (!bRingers && !OnlyMachine && !(bOnlyHub && bMam))
 	{
 		Removed += mWorldActions.RemoveAll([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
 	}
@@ -478,22 +483,31 @@ FAMReactionRule AAMAutomationSubsystem::CleanReaction(const FAMReactionRule& Rul
 	return Clean;
 }
 
-void AAMAutomationSubsystem::SetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions)
+void AAMAutomationSubsystem::SetWorldRules(const TArray<FAMFireRule>& Fires, const TArray<FAMReactionRule>& Actions, bool bMam)
 {
 	if (!HasAuthority())
 	{
 		return;
 	}
-	mWorldFires.Reset();
+	// Only this tab's world alarms are replaced (the HUB's or the MAM's).
+	mWorldFires.RemoveAll([bMam](const FAMFireRule& Rule) { return AMRules::IsMamCondition(Rule.Condition) == bMam; });
 	for (const FAMFireRule& Rule : Fires)
 	{
 		FAMFireRule Clean = Rule;
 		Clean.Event = AMRules::NormalizeEventName(Rule.Event);
 		Clean.Item = nullptr;
-		if (!Clean.Event.IsEmpty() && AMRules::IsWorldCondition(Clean.Condition))
+		if (!Clean.Event.IsEmpty() && AMRules::IsWorldCondition(Clean.Condition) && AMRules::IsMamCondition(Clean.Condition) == bMam)
 		{
 			mWorldFires.Add(Clean);
 		}
+	}
+	if (bMam)
+	{
+		// The MAM's tab has no actions: the world actions stay as they are.
+		UE_LOG(LogAutomatedMachines, Log, TEXT("World alarms: %d (MAM tab)"), mWorldFires.Num());
+		ForceNetUpdate();
+		OnRulesChanged.Broadcast();
+		return;
 	}
 	mWorldActions.Reset();
 	for (const FAMReactionRule& Rule : Actions)
@@ -810,6 +824,7 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::FuseBlown:         return IsFuseBlown(Factory);
 	case EAMCondition::FuseReset:         return !IsFuseBlown(Factory);
 	case EAMCondition::MilestoneCompleted: return false;
+	case EAMCondition::ResearchCompleted: return false;
 	default:                              return false;
 	}
 }
@@ -1271,18 +1286,63 @@ int32 AAMAutomationSubsystem::DeleteAllItems(UFGInventoryComponent* Inventory)
 void AAMAutomationSubsystem::BindWorldEvents()
 {
 	UWorld* World = GetWorld();
-	AFGSchematicManager* Schematics = World ? AFGSchematicManager::Get(World) : nullptr;
-	if (!Schematics)
+	if (!World)
 	{
-		// Not there yet (early in the load): again in a second.
-		if (World)
-		{
-			World->GetTimerManager().SetTimer(mBindWorldEventsTimer, this, &AAMAutomationSubsystem::BindWorldEvents, 1.f, false);
-		}
 		return;
 	}
-	Schematics->PurchasedSchematicDelegate.AddUniqueDynamic(this, &AAMAutomationSubsystem::OnSchematicPurchased);
-	UE_LOG(LogAutomatedMachines, Log, TEXT("World events: listening for milestones"));
+	if (!bMilestonesBound)
+	{
+		if (AFGSchematicManager* Schematics = AFGSchematicManager::Get(World))
+		{
+			Schematics->PurchasedSchematicDelegate.AddUniqueDynamic(this, &AAMAutomationSubsystem::OnSchematicPurchased);
+			bMilestonesBound = true;
+			UE_LOG(LogAutomatedMachines, Log, TEXT("World events: listening for milestones"));
+		}
+	}
+	if (!bResearchBound)
+	{
+		if (AFGResearchManager* Research = AFGResearchManager::Get(World))
+		{
+			Research->ResearchCompletedDelegate.AddUniqueDynamic(this, &AAMAutomationSubsystem::OnResearchCompleted);
+			bResearchBound = true;
+			UE_LOG(LogAutomatedMachines, Log, TEXT("World events: listening for MAM research"));
+		}
+	}
+	if (!bMilestonesBound || !bResearchBound)
+	{
+		// Not there yet (early in the load): again in a second.
+		World->GetTimerManager().SetTimer(mBindWorldEventsTimer, this, &AAMAutomationSubsystem::BindWorldEvents, 1.f, false);
+	}
+}
+
+void AAMAutomationSubsystem::OnResearchCompleted(TSubclassOf<UFGSchematic> Schematic)
+{
+	if (!HasAuthority() || !Schematic)
+	{
+		return;
+	}
+	if (const UWorld* World = GetWorld())
+	{
+		if (World->GetTimeSeconds() < 10.0)
+		{
+			return;
+		}
+	}
+	FireWorldEvent(EAMCondition::ResearchCompleted, UFGSchematic::GetSchematicDisplayName(Schematic).ToString());
+}
+
+const AActor* AAMAutomationSubsystem::FindWorldBuilding(bool bMam) const
+{
+	// The HUB is the trading post (Build_TradingPost_C), the MAM Build_Mam_C.
+	const TCHAR* Name = bMam ? TEXT("Mam") : TEXT("TradingPost");
+	for (TActorIterator<AFGBuildable> It(GetWorld()); It; ++It)
+	{
+		if (It->GetClass()->GetName().Contains(Name))
+		{
+			return *It;
+		}
+	}
+	return nullptr;
 }
 
 void AAMAutomationSubsystem::OnSchematicPurchased(TSubclassOf<UFGSchematic> Schematic)
@@ -1304,16 +1364,8 @@ void AAMAutomationSubsystem::OnSchematicPurchased(TSubclassOf<UFGSchematic> Sche
 
 void AAMAutomationSubsystem::FireWorldEvent(EAMCondition Condition, const FString& Detail)
 {
-	// The HUB rings them: the trading post building, if there is one.
-	const AActor* Hub = nullptr;
-	for (TActorIterator<AFGBuildable> It(GetWorld()); It; ++It)
-	{
-		if (It->GetClass()->GetName().Contains(TEXT("TradingPost")))
-		{
-			Hub = *It;
-			break;
-		}
-	}
+	// The HUB (or the MAM) rings them: its building, if there is one.
+	const AActor* Hub = FindWorldBuilding(AMRules::IsMamCondition(Condition));
 	TArray<FString> Events;
 	for (const FAMFireRule& Rule : mWorldFires)
 	{

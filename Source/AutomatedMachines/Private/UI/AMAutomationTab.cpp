@@ -688,7 +688,8 @@ void UAMAutomationTab::LoadRules()
 	mNoticeText->SetVisibility(ESlateVisibility::Collapsed);
 	if (bWorldMode)
 	{
-		mFires = Subsystem->GetWorldFires();
+		// The HUB's world alarms only (it saves those; the MAM's stay).
+		mFires = Subsystem->GetWorldFires().FilterByPredicate([](const FAMFireRule& Rule) { return !AMRules::IsMamCondition(Rule.Condition); });
 		mReactions = Subsystem->GetWorldActions();
 	}
 	else if (const FAMMachineRules* Rules = Subsystem->FindRules(Machine))
@@ -1353,7 +1354,8 @@ void UAMAutomationTab::ScrollToEndLater(UWidget* Rows)
 
 bool UAMAutomationTab::IsConditionAvailableHere(EAMCondition Condition) const
 {
-	return bWorldMode ? AMRules::IsWorldCondition(Condition) : AMRules::IsConditionAvailable(Condition, GetMachine());
+	// The HUB: its own world events (the MAM's are in the MAM's tab).
+	return bWorldMode ? (AMRules::IsWorldCondition(Condition) && !AMRules::IsMamCondition(Condition)) : AMRules::IsConditionAvailable(Condition, GetMachine());
 }
 
 void UAMAutomationTab::OnAddFireClicked()
