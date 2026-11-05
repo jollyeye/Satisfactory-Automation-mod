@@ -108,7 +108,7 @@ void AMClipboard::Copy(AFGPlayerState* Player, UObject* Object)
 		return;
 	}
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation copied from %s: %s"), *Machine->GetName(), *AMCB_Describe(Clip));
-	AMNotification::Show(AMCB_Controller(Player), TEXT("AUTOMATION COPIED"), AMCB_Describe(Clip));
+	UAMNotification::Show(AMCB_Controller(Player), TEXT("AUTOMATION COPIED"), AMCB_Describe(Clip));
 	Copies.Add(FObjectKey(AMCB_Kind(Machine)), MoveTemp(Clip));
 }
 
@@ -135,7 +135,7 @@ bool AMClipboard::Paste(AFGPlayerState* Player, UObject* Object)
 
 	UAMRemoteCallObject::RequestSetRules(AMCB_Controller(Player), Machine, Clip->Fires, Clip->Reactions, Clip->Options);
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation pasted onto %s: %s"), *Machine->GetName(), *AMCB_Describe(*Clip));
-	AMNotification::Show(AMCB_Controller(Player), TEXT("AUTOMATION PASTED"), AMCB_Describe(*Clip));
+	UAMNotification::Show(AMCB_Controller(Player), TEXT("AUTOMATION PASTED"), AMCB_Describe(*Clip));
 	return true;
 }
 
