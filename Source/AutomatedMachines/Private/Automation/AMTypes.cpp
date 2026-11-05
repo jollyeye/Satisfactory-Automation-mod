@@ -46,8 +46,6 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::StorageNotEmpty:   return AMTY_Text(TEXT("Not empty"));
 	case EAMCondition::FillAbove:         return AMTY_Text(TEXT("Filled above"));
 	case EAMCondition::FillBelow:         return AMTY_Text(TEXT("Filled below"));
-	case EAMCondition::BeltBlocked:       return AMTY_Text(TEXT("Belt blocked"));
-	case EAMCondition::BeltFlowing:       return AMTY_Text(TEXT("Belt flowing"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -109,9 +107,9 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	case EAMCondition::InputCorrect:
 		return AMTY_Text(TEXT("Rings when no belt or pipe brings a wrong item any more."));
 	case EAMCondition::StorageFull:
-		return AMTY_Text(TEXT("Rings when the container is full: every slot holds a full stack, so belts cannot bring anything more.\n\nUse it to pause the machines that fill it."));
+		return AMTY_Text(TEXT("Rings when the container cannot take what a belt brings, so the belt stops: every slot holds a full stack, or the item's stacks are full and no slot is empty for it (in a container with several kinds of items).\n\nUse it to pause the machines that fill it."));
 	case EAMCondition::StorageNotFull:
-		return AMTY_Text(TEXT("Rings when the container has room again (a slot is empty or not a full stack)."));
+		return AMTY_Text(TEXT("Rings when the container can take what its belts bring again."));
 	case EAMCondition::StorageEmpty:
 		return AMTY_Text(TEXT("Rings when the last item has left the container.\n\nUse it to start the machines that fill it."));
 	case EAMCondition::StorageNotEmpty:
@@ -120,10 +118,6 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the container is filled above the percentage you set. 100% is every slot holding a full stack; a slot with half a stack counts as half a slot.\n\nUse it to slow down or pause the machines that fill it before it is completely full."));
 	case EAMCondition::FillBelow:
 		return AMTY_Text(TEXT("Rings when the container is filled below the percentage you set (counted like Filled above).\n\nUse it to start the machines that fill it again before it runs empty."));
-	case EAMCondition::BeltBlocked:
-		return AMTY_Text(TEXT("Rings when a belt brings an item the container has no room for, so the belt stops. This can happen before the container is full: the item's stacks are full and there is no empty slot left for it.\n\nUse it to pause the machines that fill it, or to empty the container."));
-	case EAMCondition::BeltFlowing:
-		return AMTY_Text(TEXT("Rings when the container can take the items of every belt again."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -274,8 +268,7 @@ float AMRules::CleanValue(const FValueInfo& Info, float Value)
 
 bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machine)
 {
-	const bool bStorageEvent = (Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::FillBelow)
-		|| Condition == EAMCondition::BeltBlocked || Condition == EAMCondition::BeltFlowing;
+	const bool bStorageEvent = Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::FillBelow;
 	if (!Machine)
 	{
 		return true;

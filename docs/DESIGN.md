@@ -150,8 +150,8 @@ Miners have no input and no recipe, so they get fewer machine events and actions
 
 Storage Container and Industrial Storage Container (same window, `Widget_Storage`). The game has no way to empty a container except taking everything out by hand, so the mod adds one.
 
-- Machine events: Full (every slot holds a full stack), Not full, Empty, Not empty, Filled above N%, Filled below N% (a slot with half a stack counts as half a slot).
-- Belt blocked / Belt flowing: a belt brings an item the container has no room for (can happen before Full: that item's stacks are full and no slot is empty).
+- Machine events: Full, Not full, Empty, Not empty, Filled above N%, Filled below N% (a slot with half a stack counts as half a slot).
+- Full = the belt into it stops: every slot holds a full stack, or a belt brings an item it has no room for (in a mixed container that can happen before every slot is full). A separate "Belt blocked" event was tried and dropped (decided 5 Nov 2026): for one kind of item it is the same moment as Full, and a blocked output belt is the next machine's "Input full" / "Full".
 - Actions: Delete contents (destroyed for good, like Delete output). With Full or Filled above on the same container it becomes an overflow that throws away what nobody uses.
 - The container's own events are the useful part: e.g. "Filled below 10%" rings an alarm that resumes the machines filling it, "Filled above 90%" pauses them.
 - Not included for now: the Dimensional Depot uploader (its own window), fluid buffers (other kind of building).

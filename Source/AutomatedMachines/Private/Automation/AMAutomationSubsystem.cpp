@@ -577,14 +577,12 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::InputNotFull:      return !IsInputFull(Factory);
 	case EAMCondition::WrongInput:        return FindWrongInput(Factory, nullptr, nullptr);
 	case EAMCondition::InputCorrect:      return !FindWrongInput(Factory, nullptr, nullptr);
-	case EAMCondition::StorageFull:       return GetFillLevel(Factory) >= 0.9999f;
-	case EAMCondition::StorageNotFull:    return GetFillLevel(Factory) < 0.9999f;
+	case EAMCondition::StorageFull:       return GetFillLevel(Factory) >= 0.9999f || IsBeltBlocked(Factory);
+	case EAMCondition::StorageNotFull:    return GetFillLevel(Factory) < 0.9999f && !IsBeltBlocked(Factory);
 	case EAMCondition::StorageEmpty:      return GetFillLevel(Factory) <= 0.f;
 	case EAMCondition::StorageNotEmpty:   return GetFillLevel(Factory) > 0.f;
 	case EAMCondition::FillAbove:         return GetFillLevel(Factory) * 100.f > Rule.Value;
 	case EAMCondition::FillBelow:         return GetFillLevel(Factory) * 100.f < Rule.Value;
-	case EAMCondition::BeltBlocked:       return IsBeltBlocked(Factory);
-	case EAMCondition::BeltFlowing:       return !IsBeltBlocked(Factory);
 	default:                              return false;
 	}
 }
