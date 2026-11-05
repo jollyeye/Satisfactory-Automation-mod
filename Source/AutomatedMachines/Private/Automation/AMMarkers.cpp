@@ -5,54 +5,38 @@
 #include "AutomatedMachinesModule.h"
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableWidgetSign.h"
-#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/DecalComponent.h"
 #include "Components/SceneComponent.h"
-#include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
-#include "CollisionQueryParams.h"
-#include "GameFramework/PlayerController.h"
-#include "Camera/PlayerCameraManager.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 namespace
 {
 	// Made by Tools/create_assets.py.
-	const TCHAR* const AMMK_MeshPath = TEXT("/AutomatedMachines/Marker/SM_AM_Marker.SM_AM_Marker");
-	const TCHAR* const AMMK_MaterialPath = TEXT("/AutomatedMachines/Marker/M_AM_Marker.M_AM_Marker");
+	const TCHAR* const AMMK_GlowMaterialPath = TEXT("/AutomatedMachines/Marker/M_AM_Underglow.M_AM_Underglow");
 
-	/** Height of the marker's centre above the top of the machine, in cm. */
-	constexpr float AMMK_HeightAboveMachine = 150.f;
+	/** How far the glow reaches out from the machine's edge, in cm. */
+	constexpr float AMMK_Margin = 120.f;
 
-	/** Something closer than this above the machine (a stacked container) moves the marker to its front, in cm. */
-	constexpr float AMMK_StackCheckHeight = 120.f;
+	/** The projection box: from this high above the machine's base ... */
+	constexpr float AMMK_Above = 40.f;
 
-	/** How far in front of the machine's front face the marker floats then, in cm. */
-	constexpr float AMMK_FrontDistance = 60.f;
+	/** ... to this far below it, in cm (the floor may be a little lower than the machine's base). */
+	constexpr float AMMK_Below = 160.f;
 
-	/** Markers are placed again this often, in seconds (something may have been stacked on a machine). */
+	/** Glows smaller than this part of the screen are not drawn (far away). */
+	constexpr float AMMK_FadeScreenSize = 0.004f;
+
+	/** Glows are checked again this often, in seconds (a machine may have been dismantled). */
 	constexpr float AMMK_RefreshInterval = 5.f;
-
-	/** Markers further away than this are not drawn, in cm. */
-	constexpr int32 AMMK_CullDistance = 30000;
 }
 
 AAMMarkers::AAMMarkers()
 {
-	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.TickInterval = 0.2f;
+	PrimaryActorTick.bCanEverTick = false;
 	bReplicates = false;
-
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
-
-	mInstances = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Markers"));
-	mInstances->SetupAttachment(Root);
-	mInstances->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	mInstances->SetGenerateOverlapEvents(false);
-	mInstances->SetCastShadow(false);
-	mInstances->SetCanEverAffectNavigation(false);
-	mInstances->SetCullDistances(0, AMMK_CullDistance);
-	// The material turns the square to the camera, so it reaches outside the mesh's own bounds.
-	mInstances->BoundsScale = 3.f;
 }
 
 void AAMMarkers::Init(AAMAutomationSubsystem* InSubsystem)
@@ -62,16 +46,7 @@ void AAMMarkers::Init(AAMAutomationSubsystem* InSubsystem)
 	{
 		mRulesChangedHandle = InSubsystem->OnRulesChanged.AddUObject(this, &AAMMarkers::OnRulesChanged);
 	}
-
-	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, AMMK_MeshPath);
-	if (Mesh)
-	{
-		mInstances->SetStaticMesh(Mesh);
-		if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, AMMK_MaterialPath))
-		{
-			mInstances->SetMaterial(0, Material);
-		}
-	}
+	mGlowMaterial = LoadObject<UMaterialInterface>(nullptr, AMMK_GlowMaterialPath);
 	Rebuild();
 	if (UWorld* World = GetWorld())
 	{
@@ -91,115 +66,99 @@ void AAMMarkers::OnRulesChanged()
 
 void AAMMarkers::Rebuild()
 {
-	mInstances->ClearInstances();
-	mStacked.Reset();
 	const AAMAutomationSubsystem* Subsystem = mSubsystem.Get();
 	if (!Subsystem)
 	{
 		return;
 	}
-	if (!mInstances->GetStaticMesh())
+	if (!mGlowMaterial)
 	{
-		if (!bMeshMissingLogged)
+		if (!bMaterialMissingLogged)
 		{
-			UE_LOG(LogAutomatedMachines, Warning, TEXT("Marker mesh %s not found: no markers"), AMMK_MeshPath);
-			bMeshMissingLogged = true;
+			UE_LOG(LogAutomatedMachines, Warning, TEXT("Underglow material %s not found: no glow under machines"), AMMK_GlowMaterialPath);
+			bMaterialMissingLogged = true;
 		}
 		return;
 	}
 
+	// The machines that should glow.
+	TSet<const AActor*> Wanted;
 	for (const FAMMachineRules& Entry : Subsystem->GetAllMachines())
 	{
 		const AActor* Machine = Entry.Machine;
-		// Signs never get a marker: nothing may change how a sign looks except its own designs.
-		if (!IsValid(Machine) || Entry.IsEmpty() || Machine->IsA<AFGBuildableWidgetSign>())
+		// Signs never glow: nothing may change how a sign looks except its own designs.
+		if (IsValid(Machine) && !Entry.IsEmpty() && !Machine->IsA<AFGBuildableWidgetSign>())
 		{
-			continue;
+			Wanted.Add(Machine);
 		}
-		FVector Origin;
-		FVector Extent;
-		Machine->GetActorBounds(true, Origin, Extent);
-		const float Top = static_cast<float>(Origin.Z + Extent.Z);
-		FVector Location(Origin.X, Origin.Y, Top + AMMK_HeightAboveMachine);
+	}
 
-		// Something stacked on it (containers, signs on a wall): in front of the machine instead,
-		// halfway up, so each machine of a stack shows its own marker.
-		if (UWorld* World = GetWorld())
+	// Remove the glows of machines gone or no longer automated.
+	for (auto It = mGlows.CreateIterator(); It; ++It)
+	{
+		const AActor* Machine = It->Key.Get();
+		UDecalComponent* Glow = It->Value.Get();
+		if (!IsValid(Machine) || !Wanted.Contains(Machine) || !IsValid(Glow))
 		{
-			FCollisionQueryParams Params(SCENE_QUERY_STAT(AMMarkerStack), false, Machine);
-			FHitResult Hit;
-			const FVector Start(Origin.X, Origin.Y, Top + 5.f);
-			const FVector End(Origin.X, Origin.Y, Top + AMMK_StackCheckHeight);
-			if (World->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) && Hit.GetActor() != Machine)
+			if (IsValid(Glow))
 			{
-				FStackedMarker& Stacked = mStacked.AddDefaulted_GetRef();
-				Stacked.Machine = Machine;
-				Stacked.LocalBox = Machine->CalculateComponentsBoundingBoxInLocalSpace(true);
-				Stacked.Instance = mInstances->AddInstance(FTransform(Location), true);
-				FVector CameraLocation = Location;
-				if (const APlayerController* Player = World->GetFirstPlayerController())
-				{
-					if (Player->PlayerCameraManager)
-					{
-						CameraLocation = Player->PlayerCameraManager->GetCameraLocation();
-					}
-				}
-				PlaceStacked(Stacked, CameraLocation, true);
-				continue;
+				RemoveInstanceComponent(Glow);
+				Glow->DestroyComponent();
+			}
+			It.RemoveCurrent();
+		}
+	}
+
+	// Add the new ones.
+	for (const AActor* Machine : Wanted)
+	{
+		if (!mGlows.Contains(TWeakObjectPtr<const AActor>(Machine)))
+		{
+			if (UDecalComponent* Glow = MakeGlow(Machine))
+			{
+				mGlows.Add(TWeakObjectPtr<const AActor>(Machine), Glow);
 			}
 		}
-		mInstances->AddInstance(FTransform(Location), true);
 	}
 }
 
-void AAMMarkers::Tick(float DeltaSeconds)
+UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine)
 {
-	Super::Tick(DeltaSeconds);
-	if (mStacked.Num() == 0)
+	// The machine's own box, in its local space (X forward, Y right, Z up).
+	const FBox LocalBox = Machine->CalculateComponentsBoundingBoxInLocalSpace(true);
+	if (!LocalBox.IsValid || LocalBox.GetExtent().X < 1.0 || LocalBox.GetExtent().Y < 1.0)
 	{
-		return;
+		return nullptr;
 	}
-	const APlayerController* Player = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
-	if (!Player || !Player->PlayerCameraManager)
-	{
-		return;
-	}
-	const FVector CameraLocation = Player->PlayerCameraManager->GetCameraLocation();
-	for (FStackedMarker& Marker : mStacked)
-	{
-		PlaceStacked(Marker, CameraLocation, false);
-	}
-}
-
-void AAMMarkers::PlaceStacked(FStackedMarker& Marker, const FVector& CameraLocation, bool bForce)
-{
-	const AActor* Machine = Marker.Machine.Get();
-	if (!Machine || Marker.Instance == INDEX_NONE || !Marker.LocalBox.IsValid)
-	{
-		return;
-	}
-	// The side (+X, -X, +Y, -Y of the machine) the camera is most in front of.
+	const FVector Extent = LocalBox.GetExtent();
 	const FTransform& ToWorld = Machine->GetActorTransform();
-	const FVector Center = Marker.LocalBox.GetCenter();
-	const FVector Extent = Marker.LocalBox.GetExtent();
-	const FVector ToCamera = ToWorld.InverseTransformPosition(CameraLocation) - Center;
-	const double RatioX = Extent.X > 1.0 ? FMath::Abs(ToCamera.X) / Extent.X : 0.0;
-	const double RatioY = Extent.Y > 1.0 ? FMath::Abs(ToCamera.Y) / Extent.Y : 0.0;
-	const int32 Face = RatioX >= RatioY ? (ToCamera.X >= 0.0 ? 0 : 1) : (ToCamera.Y >= 0.0 ? 2 : 3);
-	if (!bForce && Face == Marker.Face)
-	{
-		return;
-	}
-	Marker.Face = Face;
-	FVector Local = Center;
-	switch (Face)
-	{
-	case 0: Local.X += Extent.X + AMMK_FrontDistance; break;
-	case 1: Local.X -= Extent.X + AMMK_FrontDistance; break;
-	case 2: Local.Y += Extent.Y + AMMK_FrontDistance; break;
-	default: Local.Y -= Extent.Y + AMMK_FrontDistance; break;
-	}
-	mInstances->UpdateInstanceTransform(Marker.Instance, FTransform(ToWorld.TransformPosition(Local)), true, true);
+	const FVector LocalBase(LocalBox.GetCenter().X, LocalBox.GetCenter().Y, LocalBox.Min.Z);
+
+	UDecalComponent* Glow = NewObject<UDecalComponent>(this);
+	Glow->SetupAttachment(GetRootComponent());
+	Glow->SetUsingAbsoluteLocation(true);
+	Glow->SetUsingAbsoluteRotation(true);
+	Glow->SetUsingAbsoluteScale(true);
+
+	// A decal projects along its own X: pitched down, its X points at the floor, its Y stays the
+	// machine's Y and its Z becomes the machine's X.
+	const FQuat Down = ToWorld.GetRotation() * FRotator(-90.f, 0.f, 0.f).Quaternion();
+	const float HalfDepth = (AMMK_Above + AMMK_Below) * 0.5f;
+	const FVector Center = ToWorld.TransformPosition(LocalBase + FVector(0.f, 0.f, AMMK_Above - HalfDepth));
+	Glow->SetWorldLocationAndRotation(Center, Down);
+	const float HalfY = static_cast<float>(Extent.Y) + AMMK_Margin;
+	const float HalfZ = static_cast<float>(Extent.X) + AMMK_Margin;
+	Glow->DecalSize = FVector(HalfDepth, HalfY, HalfZ);
+	Glow->SetFadeScreenSize(AMMK_FadeScreenSize);
+
+	// The machine's footprint inside the decal, as a part of it (U along the machine's X, V along its Y).
+	UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(mGlowMaterial, Glow);
+	Material->SetVectorParameterValue(TEXT("Inner"), FLinearColor(
+		static_cast<float>(Extent.X) / HalfZ, static_cast<float>(Extent.Y) / HalfY, 0.f, 0.f));
+	Glow->SetDecalMaterial(Material);
+	AddInstanceComponent(Glow);
+	Glow->RegisterComponent();
+	return Glow;
 }
 
 void AAMMarkers::EndPlay(const EEndPlayReason::Type Reason)

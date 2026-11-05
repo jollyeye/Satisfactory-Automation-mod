@@ -216,7 +216,15 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Window: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C` (`mInteractWidgetSoftClass` of `Build_GeneratorBiomass` and `Build_GeneratorBiomass_Automated`, class `AFGBuildableGeneratorFuel`). One-page window: `Widget_Window_DarkMode`, `WindowBody`, no sliding tabs. The page panel's name is not readable from the asset (names like `CanvasPanel_3` are stored as name + number), so the hook uses **`Indirect_Child` on `Widget_StandbyButton`**: SML takes the named widget's parent panel. No slot setup. The dump is pointed at `Widget_Generator_C`.
 - Engine: `IsOutOfFuel` = `!HasFuel()`; `CountFuel` = items at `GetFuelInventoryIndex()`; `GetLoad` = `GetLoadPercentage()` (0..1); `IsFuseBlown` = `GetPowerInfo()->IsFuseTriggered()`; Input full = the fuel slot has no room for one more of its fuel; Wrong input = a belt item / pipe fluid that is neither `IsValidFuel` nor `IsValidSupplementalResource`; Delete input = `DeleteAllItems(GetFuelInventory())`.
 
-## Marker on stacks (5 Nov 2026)
+## Underglow (5 Nov 2026, replaces the marker; not tested yet)
+
+- `AAMMarkers` (same class, local actor spawned by the subsystem) now keeps one `UDecalComponent` per automated machine (not signs), added / removed by `Rebuild` (on rules change, again 1 s later, and every 5 s for dismantled machines). The decals are the actor's instance components (`AddInstanceComponent`), the map holds weak pointers.
+- Placement: the machine's `CalculateComponentsBoundingBoxInLocalSpace(true)`; the decal is centred under its footprint, pitched -90 so its X projects down (covers 40 cm above the machine's base to 160 cm below), `DecalSize` = (100, half Y + 120, half X + 120); `SetFadeScreenSize(0.004)`.
+- Material `M_AM_Underglow` (`Tools/create_assets.py`): deferred decal, translucent, only Emissive and Opacity connected. A Custom node makes the shape from the decal UV: distance outside the footprint `Inner` (per machine, a dynamic material instance), normalized by the margin, smoothstep falloff. Parameters: `Color` (0.12, 0.7, 1.0), `Brightness` 6, `Strength` 0.85, `Inner`.
+- To check on a long machine (Refinery, Manufacturer): `Inner.R` is assumed to run along the decal's U = the machine's X, `Inner.G` along V = its Y. If the glow is long the wrong way, swap them in `AAMMarkers::MakeGlow`.
+- The old Wi-Fi marker assets (`M_AM_Marker`, `SM_AM_Marker`) are still made by the asset script but no longer used.
+
+## Marker on stacks (5 Nov 2026, replaced by the underglow)
 
 `AAMMarkers::Rebuild`: a line trace (Visibility) from the top of the machine's bounds up 120 cm; if it hits another actor, the marker goes to the machine's front instead (`GetActorForwardVector`, bounds depth along it + 60 cm, at the bounds' centre height). Markers are placed again every 5 s (a looping timer), so stacking something later moves the marker. Second version (the first used the actor's forward vector, which for containers is a side, not the door): the marker goes in front of the face (+-X / +-Y of `CalculateComponentsBoundingBoxInLocalSpace`) the local camera is most in front of, checked 5 times a second (`AAMMarkers::Tick`, `UpdateInstanceTransform` only when the face changes).
 

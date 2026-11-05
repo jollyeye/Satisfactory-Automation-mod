@@ -116,19 +116,16 @@ If a player stops using the mod, **their machines must stay exactly where they a
 - Dismantled machines are removed from our data automatically, so nothing piles up.
 - After uninstalling, machines keep the last state the automation gave them (e.g. paused, or a changed clock speed), like any setting the player changes by hand. The mod page should say so.
 
-### Marker: seeing what is automated
+### Underglow: seeing what is automated (decided 5 Nov 2026, replaces the marker)
 
-In a crowd of machines the player must see at a glance which ones are automated, cheaply:
+In a crowd of machines the player must see at a glance which ones are automated, without spoiling the factory's look:
 
-- The marker is **never saved**. It is created when the world loads, from our own data, and removed when a machine loses its last rule. Without the mod there is simply no marker.
-- **Look: a flat Wi-Fi icon** (the game has none: its flat icon set `MonochromeIcons` has arrows, factory, power, train... but nothing signal-like, checked 4 Nov 2026; we draw our own with a Python script and use it for the tab button too) that always faces the camera, on every axis (also when looking from above or below). **White for now**; the colours come later.
-- **One shared instanced mesh** for all markers (one instance per automated machine), not one actor per machine. Thousands of markers then cost about one draw call.
-- How it stays cheap: the mesh is a single flat square; the material turns it towards the camera in the vertex shader (camera-facing billboard), so it works with instancing and nothing moves on the CPU. The Wi-Fi shape is a texture with transparency on that square, unlit so it reads in the dark.
-- It floats in the same place above every machine of a type (position per machine type), and should be readable from a distance.
-- Optional later: the instance colour shows the state (idle, just fired, paused by automation), through per-instance data, still without saving anything.
-- The square mesh and the Wi-Fi texture are made by our scripts (Python, like Road Maker's icons), so no external 3D tools are needed.
-
-- Stacks (5 Nov 2026): when something sits right on top of an automated machine (stacked containers), its marker floats halfway up in front of the side you are looking at (it follows you around), instead of above it; markers are placed again every 5 seconds.
+- **A glow on the floor under the machine, like a tuned car's underglow**: cyan / light blue like the build hologram, emissive so it blooms, brightest at the machine's edge and fading out about 1.2 m around it with a rounded shape.
+- **Projected onto the floor** (a decal), not a flat plane: it lies on whatever is below (foundations, ground, the machine underneath in a stack), and leaves the floor's own colour alone (it only adds light).
+- **Signs never glow** (nothing may change how a sign looks except its own designs).
+- **Never saved**: made when the world loads, from our own data; gone with the mod.
+- Earlier ideas dropped: the floating Wi-Fi marker (in the way, especially on signs and stacks); a see-through overlay of the machine (would not follow animated parts such as the Constructor's arms); making the secondary colour glow (the game's paint material has no glow input; it would mean replacing the game's factory material).
+- Later: the colour shows the state (e.g. flashes when an alarm rings); maybe only while the build gun is out.
 
 ### Code approach (inspired by Road Maker, not copied)
 

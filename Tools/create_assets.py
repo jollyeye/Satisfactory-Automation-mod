@@ -178,6 +178,64 @@ save(mat)
 log("  material: unlit, masked, two-sided, camera-facing")
 
 
+# --- Underglow material (decal under automated machines) ---------------------------------------
+# Projected down onto the floor around a machine: cyan light, brightest at the machine's edge and
+# fading out with a rounded shape. Only emissive and opacity are connected, so the decal adds light
+# and leaves the floor's own colour alone. "Inner" (set per machine by AAMMarkers) is the machine's
+# footprint as a part of the decal: R along U, G along V.
+glow_path = ROOT + "/Marker/M_AM_Underglow"
+if eal.does_asset_exist(glow_path):
+    glow = load(glow_path)
+    MEL.delete_all_material_expressions(glow)
+    log("Rebuilding " + glow_path)
+else:
+    glow = asset_tools.create_asset("M_AM_Underglow", ROOT + "/Marker", unreal.Material, unreal.MaterialFactoryNew())
+    log("Created " + glow_path)
+
+glow.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+glow.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+
+g_uv = node(glow, unreal.MaterialExpressionTextureCoordinate, -900, 0)
+g_inner = node(glow, unreal.MaterialExpressionVectorParameter, -900, 150, parameter_name="Inner",
+               default_value=unreal.LinearColor(0.6, 0.6, 0.0, 0.0))
+g_shape = node(glow, unreal.MaterialExpressionCustom, -600, 50)
+g_shape.set_editor_property("code",
+    "float2 P = abs(UV * 2.0 - 1.0);\n"
+    "float2 In = clamp(Inner.xy, 0.0, 0.98);\n"
+    "float2 D = max(P - In, 0.0) / (1.0 - In);\n"
+    "float G = saturate(1.0 - length(D));\n"
+    "return G * G * (3.0 - 2.0 * G);")
+g_shape.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+g_shape.set_editor_property("description", "UnderglowShape")
+g_inputs = []
+for name in ("UV", "Inner"):
+    ci = unreal.CustomInput()
+    ci.set_editor_property("input_name", name)
+    g_inputs.append(ci)
+g_shape.set_editor_property("inputs", g_inputs)
+link(g_uv, "", g_shape, "UV")
+link(g_inner, "", g_shape, "Inner")
+
+g_colour = node(glow, unreal.MaterialExpressionVectorParameter, -600, 250, parameter_name="Color",
+                default_value=unreal.LinearColor(0.12, 0.7, 1.0, 1.0))
+g_brightness = node(glow, unreal.MaterialExpressionScalarParameter, -600, 400, parameter_name="Brightness", default_value=6.0)
+g_strength = node(glow, unreal.MaterialExpressionScalarParameter, -600, 500, parameter_name="Strength", default_value=0.85)
+g_tint = node(glow, unreal.MaterialExpressionMultiply, -350, 250)
+link(g_colour, "", g_tint, "A")
+link(g_brightness, "", g_tint, "B")
+g_emissive = node(glow, unreal.MaterialExpressionMultiply, -150, 150)
+link(g_tint, "", g_emissive, "A")
+link(g_shape, "", g_emissive, "B")
+g_opacity = node(glow, unreal.MaterialExpressionMultiply, -150, 400)
+link(g_shape, "", g_opacity, "A")
+link(g_strength, "", g_opacity, "B")
+MEL.connect_material_property(g_emissive, "", MP.MP_EMISSIVE_COLOR)
+MEL.connect_material_property(g_opacity, "", MP.MP_OPACITY)
+MEL.recompile_material(glow)
+save(glow)
+log("  underglow: deferred decal, translucent, emissive cyan")
+
+
 # --- Marker mesh -------------------------------------------------------------------------------
 mesh_options = unreal.FbxImportUI()
 mesh_options.set_editor_property("import_mesh", True)

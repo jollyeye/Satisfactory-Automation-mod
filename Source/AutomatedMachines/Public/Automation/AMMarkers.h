@@ -1,8 +1,14 @@
-// The Wi-Fi markers above automated machines: one instanced mesh for all of them.
+// The glow under automated machines, like a tuned car's underglow: light projected onto the floor
+// around the machine's base (a decal, so it lies on whatever is below: foundations, ground, the
+// machine underneath in a stack). Cyan like the build hologram, emissive so it blooms.
 //
-// Cheap on purpose: one actor and one instanced mesh component for the whole world (about one draw
-// call however many machines are automated). The mesh is a flat square; its material turns it to the
-// camera in the shader, so nothing moves on the CPU. Never saved: rebuilt from the rules on load.
+//            ______________
+//           |   machine    |
+//      ~~~~~|______________|~~~~~      <- brightest at the machine's edge,
+//    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~       fading out over AMMK_Margin
+//
+// One decal component per machine, all on one local actor (never replicated, never saved: made
+// again from the rules on load). Signs get none: nothing may change how a sign looks.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -10,7 +16,8 @@
 #include "AMMarkers.generated.h"
 
 class AAMAutomationSubsystem;
-class UInstancedStaticMeshComponent;
+class UDecalComponent;
+class UMaterialInterface;
 
 UCLASS(NotPlaceable, Transient)
 class AUTOMATEDMACHINES_API AAMMarkers : public AActor
@@ -20,46 +27,33 @@ class AUTOMATEDMACHINES_API AAMMarkers : public AActor
 public:
 	AAMMarkers();
 
-	/** Follows the rules of this subsystem: one marker per machine with rules. */
+	/** Follows the rules of this subsystem: a glow under every machine with rules. */
 	void Init(AAMAutomationSubsystem* InSubsystem);
 
-	/** Places the markers again. */
+	/** Adds the glows of new automated machines, removes the ones no longer automated or gone. */
 	void Rebuild();
 
 	/**
-	 * Rules changed: places the markers now and once more a second later. A machine that was just
-	 * built (middle click) has no size yet at the moment it gets its rules, so its marker would sit
-	 * inside it.
+	 * Rules changed: now and once more a second later. A machine that was just built (middle click)
+	 * has no size yet at the moment it gets its rules.
 	 */
 	void OnRulesChanged();
-
-	virtual void Tick(float DeltaSeconds) override;
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 private:
+	/** Makes the decal of one machine (null if it has no size yet). */
+	UDecalComponent* MakeGlow(const AActor* Machine);
+
 	UPROPERTY()
-	TObjectPtr<UInstancedStaticMeshComponent> mInstances;
+	TObjectPtr<UMaterialInterface> mGlowMaterial;
+
+	/** The glow of each automated machine (the decals are kept alive as this actor's instance components). */
+	TMap<TWeakObjectPtr<const AActor>, TWeakObjectPtr<UDecalComponent>> mGlows;
 
 	TWeakObjectPtr<AAMAutomationSubsystem> mSubsystem;
 	FDelegateHandle mRulesChangedHandle;
-	bool bMeshMissingLogged = false;
-
-	/**
-	 * Machines with something on top (stacked): their marker floats in front of the side the local
-	 * player looks at, updated while playing (the box is the machine's own, in its local space).
-	 */
-	struct FStackedMarker
-	{
-		TWeakObjectPtr<const AActor> Machine;
-		int32 Instance = INDEX_NONE;
-		FBox LocalBox;
-		int32 Face = INDEX_NONE;
-	};
-	TArray<FStackedMarker> mStacked;
-
-	/** Moves a stacked machine's marker to the face towards the camera (if that face changed). */
-	void PlaceStacked(FStackedMarker& Marker, const FVector& CameraLocation, bool bForce);
+	bool bMaterialMissingLogged = false;
 	FTimerHandle mLaterRebuild;
 };
