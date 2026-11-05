@@ -17,6 +17,7 @@ Notes for the next session working on this mod. The design (what the mod does an
 | Storage Container / Industrial Storage Container: Automation tab (one-page window, frame named `WidgetWindowDarkMode`), same height | 5 Nov 2026 |
 | Storage events, Delete contents, Item count with the searchable dropdown window (all row dropdowns), recipe icons | 5 Nov 2026 |
 | Copy / paste of automation (Ctrl+C / Ctrl+V, window buttons, container buttons), middle click sample | 5 Nov 2026 |
+| Biomass Burner: Automation tab (one-page window, hooked via the standby button's panel), its events and actions | 5 Nov 2026 |
  Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
 
 ## Setup on the developer's PC (Windows)
@@ -198,7 +199,7 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Tab: Copy / Paste automation settings buttons at the bottom when `AMClipboard::GameCanCopy` is false. The tab now listens to `OnRulesChanged` and reloads its rows when the world's rules of its machine differ from its own (e.g. pasted with the game's button on the other tab), unless it has rows without an alarm name yet.
 - Recipe dropdown: icon of the recipe's first product.
 
-## Fuel generators (5 Nov 2026, untested)
+## Fuel generators (5 Nov 2026, Biomass Burner works)
 
 - Window: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C` (`mInteractWidgetSoftClass` of `Build_GeneratorBiomass` and `Build_GeneratorBiomass_Automated`, class `AFGBuildableGeneratorFuel`). One-page window: `Widget_Window_DarkMode`, `WindowBody`, no sliding tabs. The page panel's name is not readable from the asset (names like `CanvasPanel_3` are stored as name + number), so the hook uses **`Indirect_Child` on `Widget_StandbyButton`**: SML takes the named widget's parent panel. No slot setup. The dump is pointed at `Widget_Generator_C`.
 - Engine: `IsOutOfFuel` = `!HasFuel()`; `CountFuel` = items at `GetFuelInventoryIndex()`; `GetLoad` = `GetLoadPercentage()` (0..1); `IsFuseBlown` = `GetPowerInfo()->IsFuseTriggered()`; Input full = the fuel slot has no room for one more of its fuel; Wrong input = a belt item / pipe fluid that is neither `IsValidFuel` nor `IsValidSupplementalResource`; Delete input = `DeleteAllItems(GetFuelInventory())`.

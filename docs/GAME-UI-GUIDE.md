@@ -105,9 +105,16 @@ The window has `Widget_SlidingTabs` with its pages side by side in a HorizontalB
 10. Reopening the window (it can be pooled): construct runs again; the setup finds us already in the
     row and only resets to the machine's page.
 
+**Hook parent without knowing the page's name** (tested on the Biomass Burner, `Widget_Generator_C`):
+the page panel's name (e.g. `CanvasPanel_3`) cannot be read from the asset (`strings` shows `CanvasPanel`
+without its number). Use `EWidgetBlueprintHookParentType::Indirect_Child` with a **named widget inside
+the page**, e.g. `Widget_StandbyButton` (every machine window with a standby switch has it): SML hooks
+into that widget's parent panel. No slot setup. This saves the dump round for most one-page windows.
+
 Windows done this way (tested): the miner (`Widget_ResourceExtractorUI_C`, hook parent `CanvasPanel_3`)
 and the storage containers (`Widget_Storage_C`, hook parent `mInventoryVertBox`, a VerticalBox: no
-slot setup, see 8; its frame variable is `WidgetWindowDarkMode`).
+slot setup, see 8; its frame variable is `WidgetWindowDarkMode`), and the fuel generators
+(`Widget_Generator_C`, Indirect_Child on `Widget_StandbyButton`).
 
 Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabButtonLook`,
 `BindSingleTabButtons`, `SelectSingleTab`, `ShowSinglePage` in `UI/AMAutomationTab.cpp`.
