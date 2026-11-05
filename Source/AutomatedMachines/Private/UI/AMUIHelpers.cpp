@@ -25,6 +25,8 @@ const FLinearColor AMUI::Option(FColor(110, 110, 111));
 
 const TCHAR* const AMUI::SwitchOffPath = TEXT("/AutomatedMachines/Icons/T_AM_SwitchOff.T_AM_SwitchOff");
 const TCHAR* const AMUI::SwitchOnPath = TEXT("/AutomatedMachines/Icons/T_AM_SwitchOn.T_AM_SwitchOn");
+const TCHAR* const AMUI::SwitchOffDisabledPath = TEXT("/AutomatedMachines/Icons/T_AM_SwitchOffDisabled.T_AM_SwitchOffDisabled");
+const TCHAR* const AMUI::SwitchOnDisabledPath = TEXT("/AutomatedMachines/Icons/T_AM_SwitchOnDisabled.T_AM_SwitchOnDisabled");
 
 namespace
 {
