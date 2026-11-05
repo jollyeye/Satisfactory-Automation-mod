@@ -2,7 +2,8 @@
 // without a scan (we know where the machine is):
 //   - the scanner's ping sound;
 //   - the machine's icon on the compass and on the map (a local actor representation: only the
-//     player who asked sees it), with its name;
+//     player who asked sees it), with its name; made as the game's resource node representation, so
+//     the compass shows it like an ore: top row, kept at the compass edge when not ahead, distance;
 //   - an expanding ring effect on the machine, again every few seconds;
 //   - all of it until the player gets close to the machine (or after a while, or when asked again).
 // Local only: never replicated, never saved.
@@ -87,6 +88,8 @@ private:
 		double Start = 0.0;
 		double NextPulse = 0.0;
 		float Radius = 0.f;
+		/** The machine's box when located: "arrived" is measured from its edge. */
+		FBox Bounds;
 	};
 	TArray<FLocated> mLocated;
 	FTimerHandle mTimer;

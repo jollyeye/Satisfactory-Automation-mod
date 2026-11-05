@@ -11,8 +11,7 @@
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystem.h"
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "AssetRegistry/IAssetRegistry.h"
+#include "Representation/FGResourceNodeRepresentation.h"
 #include "UObject/UnrealType.h"
 
 namespace
@@ -20,8 +19,8 @@ namespace
 	/** The cyan of the underglow and the build hologram. */
 	const FLinearColor AMLC_Colour(0.12f, 0.7f, 1.f, 1.f);
 
-	/** Closer than this to the machine (plus its size), in cm: arrived, the markers go. */
-	constexpr float AMLC_ArriveDistance = 1500.f;
+	/** Closer than this to the machine's edge, in cm (a foundation): arrived, the markers go. */
+	constexpr float AMLC_ArriveDistance = 800.f;
 
 	/** At the latest after this long, in seconds. */
 	constexpr double AMLC_MaxSeconds = 15.0 * 60.0;
@@ -34,60 +33,32 @@ namespace
 
 	TWeakObjectPtr<AAMLocator> AMLC_Instance;
 
-	/** The ring effect asset: looked for once (Niagara or Cascade, the resource scanner's). */
+	/**
+	 * The ring effect: the resource scanner's hit ping on a node (found with an asset dump of the
+	 * effects named *Scan* / *Ping*, 5 Nov 2026), else the ping folder's highlight marker.
+	 */
+	const TCHAR* const AMLC_EffectPaths[] = {
+		TEXT("/Game/FactoryGame/VFX/Misc/Ping/P_ResourceHitPing_01.P_ResourceHitPing_01"),
+		TEXT("/Game/FactoryGame/VFX/Misc/Ping/NS_HighlightMarker_01.NS_HighlightMarker_01"),
+	};
 	bool bAMLC_EffectSearched = false;
 	TWeakObjectPtr<UObject> AMLC_Effect;
 
-	bool AMLC_IsScannerName(const FString& Path)
-	{
-		return Path.Contains(TEXT("Scan"), ESearchCase::IgnoreCase) || Path.Contains(TEXT("Ping"), ESearchCase::IgnoreCase);
-	}
-
-	/** Finds the effect, logging every candidate ([EffectDump] lines: to pick the exact asset later). */
 	UObject* AMLC_FindEffect()
 	{
-		if (bAMLC_EffectSearched)
+		if (!bAMLC_EffectSearched)
 		{
-			return AMLC_Effect.Get();
-		}
-		bAMLC_EffectSearched = true;
-		IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
-		FString Best;
-		int32 BestScore = -1;
-		const TPair<const TCHAR*, const TCHAR*> Classes[] = {
-			{ TEXT("/Script/Niagara"), TEXT("NiagaraSystem") }, { TEXT("/Script/Engine"), TEXT("ParticleSystem") } };
-		for (const TPair<const TCHAR*, const TCHAR*>& Class : Classes)
-		{
-			const TCHAR* ClassPath = Class.Value;
-			TArray<FAssetData> Assets;
-			Registry.GetAssetsByClass(FTopLevelAssetPath(FName(Class.Key), FName(Class.Value)), Assets, true);
-			for (const FAssetData& Asset : Assets)
+			bAMLC_EffectSearched = true;
+			for (const TCHAR* Path : AMLC_EffectPaths)
 			{
-				const FString Path = Asset.GetObjectPathString();
-				if (!AMLC_IsScannerName(Path))
+				if (UObject* Effect = LoadObject<UObject>(nullptr, Path))
 				{
-					continue;
-				}
-				UE_LOG(LogAutomatedMachines, Log, TEXT("[EffectDump] %s"), *Path);
-				// The resource scanner's own effects first, then those about a node / ping / pulse.
-				int32 Score = 0;
-				Score += Path.Contains(TEXT("ResourceScanner"), ESearchCase::IgnoreCase) ? 4 : 0;
-				Score += Path.Contains(TEXT("Scanner"), ESearchCase::IgnoreCase) ? 2 : 0;
-				Score += (Path.Contains(TEXT("Node"), ESearchCase::IgnoreCase) || Path.Contains(TEXT("Ping"), ESearchCase::IgnoreCase)
-					|| Path.Contains(TEXT("Pulse"), ESearchCase::IgnoreCase)) ? 1 : 0;
-				Score += FCString::Strstr(ClassPath, TEXT("Niagara")) ? 1 : 0;
-				if (Score > BestScore)
-				{
-					BestScore = Score;
-					Best = Path;
+					AMLC_Effect = Effect;
+					break;
 				}
 			}
+			UE_LOG(LogAutomatedMachines, Log, TEXT("Locate effect: %s"), AMLC_Effect.IsValid() ? *AMLC_Effect->GetPathName() : TEXT("none found"));
 		}
-		if (!Best.IsEmpty())
-		{
-			AMLC_Effect = LoadObject<UObject>(nullptr, *Best);
-		}
-		UE_LOG(LogAutomatedMachines, Log, TEXT("Locate effect: %s"), AMLC_Effect.IsValid() ? *Best : TEXT("none found"));
 		return AMLC_Effect.Get();
 	}
 
@@ -165,8 +136,9 @@ bool AAMLocateMarker::AddAsRepresentation()
 {
 	if (AFGActorRepresentationManager* Manager = AFGActorRepresentationManager::Get(GetWorld()))
 	{
-		// Local: only this player's compass and map.
-		mRepresentation = Manager->CreateAndAddNewRepresentation(this, true);
+		// Local: only this player's compass and map. As a resource node representation: the compass
+		// shows it like an ore (top row, kept at the edge, distance, its compass material).
+		mRepresentation = Manager->CreateAndAddNewRepresentation(this, true, UFGResourceNodeRepresentation::StaticClass());
 	}
 	return mRepresentation != nullptr;
 }
@@ -258,6 +230,7 @@ bool AAMLocator::Toggle(AActor* Target, UTexture2D* Icon, const FString& Name)
 	Added.Start = FPlatformTime::Seconds();
 	Added.NextPulse = Added.Start;
 	Added.Radius = static_cast<float>(Extent.Size2D());
+	Added.Bounds = FBox(Origin - Extent, Origin + Extent);
 
 	if (APlayerController* Player = World->GetFirstPlayerController())
 	{
@@ -287,7 +260,7 @@ void AAMLocator::Check()
 			Stop(Index, TEXT("gone"));
 			continue;
 		}
-		if (Pawn && FVector::Dist(Pawn->GetActorLocation(), Target->GetActorLocation()) < AMLC_ArriveDistance + Entry.Radius)
+		if (Pawn && Entry.Bounds.ComputeSquaredDistanceToPoint(Pawn->GetActorLocation()) < FMath::Square(AMLC_ArriveDistance))
 		{
 			Stop(Index, TEXT("arrived"));
 			continue;
