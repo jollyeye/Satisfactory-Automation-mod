@@ -146,6 +146,15 @@ Miners have no input and no recipe, so they get fewer machine events and actions
 - The same rules cover the other extractors (water extractor, oil extractor, resource well extractor): they are the same kind of machine in the game. Their windows come one by one.
 - The miner's window has no tabs (one page), unlike the production machines' window, so where the Automation page goes is worked out from a dump of that window.
 
+### Storage containers (started 5 Nov 2026)
+
+Storage Container and Industrial Storage Container (same window, `Widget_Storage`). The game has no way to empty a container except taking everything out by hand, so the mod adds one.
+
+- Machine events: Full (every slot holds a full stack), Not full, Empty, Not empty, Filled above N%, Filled below N% (a slot with half a stack counts as half a slot).
+- Actions: Delete contents (destroyed for good, like Delete output). With Full or Filled above on the same container it becomes an overflow that throws away what nobody uses.
+- The container's own events are the useful part: e.g. "Filled below 10%" rings an alarm that resumes the machines filling it, "Filled above 90%" pauses them.
+- Not included for now: the Dimensional Depot uploader (its own window), fluid buffers (other kind of building).
+
 ### Wrong items on a belt (decided 4 Nov 2026)
 
 A machine refuses an item that is not an ingredient of its recipe, so the belt stops behind it. Deleting that item was rejected: it would be a cheat. Instead:

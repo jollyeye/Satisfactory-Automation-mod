@@ -23,6 +23,11 @@ namespace
 	const TCHAR* const AMWH_ExtractorWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Widget_ResourceExtractorUI.Widget_ResourceExtractorUI_C");
 	const TCHAR* const AMWH_ExtractorPage = TEXT("CanvasPanel_3");
 
+	// Storage containers (Mk1, Mk2): also a one-page window. mInventoryVertBox is a variable of the
+	// window, inside its page (from the window's asset; to confirm with the dump).
+	const TCHAR* const AMWH_StorageWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Storage.Widget_Storage_C");
+	const TCHAR* const AMWH_StoragePage = TEXT("mInventoryVertBox");
+
 	bool AMWH_Registered = false;
 
 	/** Adds UAMAutomationTab as the last page of a window's tab pages. */
@@ -62,6 +67,7 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_ManufacturingWindow, AMWH_ManufacturingPages, TEXT("AM_ManufacturingAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_HubWindow, AMWH_HubPages, TEXT("AM_HubAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_ExtractorWindow, AMWH_ExtractorPage, TEXT("AM_ExtractorAutomationTabHook"));
+		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"));
 	}
 }
 

@@ -5,6 +5,8 @@
 #include "Buildables/FGBuildableFactory.h"
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
+#include "Buildables/FGBuildableStorage.h"
+#include "FGCentralStorageContainer.h"
 #include "Resources/FGExtractableResourceInterface.h"
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
@@ -395,7 +397,9 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 {
 	// Production machines, and extractors (miners; also water and oil extractors, resource well
 	// extractors: they are the same class).
-	return Machine && (Machine->IsA<AFGBuildableManufacturer>() || Machine->IsA<AFGBuildableResourceExtractor>());
+	// Storage containers too (not the Dimensional Depot uploader: its own window, later).
+	return Machine && (Machine->IsA<AFGBuildableManufacturer>() || Machine->IsA<AFGBuildableResourceExtractor>()
+		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>()));
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -573,8 +577,36 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::InputNotFull:      return !IsInputFull(Factory);
 	case EAMCondition::WrongInput:        return FindWrongInput(Factory, nullptr, nullptr);
 	case EAMCondition::InputCorrect:      return !FindWrongInput(Factory, nullptr, nullptr);
+	case EAMCondition::StorageFull:       return GetFillLevel(Factory) >= 0.9999f;
+	case EAMCondition::StorageNotFull:    return GetFillLevel(Factory) < 0.9999f;
+	case EAMCondition::StorageEmpty:      return GetFillLevel(Factory) <= 0.f;
+	case EAMCondition::StorageNotEmpty:   return GetFillLevel(Factory) > 0.f;
+	case EAMCondition::FillAbove:         return GetFillLevel(Factory) * 100.f > Rule.Value;
+	case EAMCondition::FillBelow:         return GetFillLevel(Factory) * 100.f < Rule.Value;
 	default:                              return false;
 	}
+}
+
+float AAMAutomationSubsystem::GetFillLevel(const AFGBuildableFactory* Factory)
+{
+	// 0..1: each slot counts as (items / stack size); a container of 48 slots with 24 full stacks is 0.5.
+	AFGBuildableStorage* Storage = const_cast<AFGBuildableStorage*>(Cast<AFGBuildableStorage>(Factory));
+	const UFGInventoryComponent* Inventory = Storage ? Storage->GetStorageInventory() : nullptr;
+	if (!Inventory || Inventory->GetSizeLinear() <= 0)
+	{
+		return 0.f;
+	}
+	double Filled = 0.0;
+	for (int32 SlotIndex = 0; SlotIndex < Inventory->GetSizeLinear(); ++SlotIndex)
+	{
+		FInventoryStack Stack;
+		if (Inventory->GetStackFromIndex(SlotIndex, Stack) && Stack.HasItems())
+		{
+			const int32 SlotSize = Inventory->GetSlotSize(SlotIndex, Stack.Item.GetItemClass());
+			Filled += SlotSize > 0 ? FMath::Min(1.0, static_cast<double>(Stack.NumItems) / SlotSize) : 1.0;
+		}
+	}
+	return static_cast<float>(Filled / Inventory->GetSizeLinear());
 }
 
 bool AAMAutomationSubsystem::IsInputFull(const AFGBuildableFactory* Factory)
@@ -808,6 +840,13 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			{
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %s deleted (%d slots)"), *AMAS_Describe(Factory), bOutput ? TEXT("output") : TEXT("input"), Slots);
 			}
+		}
+		break;
+	case EAMAction::DeleteContents:
+		if (AFGBuildableStorage* Storage = Cast<AFGBuildableStorage>(Factory))
+		{
+			const int32 Slots = DeleteAllItems(Storage->GetStorageInventory());
+			UE_LOG(LogAutomatedMachines, Log, TEXT("%s: contents deleted (%d slots had items)"), *AMAS_Describe(Factory), Slots);
 		}
 		break;
 	case EAMAction::ChangeRecipe:

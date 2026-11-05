@@ -690,7 +690,17 @@ void UAMAutomationTab::RemoveRule(bool bFire, int32 Index)
 
 void UAMAutomationTab::OnAddFireClicked()
 {
-	mFires.AddDefaulted();
+	FAMFireRule& NewRule = mFires.AddDefaulted_GetRef();
+	// The first machine event this machine has (a container has no "Output full").
+	for (uint8 Value = 0; Value < static_cast<uint8>(EAMCondition::Count); ++Value)
+	{
+		if (AMRules::IsConditionAvailable(static_cast<EAMCondition>(Value), GetMachine()))
+		{
+			NewRule.Condition = static_cast<EAMCondition>(Value);
+			NewRule.Value = AMRules::GetConditionValueInfo(NewRule.Condition).Default;
+			break;
+		}
+	}
 	RebuildRows();
 }
 
@@ -700,6 +710,20 @@ void UAMAutomationTab::OnAddReactionClicked()
 	if (bWorldMode)
 	{
 		NewRule.Action = EAMAction::ShowMessage;
+	}
+	else
+	{
+		// The first action this machine has (a container can only delete its contents).
+		for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
+		{
+			const EAMAction Action = static_cast<EAMAction>(Value);
+			if (!AMRules::IsWorldAction(Action) && AMRules::IsActionAvailable(Action, GetMachine()))
+			{
+				NewRule.Action = Action;
+				NewRule.Value = AMRules::GetActionValueInfo(Action).Default;
+				break;
+			}
+		}
 	}
 	RebuildRows();
 }

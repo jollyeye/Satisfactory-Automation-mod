@@ -36,6 +36,12 @@ enum class EAMCondition : uint8
 	InputNotFull       UMETA(DisplayName = "Input not full"),
 	WrongInput         UMETA(DisplayName = "Wrong input"),
 	InputCorrect       UMETA(DisplayName = "Input correct"),
+	StorageFull        UMETA(DisplayName = "Full"),
+	StorageNotFull     UMETA(DisplayName = "Not full"),
+	StorageEmpty       UMETA(DisplayName = "Empty"),
+	StorageNotEmpty    UMETA(DisplayName = "Not empty"),
+	FillAbove          UMETA(DisplayName = "Filled above"),
+	FillBelow          UMETA(DisplayName = "Filled below"),
 	Count              UMETA(Hidden)
 };
 
@@ -52,6 +58,7 @@ enum class EAMAction : uint8
 	ChangeRecipe   UMETA(DisplayName = "Change recipe"),
 	ShowMessage    UMETA(DisplayName = "Show message"),
 	PlaySound      UMETA(DisplayName = "Play sound"),
+	DeleteContents UMETA(DisplayName = "Delete contents"),
 	Count          UMETA(Hidden)
 };
 

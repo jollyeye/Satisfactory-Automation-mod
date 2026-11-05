@@ -177,6 +177,11 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Machines: `CanAutomate` also accepts `AFGBuildableResourceExtractor` (miners, and water / oil / well extractors, same class). `AMRules::IsConditionAvailable` / `IsActionAvailable` list what each machine type has; the dropdowns show only those (the current choice stays), and `SetRules` drops the rest. `HasPassWrongItems`: production machines only; the Options section is hidden otherwise.
 - Output full on an extractor: the output inventory has no room for one more cycle (`GetNumExtractedItemsPerCycle` of the node's `GetResourceClass`). Delete output: its output inventory.
 
+## Storage containers (5 Nov 2026, untested)
+
+- Window: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Storage.Widget_Storage_C` (from `mInteractWidgetSoftClass` of `Build_StorageContainerMk1` and `Mk2`, both `AFGBuildableStorage`). The asset has `Widget_Window_DarkMode`, `WindowBody`, no `Widget_SlidingTabs`: a one-page window (kind B in `GAME-UI-GUIDE.md`). Its variables include `mInventoryVertBox`, `mScrollableContent`, `mSortbuttonHbox`, `mSortButton`, `mGrabAllButton`, `mDumpAllButton`, `mStorageActor`. The hook goes into `mInventoryVertBox` (guess from the asset; the dump is pointed at `Widget_Storage_C` to check).
+- `CanAutomate`: `AFGBuildableStorage` except `AFGCentralStorageContainer` (Dimensional Depot uploader). Events `StorageFull`, `StorageNotFull`, `StorageEmpty`, `StorageNotEmpty`, `FillAbove`, `FillBelow` (fill level = sum of items / slot size over slots, `GetSlotSize`), action `DeleteContents` (`DeleteAllItems(GetStorageInventory())`). Machines and containers each see only their own events and actions; a new row starts on the first one the machine has.
+
 ## The widget dump
 
 Now pointed at the HUB terminal (`BPW_Hub_C`): its tree, plus variables and functions of every widget in it whose class name contains Tab, Menu or Hub, to find where an Automation tab goes next to Milestones.

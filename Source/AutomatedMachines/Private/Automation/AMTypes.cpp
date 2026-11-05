@@ -4,6 +4,7 @@
 #include "Resources/FGItemDescriptor.h"
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
+#include "Buildables/FGBuildableStorage.h"
 
 namespace
 {
@@ -39,6 +40,12 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::InputNotFull:      return AMTY_Text(TEXT("Input not full"));
 	case EAMCondition::WrongInput:        return AMTY_Text(TEXT("Wrong input"));
 	case EAMCondition::InputCorrect:      return AMTY_Text(TEXT("Input correct"));
+	case EAMCondition::StorageFull:       return AMTY_Text(TEXT("Full"));
+	case EAMCondition::StorageNotFull:    return AMTY_Text(TEXT("Not full"));
+	case EAMCondition::StorageEmpty:      return AMTY_Text(TEXT("Empty"));
+	case EAMCondition::StorageNotEmpty:   return AMTY_Text(TEXT("Not empty"));
+	case EAMCondition::FillAbove:         return AMTY_Text(TEXT("Filled above"));
+	case EAMCondition::FillBelow:         return AMTY_Text(TEXT("Filled below"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -56,6 +63,7 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::ChangeRecipe:  return AMTY_Text(TEXT("Change recipe"));
 	case EAMAction::ShowMessage:   return AMTY_Text(TEXT("Show message"));
 	case EAMAction::PlaySound:     return AMTY_Text(TEXT("Play sound"));
+	case EAMAction::DeleteContents: return AMTY_Text(TEXT("Delete contents"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -98,6 +106,18 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when a belt or pipe brings something that is not an ingredient of the recipe. The machine refuses it, so the belt stops behind it.\n\nUse it to get a message, or switch on \"Pass wrong items through\" in Options."));
 	case EAMCondition::InputCorrect:
 		return AMTY_Text(TEXT("Rings when no belt or pipe brings a wrong item any more."));
+	case EAMCondition::StorageFull:
+		return AMTY_Text(TEXT("Rings when the container is full: every slot holds a full stack, so belts cannot bring anything more.\n\nUse it to pause the machines that fill it."));
+	case EAMCondition::StorageNotFull:
+		return AMTY_Text(TEXT("Rings when the container has room again (a slot is empty or not a full stack)."));
+	case EAMCondition::StorageEmpty:
+		return AMTY_Text(TEXT("Rings when the last item has left the container.\n\nUse it to start the machines that fill it."));
+	case EAMCondition::StorageNotEmpty:
+		return AMTY_Text(TEXT("Rings when the first item arrives in an empty container."));
+	case EAMCondition::FillAbove:
+		return AMTY_Text(TEXT("Rings when the container is filled above the percentage you set. 100% is every slot holding a full stack; a slot with half a stack counts as half a slot.\n\nUse it to slow down or pause the machines that fill it before it is completely full."));
+	case EAMCondition::FillBelow:
+		return AMTY_Text(TEXT("Rings when the container is filled below the percentage you set (counted like Filled above).\n\nUse it to start the machines that fill it again before it runs empty."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -123,6 +143,8 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Shows a message on the screen of every player, in the game's notifications.\n\nIt shows the alarm's name with your text under it; leave the text empty to show which machine rang it, e.g. \"PLATES BACKED UP - Rung by Constructor\"."));
 	case EAMAction::PlaySound:
 		return AMTY_Text(TEXT("Plays a short sound for every player, wherever they are. Choose one of a few sounds of the game; picking one in the list plays it once so you can hear it."));
+	case EAMAction::DeleteContents:
+		return AMTY_Text(TEXT("Destroys everything in the container. The items are gone for good: no points, no refund.\n\nWith \"Full\" or \"Filled above\" on the same container, it works as an overflow that throws away what nobody uses."));
 	case EAMAction::ChangeRecipe:
 		return AMTY_Text(TEXT("Switches the machine to the recipe you choose.\n\nThe game only allows this with empty slots, so everything in the input and output slots is destroyed first (no refund). Does nothing if the machine already makes this recipe."));
 	default:
@@ -140,6 +162,14 @@ AMRules::FValueInfo AMRules::GetConditionValueInfo(EAMCondition Condition)
 		Info.Min = 0.f;
 		Info.Max = 100.f;
 		Info.Default = 50.f;
+	}
+	else if (Condition == EAMCondition::FillAbove || Condition == EAMCondition::FillBelow)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Filled");
+		Info.Min = 0.f;
+		Info.Max = 100.f;
+		Info.Default = Condition == EAMCondition::FillAbove ? 90.f : 10.f;
 	}
 	return Info;
 }
@@ -238,9 +268,18 @@ float AMRules::CleanValue(const FValueInfo& Info, float Value)
 
 bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machine)
 {
-	if (!Machine || Machine->IsA<AFGBuildableManufacturer>())
+	const bool bStorageEvent = Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::FillBelow;
+	if (!Machine)
 	{
 		return true;
+	}
+	if (Machine->IsA<AFGBuildableManufacturer>())
+	{
+		return !bStorageEvent;
+	}
+	if (Machine->IsA<AFGBuildableStorage>())
+	{
+		return bStorageEvent;
 	}
 	if (Machine->IsA<AFGBuildableResourceExtractor>())
 	{
@@ -266,9 +305,17 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 
 bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 {
-	if (!Machine || Machine->IsA<AFGBuildableManufacturer>() || IsWorldAction(Action))
+	if (!Machine || IsWorldAction(Action))
 	{
 		return true;
+	}
+	if (Machine->IsA<AFGBuildableManufacturer>())
+	{
+		return Action != EAMAction::DeleteContents;
+	}
+	if (Machine->IsA<AFGBuildableStorage>())
+	{
+		return Action == EAMAction::DeleteContents;
 	}
 	if (Machine->IsA<AFGBuildableResourceExtractor>())
 	{
