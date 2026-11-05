@@ -65,6 +65,9 @@ public:
 	void OnLocateClicked();
 
 	UFUNCTION()
+	void OnLocateHovered();
+
+	UFUNCTION()
 	void OnBinReleased();
 
 	UFUNCTION()
@@ -148,6 +151,7 @@ public:
 
 	/** Overview: a machine's locate button (finding it in the world comes next). */
 	void OnOverviewLocate(AFGBuildable* Machine, bool bHub, const FString& TargetName);
+	void ExplainOverviewLocate(const FString& TargetName);
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -416,6 +420,13 @@ private:
 	int32 mExpandedBuilt = 0;
 	int32 mExpandGeneration = 0;
 
+	/** The Machines region on the right of the alarms (the open list, or how to open one). */
+	UPROPERTY()
+	TObjectPtr<UVerticalBox> mMachinesBox;
+
+	/** Fills the Machines region: the open list, or the message saying how to open one. */
+	void RebuildMachinesRegion();
+
 	UPROPERTY()
 	TObjectPtr<UVerticalBox> mExpandedRows;
 
@@ -428,7 +439,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UWidget> mExpandedLoading;
 
-	/** Adds the open list under its alarm's row (collects its machines, then makes the first rows). */
+	/** Adds the open list to the Machines region (collects its machines, then makes the first rows). */
 	void AddExpandedList();
 
 	/** Makes the next batch of the open list's rows (again next tick until all are made). */

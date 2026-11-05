@@ -330,6 +330,11 @@ void UAMAutomationTab::BuildLayout()
 	if (UHorizontalBoxSlot* PageSlot = Page->AddChildToHorizontalBox(PageBorder))
 	{
 		PageSlot->SetVerticalAlignment(VAlign_Fill);
+		if (bOverviewMode)
+		{
+			// The overview is as wide as the HUB's widest page (UpdatePageHeight): the page takes it.
+			PageSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		}
 	}
 
 	auto AddTo = [](UVerticalBox* Box, UWidget* Widget, float TopPadding, bool bFill = false)
@@ -419,21 +424,38 @@ void UAMAutomationTab::BuildLayout()
 
 	if (bOverviewMode)
 	{
-		// Alarms Overview: one table, every alarm of the world.
-		constexpr float CountWidth = 170.f;
-		UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		USizeBox* ColumnSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		ColumnSize->SetWidthOverride(AMAT_AlarmsWidth + AMAT_PanelGap + AMAT_ActionsWidth);
-		ColumnSize->AddChild(Column);
-		if (UHorizontalBoxSlot* ColumnSlot = Panels->AddChildToHorizontalBox(ColumnSize))
+		// Alarms Overview: two regions. Left, every alarm of the world (Name | Rung by | Listening);
+		// right, the machines of the count clicked (empty until then, with a line saying how).
+		constexpr float CountWidth = 150.f;
+		constexpr float AlarmsColumnWidth = 600.f;
+		auto MakeRegion = [this, &AddTo, Panels](const FString& Title, float Width, float LeftPadding) -> UVerticalBox*
 		{
-			ColumnSlot->SetVerticalAlignment(VAlign_Fill);
-		}
-		// No panel title: the line on top already says what this is.
-		UBorder* Body = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(AMAT_PanelPadding));
-		AddTo(Column, Body, 0.f, true);
-		UVerticalBox* Inside = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-		Body->AddChild(Inside);
+			UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+			UWidget* ColumnWidget = Column;
+			if (Width > 0.f)
+			{
+				USizeBox* ColumnSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+				ColumnSize->SetWidthOverride(Width);
+				ColumnSize->AddChild(Column);
+				ColumnWidget = ColumnSize;
+			}
+			if (UHorizontalBoxSlot* ColumnSlot = Panels->AddChildToHorizontalBox(ColumnWidget))
+			{
+				ColumnSlot->SetVerticalAlignment(VAlign_Fill);
+				ColumnSlot->SetPadding(FMargin(LeftPadding, 0.f, 0.f, 0.f));
+				if (Width <= 0.f)
+				{
+					ColumnSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				}
+			}
+			AddTo(Column, MakeText(Title, 15, AMUI::White), 0.f);
+			UBorder* Body = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(AMAT_PanelPadding));
+			AddTo(Column, Body, 8.f, true);
+			UVerticalBox* Inside = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+			Body->AddChild(Inside);
+			return Inside;
+		};
+		UVerticalBox* Inside = MakeRegion(TEXT("Alarms"), AlarmsColumnWidth, 0.f);
 		UHorizontalBox* Header = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		// The name takes all the room the two counts leave (Width 0 = fill).
 		auto AddHeader = [this, Header](const FString& Name, float Width, float RightGap)
@@ -466,6 +488,8 @@ void UAMAutomationTab::BuildLayout()
 		AddTo(Inside, Scroll, 6.f, true);
 		mOverviewRows = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Scroll->AddChild(mOverviewRows);
+
+		mMachinesBox = MakeRegion(TEXT("Machines"), 0.f, AMAT_PanelGap);
 	}
 	else if (bWorldMode)
 	{
@@ -1029,13 +1053,21 @@ void UAMAutomationTab::UpdatePageHeight()
 		return;
 	}
 	float Tallest = 0.f;
+	float Widest = 0.f;
 	for (int32 Index = 0; Index < Pages->GetChildrenCount(); ++Index)
 	{
 		const UWidget* Page = Pages->GetChildAt(Index);
 		if (Page && !Page->IsA<UAMAutomationTab>() && Page->IsVisible())
 		{
 			Tallest = FMath::Max(Tallest, static_cast<float>(Page->GetDesiredSize().Y));
+			Widest = FMath::Max(Widest, static_cast<float>(Page->GetDesiredSize().X));
 		}
+	}
+	// The Alarms Overview is as wide as the widest game page (the HUB's Select Milestone).
+	if (bOverviewMode && Widest > 600.f && !FMath::IsNearlyEqual(Root->GetWidthOverride(), Widest, 1.f))
+	{
+		Root->SetWidthOverride(Widest);
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Alarms Overview: page width %.0f (the game's widest page)"), Widest);
 	}
 	if (Tallest > 100.f && !FMath::IsNearlyEqual(Root->GetHeightOverride(), Tallest, 1.f))
 	{
@@ -2040,9 +2072,11 @@ void UAMAutomationTab::RebuildOverview()
 	if (Alarms.Num() == 0)
 	{
 		mOverviewRows->AddChildToVerticalBox(AMUI::MakeText(WidgetTree, TEXT("No alarms in the world yet."), Font, AMUI::Grey));
+		mExpandedEvent.Reset();
+		RebuildMachinesRegion();
 		return;
 	}
-	constexpr float CountWidth = 170.f;
+	constexpr float CountWidth = 150.f;
 	for (const FString& Alarm : Alarms)
 	{
 		int32 Ringers = 0;
@@ -2140,11 +2174,12 @@ void UAMAutomationTab::RebuildOverview()
 		{
 			RowSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
 		}
-		if (Alarm == mExpandedEvent)
-		{
-			AddExpandedList();
-		}
 	}
+	if (!Alarms.Contains(mExpandedEvent))
+	{
+		mExpandedEvent.Reset();
+	}
+	RebuildMachinesRegion();
 }
 
 namespace
@@ -2193,10 +2228,42 @@ void UAMAutomationTab::OnOverviewLocate(AFGBuildable* Machine, bool bHub, const 
 	ShowInfo(FText::FromString(TargetName), FText::FromString(TEXT("Locating comes next: this button will show where it is.")));
 }
 
+void UAMAutomationTab::ExplainOverviewLocate(const FString& TargetName)
+{
+	ShowInfo(FText::FromString(FString::Printf(TEXT("Locate %s"), *TargetName)),
+		FText::FromString(TEXT("Shows where this machine is in the world, so you can find it.")));
+}
+
+void UAMAutomationTab::RebuildMachinesRegion()
+{
+	if (!mMachinesBox)
+	{
+		return;
+	}
+	mMachinesBox->ClearChildren();
+	mExpandedRows = nullptr;
+	mExpandedLoading = nullptr;
+	mExpandedProgress = nullptr;
+	mExpandedProgressText = nullptr;
+	if (!mExpandedEvent.IsEmpty())
+	{
+		AddExpandedList();
+		return;
+	}
+	UTextBlock* Hint = AMUI::MakeText(WidgetTree,
+		TEXT("Click a number under Rung by or Listening to list its machines here, nearest first.\n\nEach one can be located, or have the alarm removed from it only."),
+		GetRowFont(), AMUI::Grey);
+	Hint->SetAutoWrapText(true);
+	if (UVerticalBoxSlot* HintSlot = mMachinesBox->AddChildToVerticalBox(Hint))
+	{
+		HintSlot->SetPadding(FMargin(4.f, 4.f, 4.f, 0.f));
+	}
+}
+
 void UAMAutomationTab::AddExpandedList()
 {
 	const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this);
-	if (!Subsystem || !mOverviewRows)
+	if (!Subsystem || !mMachinesBox)
 	{
 		return;
 	}
@@ -2238,9 +2305,9 @@ void UAMAutomationTab::AddExpandedList()
 		mExpandedEntries.Insert(Hub, 0);
 	}
 
-	// Under the alarm's row, indented: what it is, the rows (scrolling), and the progress while they are made.
+	// In the Machines region: what it is, the rows (scrolling, the region's height), and the progress while they are made.
 	const FSlateFontInfo Font = GetRowFont();
-	UVerticalBox* Box = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	UVerticalBox* Box = mMachinesBox;
 	const int32 Total = mExpandedEntries.Num();
 	const FString Title = FString::Printf(TEXT("%s %s: %d, nearest first"), bExpandedRingers ? TEXT("Rung by") : TEXT("Listening to"),
 		*Event, Total);
@@ -2248,14 +2315,14 @@ void UAMAutomationTab::AddExpandedList()
 	{
 		TitleSlot->SetPadding(FMargin(2.f, 0.f, 0.f, 4.f));
 	}
-	USizeBox* ListSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	ListSize->SetMaxDesiredHeight(10.f * (AMAT_ExpandRowHeight + 2.f));
 	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
 	Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
-	ListSize->AddChild(Scroll);
 	mExpandedRows = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	Scroll->AddChild(mExpandedRows);
-	Box->AddChildToVerticalBox(ListSize);
+	if (UVerticalBoxSlot* ScrollSlot = Box->AddChildToVerticalBox(Scroll))
+	{
+		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+	}
 
 	UHorizontalBox* Loading = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	mExpandedProgress = WidgetTree->ConstructWidget<UProgressBar>(UProgressBar::StaticClass());
@@ -2283,10 +2350,6 @@ void UAMAutomationTab::AddExpandedList()
 	if (UVerticalBoxSlot* LoadingSlot = Box->AddChildToVerticalBox(Loading))
 	{
 		LoadingSlot->SetPadding(FMargin(2.f, 4.f, 0.f, 0.f));
-	}
-	if (UVerticalBoxSlot* BoxSlot = mOverviewRows->AddChildToVerticalBox(Box))
-	{
-		BoxSlot->SetPadding(FMargin(24.f, 4.f, 0.f, 8.f));
 	}
 	BuildExpandedRows();
 }
@@ -2375,6 +2438,8 @@ void UAMAutomationTab::BuildExpandedRows()
 		PinSize->SetHeightOverride(20.f);
 		PinSize->AddChild(AMUI::MakeImage(WidgetTree, AMAT_LocateIconPath, FVector2D(20.f, 20.f)));
 		Locate->SetContent(PinSize);
+		Locate->SetToolTipText(FText::FromString(TEXT("Locate")));
+		Locate->OnHovered.AddDynamic(Handler, &UAMOverviewHandler::OnLocateHovered);
 		if (UButtonSlot* PinSlot = Cast<UButtonSlot>(PinSize->Slot))
 		{
 			PinSlot->SetHorizontalAlignment(HAlign_Center);
@@ -2571,6 +2636,14 @@ void UAMOverviewHandler::OnCountHovered()
 	if (Tab)
 	{
 		Tab->ExplainOverviewCount(Event, bRingers);
+	}
+}
+
+void UAMOverviewHandler::OnLocateHovered()
+{
+	if (Tab)
+	{
+		Tab->ExplainOverviewLocate(TargetName);
 	}
 }
 
