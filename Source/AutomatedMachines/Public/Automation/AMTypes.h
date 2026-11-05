@@ -147,6 +147,31 @@ struct AUTOMATEDMACHINES_API FAMMachineOptions
 	bool IsDefault() const { return !bPassWrongItems; }
 };
 
+/** One text or icon of a sign design (maps cannot be replicated or sent in RPCs, so key / value pairs). */
+USTRUCT(BlueprintType)
+struct AUTOMATEDMACHINES_API FAMSignText
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame)
+	FString Key;
+
+	UPROPERTY(SaveGame)
+	FString Value;
+};
+
+USTRUCT(BlueprintType)
+struct AUTOMATEDMACHINES_API FAMSignIcon
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame)
+	FString Key;
+
+	UPROPERTY(SaveGame)
+	int32 Id = 0;
+};
+
 /**
  * A sign's design for an alarm (the game's sign data, in fields our save keeps): when the alarm
  * rings, the sign shows it. Event empty: the sign's normal design.
@@ -163,10 +188,10 @@ struct AUTOMATEDMACHINES_API FAMSignDesign
 	FSoftClassPath Layout;
 
 	UPROPERTY(SaveGame)
-	TMap<FString, FString> Texts;
+	TArray<FAMSignText> Texts;
 
 	UPROPERTY(SaveGame)
-	TMap<FString, int32> Icons;
+	TArray<FAMSignIcon> Icons;
 
 	UPROPERTY(SaveGame)
 	FLinearColor Foreground = FLinearColor::Black;

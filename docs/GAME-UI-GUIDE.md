@@ -164,4 +164,5 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
   or like a global / namespace name (`Button` inside `AMUI`).
 - Unity builds merge `.cpp` files: anonymous-namespace helpers need file-specific prefixes.
 - No non-ASCII characters in source files.
+- No `TMap` in replicated properties or RPC parameters (UHT error): use arrays of key / value structs.
 - The window frame is null in `NativeOnInitialized`; do window work in `NativeConstruct` or later.

@@ -7,8 +7,14 @@ FAMSignDesign AMSign::FromSignData(const FPrefabSignData& Data, const FString& E
 	FAMSignDesign Design;
 	Design.Event = Event;
 	Design.Layout = FSoftClassPath(Data.PrefabLayout.ToString());
-	Design.Texts = Data.TextElementData;
-	Design.Icons = Data.IconElementData;
+	for (const TPair<FString, FString>& Text : Data.TextElementData)
+	{
+		Design.Texts.Add(FAMSignText{Text.Key, Text.Value});
+	}
+	for (const TPair<FString, int32>& Icon : Data.IconElementData)
+	{
+		Design.Icons.Add(FAMSignIcon{Icon.Key, Icon.Value});
+	}
 	Design.Foreground = Data.ForegroundColor;
 	Design.Background = Data.BackgroundColor;
 	Design.Auxiliary = Data.AuxiliaryColor;
@@ -21,8 +27,16 @@ FAMSignDesign AMSign::FromSignData(const FPrefabSignData& Data, const FString& E
 void AMSign::ToSignData(const FAMSignDesign& Design, FPrefabSignData& OutData)
 {
 	OutData.PrefabLayout = TSoftClassPtr<UFGSignPrefabWidget>(Design.Layout);
-	OutData.TextElementData = Design.Texts;
-	OutData.IconElementData = Design.Icons;
+	OutData.TextElementData.Reset();
+	for (const FAMSignText& Text : Design.Texts)
+	{
+		OutData.TextElementData.Add(Text.Key, Text.Value);
+	}
+	OutData.IconElementData.Reset();
+	for (const FAMSignIcon& Icon : Design.Icons)
+	{
+		OutData.IconElementData.Add(Icon.Key, Icon.Id);
+	}
 	OutData.ForegroundColor = Design.Foreground;
 	OutData.BackgroundColor = Design.Background;
 	OutData.AuxiliaryColor = Design.Auxiliary;
