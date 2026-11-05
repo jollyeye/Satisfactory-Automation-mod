@@ -132,6 +132,14 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
 - **Belts**: `SUBSCRIBE_METHOD` on `UFGFactoryConnectionComponent::Factory_GrabOutput` and
   `Factory_PeekOutput` (call the original first, add our item only if it had nothing). Belts may call
   these from worker threads: keep the hook cheap and lock shared data.
+- **Copy / paste settings**: the game's Ctrl+C / Ctrl+V and the windows' Copy / Paste Settings buttons
+  all go through `AFGPlayerState::CopyFactoryClipboard(UObject*)` / `PasteFactoryClipboard(UObject*)`
+  (hook after them). Machines whose `CanUseFactoryClipboard` is false (storage) only reach
+  `AFGCharacterPlayer::ClipboardCopy()` / `ClipboardPaste()` (target: `GetBestUsableActor()`).
+  Middle click: `UFGBuildGunStateBuild::SampleClipboardSettingsFromActor(AActor*)`; the build itself:
+  `UFGBuildGunStateBuild::InternalConstructHologram` around `AFGBuildableSubsystem::BuildableConstructedGlobalDelegate`.
+  The game's `GetClipboardMappingClass` groups all production machines: use the class to match.
+  A just-built buildable has no bounds yet when the delegate fires: place things on it a moment later.
 - **Saving without touching the game's objects**: one `AModSubsystem` with `IFGSaveInterface` holds
   all our data, so the mod can be removed and the save still loads.
 
