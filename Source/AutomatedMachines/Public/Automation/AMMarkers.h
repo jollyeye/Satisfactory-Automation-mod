@@ -23,8 +23,15 @@ public:
 	/** Follows the rules of this subsystem: one marker per machine with rules. */
 	void Init(AAMAutomationSubsystem* InSubsystem);
 
-	/** Places the markers again (called whenever rules change). */
+	/** Places the markers again. */
 	void Rebuild();
+
+	/**
+	 * Rules changed: places the markers now and once more a second later. A machine that was just
+	 * built (middle click) has no size yet at the moment it gets its rules, so its marker would sit
+	 * inside it.
+	 */
+	void OnRulesChanged();
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
@@ -36,4 +43,5 @@ private:
 	TWeakObjectPtr<AAMAutomationSubsystem> mSubsystem;
 	FDelegateHandle mRulesChangedHandle;
 	bool bMeshMissingLogged = false;
+	FTimerHandle mLaterRebuild;
 };

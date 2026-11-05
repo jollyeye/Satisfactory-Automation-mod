@@ -1,4 +1,6 @@
 #include "Automation/AMMarkers.h"
+#include "TimerManager.h"
+#include "Engine/World.h"
 #include "Automation/AMAutomationSubsystem.h"
 #include "AutomatedMachinesModule.h"
 #include "Buildables/FGBuildable.h"
@@ -44,7 +46,7 @@ void AAMMarkers::Init(AAMAutomationSubsystem* InSubsystem)
 	mSubsystem = InSubsystem;
 	if (InSubsystem)
 	{
-		mRulesChangedHandle = InSubsystem->OnRulesChanged.AddUObject(this, &AAMMarkers::Rebuild);
+		mRulesChangedHandle = InSubsystem->OnRulesChanged.AddUObject(this, &AAMMarkers::OnRulesChanged);
 	}
 
 	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, AMMK_MeshPath);
@@ -57,6 +59,15 @@ void AAMMarkers::Init(AAMAutomationSubsystem* InSubsystem)
 		}
 	}
 	Rebuild();
+}
+
+void AAMMarkers::OnRulesChanged()
+{
+	Rebuild();
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(mLaterRebuild, this, &AAMMarkers::Rebuild, 1.f, false);
+	}
 }
 
 void AAMMarkers::Rebuild()
