@@ -1,6 +1,7 @@
 #include "Automation/AMSign.h"
 #include "Buildables/FGBuildableWidgetSign.h"
 #include "FGSignTypes.h"
+#include "UObject/UnrealType.h"
 
 FAMSignDesign AMSign::FromSignData(const FPrefabSignData& Data, const FString& Event)
 {
@@ -62,5 +63,29 @@ void AMSign::Show(AFGBuildableWidgetSign* Sign, const FAMSignDesign& Design)
 	FPrefabSignData Data;
 	Sign->GetSignPrefabData(Data);
 	ToSignData(Design, Data);
-	Sign->SetPrefabSignData(Data, false);
+	// By name: the starter project's header adds a bool parameter the game's function does not have,
+	// so a direct call does not link against the game (the mod's DLL fails to load, error 127).
+	UFunction* Function = Sign->FindFunction(TEXT("SetPrefabSignData"));
+	if (!Function)
+	{
+		return;
+	}
+	TArray<uint8> Params;
+	Params.SetNumZeroed(FMath::Max<int32>(Function->ParmsSize, 1));
+	for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+	{
+		It->InitializeValue_InContainer(Params.GetData());
+		if (const FStructProperty* DataParam = CastField<FStructProperty>(*It))
+		{
+			if (DataParam->Struct == FPrefabSignData::StaticStruct())
+			{
+				DataParam->CopyCompleteValue(DataParam->ContainerPtrToValuePtr<void>(Params.GetData()), &Data);
+			}
+		}
+	}
+	Sign->ProcessEvent(Function, Params.GetData());
+	for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+	{
+		It->DestroyValue_InContainer(Params.GetData());
+	}
 }

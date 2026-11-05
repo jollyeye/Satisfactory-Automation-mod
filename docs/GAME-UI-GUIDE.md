@@ -165,4 +165,10 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
 - Unity builds merge `.cpp` files: anonymous-namespace helpers need file-specific prefixes.
 - No non-ASCII characters in source files.
 - No `TMap` in replicated properties or RPC parameters (UHT error): use arrays of key / value structs.
+- **"Plugin failed to load because module could not be loaded"** with `GetLastError=127` in
+  FactoryGame.log: the mod calls a game function the real game does not export (the starter
+  project's header differs, e.g. `AFGBuildableWidgetSign::SetPrefabSignData` has an extra `bool`
+  in the header but not in the game). Find it with `Tools/check_exports.py <mod dll> <game dll>`
+  (plain Python) and call that function by name through reflection (`FindFunction` + `ProcessEvent`)
+  if it is a UFUNCTION.
 - The window frame is null in `NativeOnInitialized`; do window work in `NativeConstruct` or later.
