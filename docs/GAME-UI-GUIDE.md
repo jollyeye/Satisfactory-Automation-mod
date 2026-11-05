@@ -102,6 +102,10 @@ The window has `Widget_SlidingTabs` with its pages side by side in a HorizontalB
    reverse. Visibility only, nothing is moved.
 9. **Size**: our page keeps its own width (the window fits around whichever page shows); its height
    is set to the machine page's height, measured while that page shows (`USizeBox::SetHeightOverride`).
+13. **If you need tabs the window was not made for** (sign designs: a changing number of tabs with
+    their own buttons), do not fight the game's tab buttons: put your own row of buttons in the
+    title bar's canvas (the parent of `Widget_TabsContainer`), right of the window's title. It is
+    simpler and fully under your control.
 12. **Tab buttons are reused too**: `GenerateButtons` can hand back the same button widgets. Never
     add widgets or bind handlers to a game button without remembering it: keep one handler / one
     added widget per button (a map from the button), bind once, and update its data on rebuild.

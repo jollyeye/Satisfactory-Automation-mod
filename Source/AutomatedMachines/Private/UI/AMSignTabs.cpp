@@ -15,6 +15,7 @@
 #include "Components/EditableText.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
 #include "Components/PanelWidget.h"
 #include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
@@ -194,67 +195,13 @@ void UAMSignTabs::NativeConstruct()
 
 void UAMSignTabs::Watch()
 {
-	if (!bSetUp)
-	{
-		return;
-	}
-	if (GetSign() != mSetupSign.Get())
+	if (bSetUp && GetSign() != mSetupSign.Get())
 	{
 		// The window now edits another sign: its designs, not the last sign's.
 		UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: the window shows another sign, setting up again"));
 		bSetUp = false;
 		mSetupTries = 0;
 		Setup();
-		return;
-	}
-	UObject* TabsContainer = AMST_GetObject(GetWindowFrame(), AMST_TabsContainerProperty);
-	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMST_GetObject(TabsContainer, AMST_ButtonsPanelProperty));
-	if (!Buttons)
-	{
-		return;
-	}
-	bool bSame = Buttons->GetChildrenCount() == mBoundButtons.Num();
-	for (int32 Index = 0; bSame && Index < mBoundButtons.Num(); ++Index)
-	{
-		bSame = Buttons->GetChildAt(Index) == mBoundButtons[Index].Get();
-	}
-	if (!bSame)
-	{
-		UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: the window made its tab buttons again, ours again"));
-		RebuildTabs();
-		return;
-	}
-
-	// A window with one tab shows its tab bar as a title, not clickable (HitTestInvisible): after
-	// reopening it can set that again after our setup. Keep the bar and our buttons clickable.
-	auto MakeClickable = [](UWidget* Widget, const TCHAR* What)
-	{
-		if (Widget && (Widget->GetVisibility() == ESlateVisibility::HitTestInvisible || !Widget->GetIsEnabled()))
-		{
-			UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: %s %s was not clickable (visibility %d, enabled %d)"),
-				What, *Widget->GetName(), static_cast<int32>(Widget->GetVisibility()), Widget->GetIsEnabled() ? 1 : 0);
-			Widget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-			Widget->SetIsEnabled(true);
-		}
-	};
-	MakeClickable(Cast<UWidget>(TabsContainer), TEXT("tab bar"));
-	MakeClickable(const_cast<UPanelWidget*>(Buttons), TEXT("tab button panel"));
-	for (const TWeakObjectPtr<UWidget>& Button : mBoundButtons)
-	{
-		MakeClickable(Button.Get(), TEXT("tab button"));
-		if (UUserWidget* ButtonWidget = Cast<UUserWidget>(Button.Get()))
-		{
-			if (UWidget* Inner = Cast<UWidget>(AMST_GetObject(ButtonWidget, TEXT("mButton"))))
-			{
-				if (!Inner->GetIsEnabled() || Inner->GetVisibility() != ESlateVisibility::Visible)
-				{
-					UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: inner button of %s was off (visibility %d, enabled %d)"),
-						*ButtonWidget->GetName(), static_cast<int32>(Inner->GetVisibility()), Inner->GetIsEnabled() ? 1 : 0);
-					Inner->SetVisibility(ESlateVisibility::Visible);
-					Inner->SetIsEnabled(true);
-				}
-			}
-		}
 	}
 }
 
@@ -451,190 +398,131 @@ void UAMSignTabs::Setup()
 
 void UAMSignTabs::RebuildTabs()
 {
+	// Our own row of tabs in the title bar, right of the window's title ("Sign Designer"): the game's
+	// tab buttons are made again and reused by the window, so we do not use them.
 	UObject* Frame = GetWindowFrame();
-	UObject* TabsContainer = AMST_GetObject(Frame, AMST_TabsContainerProperty);
-	FArrayProperty* TabsProperty = Frame ? FindFProperty<FArrayProperty>(Frame->GetClass(), AMST_TabsProperty) : nullptr;
-	FStructProperty* EntryProperty = TabsProperty ? CastField<FStructProperty>(TabsProperty->Inner) : nullptr;
-	FTextProperty* TextField = EntryProperty ? AMST_FindTextField(EntryProperty->Struct) : nullptr;
-	if (!TextField || !TabsContainer)
+	UWidget* TabsContainer = Cast<UWidget>(AMST_GetObject(Frame, AMST_TabsContainerProperty));
+	UCanvasPanel* Header = TabsContainer ? Cast<UCanvasPanel>(TabsContainer->GetParent()) : nullptr;
+	if (!Header || !WidgetTree)
 	{
+		UE_LOG(LogAutomatedMachines, Warning, TEXT("Sign designs: no title bar to put the tabs in"));
 		return;
 	}
-
-	// mTabs = [the window's own tab] + one per design + "+ Alarm".
-	TArray<FText> Titles;
-	{
-		FScriptArrayHelper Tabs(TabsProperty, TabsProperty->ContainerPtrToValuePtr<void>(Frame));
-		if (Tabs.Num() == 0)
-		{
-			return;
-		}
-		if (mWindowTitle.IsEmpty())
-		{
-			mWindowTitle = TextField->GetPropertyValue_InContainer(Tabs.GetRawPtr(0));
-		}
-		Tabs.Resize(1);
-		Titles.Add(mWindowTitle);
-		for (const FAMSignDesign& Design : mDesigns)
-		{
-			Titles.Add(FText::FromString(Design.Event));
-		}
-		Titles.Add(FText::FromString(AMST_AddTitle));
-		for (int32 Index = 1; Index < Titles.Num(); ++Index)
-		{
-			const int32 NewIndex = Tabs.AddValue();
-			EntryProperty->Struct->CopyScriptStruct(Tabs.GetRawPtr(NewIndex), Tabs.GetRawPtr(0));
-			TextField->SetPropertyValue_InContainer(Tabs.GetRawPtr(NewIndex), Titles[Index]);
-		}
-	}
-
-	// The buttons: made by the tabs container from the list.
-	FArrayProperty* ContainerButtons = FindFProperty<FArrayProperty>(TabsContainer->GetClass(), TEXT("mButtons"));
-	if (ContainerButtons && TabsProperty->Inner->SameType(ContainerButtons->Inner))
-	{
-		ContainerButtons->CopyCompleteValue(ContainerButtons->ContainerPtrToValuePtr<void>(TabsContainer), TabsProperty->ContainerPtrToValuePtr<void>(Frame));
-		AMST_CallNoParams(TabsContainer, TEXT("GenerateButtons"));
-	}
-	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMST_GetObject(TabsContainer, AMST_ButtonsPanelProperty));
-	if (!Buttons)
-	{
-		return;
-	}
-
-	// Side by side; narrower when there are many.
-	FVector2D ButtonSize(220.0, 36.0);
+	FVector2D TitleSize(220.0, 36.0);
 	if (const FStructProperty* SizeProperty = FindFProperty<FStructProperty>(TabsContainer->GetClass(), TEXT("mButtonSize")))
 	{
 		if (SizeProperty->Struct == TBaseStructure<FVector2D>::Get())
 		{
-			ButtonSize = *SizeProperty->ContainerPtrToValuePtr<FVector2D>(TabsContainer);
+			TitleSize = *SizeProperty->ContainerPtrToValuePtr<FVector2D>(TabsContainer);
 		}
 	}
-	const int32 Count = Buttons->GetChildrenCount();
-	if (Titles.Num() > 4)
+	if (!mTabRow)
 	{
-		ButtonSize.X = FMath::Max(120.0, ButtonSize.X * 4.0 / Titles.Num());
+		mTabRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMSignTabRow"));
 	}
+	if (mTabRow->GetParent() != Header)
+	{
+		mTabRow->RemoveFromParent();
+		if (UCanvasPanelSlot* RowSlot = Header->AddChildToCanvas(mTabRow))
+		{
+			FVector2D Start = FVector2D::ZeroVector;
+			if (const UCanvasPanelSlot* ContainerSlot = Cast<UCanvasPanelSlot>(TabsContainer->Slot))
+			{
+				Start = ContainerSlot->GetPosition();
+			}
+			RowSlot->SetAnchors(FAnchors(0.f, 0.f));
+			RowSlot->SetAlignment(FVector2D::ZeroVector);
+			RowSlot->SetAutoSize(true);
+			RowSlot->SetPosition(FVector2D(Start.X + TitleSize.X + 4.0, Start.Y));
+			RowSlot->SetZOrder(100);
+		}
+	}
+	mTabRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	mTabRow->ClearChildren();
+	mHandlers.Reset();
 
-	UTexture2D* Icon = LoadObject<UTexture2D>(nullptr, AMST_TabIconPath);
 	const FSlateFontInfo Font = GetFont();
-	// Forget buttons that are gone.
-	for (auto It = mButtonHandlers.CreateIterator(); It; ++It)
-	{
-		if (!It->Key.IsValid() || !It->Value.IsValid())
-		{
-			It.RemoveCurrent();
-		}
-	}
-	for (auto It = mButtonBins.CreateIterator(); It; ++It)
-	{
-		if (!It->Key.IsValid() || !It->Value.IsValid())
-		{
-			It.RemoveCurrent();
-		}
-	}
-	mHandlers.RemoveAll([this](const TObjectPtr<UAMSignTabHandler>& Handler)
-	{
-		for (const TPair<TWeakObjectPtr<UWidget>, TWeakObjectPtr<UAMSignTabHandler>>& Pair : mButtonHandlers)
-		{
-			if (Pair.Value.Get() == Handler)
-			{
-				return false;
-			}
-		}
-		return true;
-	});
+	UTexture2D* Icon = LoadObject<UTexture2D>(nullptr, AMST_TabIconPath);
+	const int32 TabCount = mDesigns.Num() + 1;
+	const float TabWidth = TabCount > 4 ? FMath::Max(130.f, 4.f * 200.f / TabCount) : 200.f;
+	const float TabHeight = static_cast<float>(TitleSize.Y);
 
-	for (int32 Index = 0; Index < Count; ++Index)
+	// One tab: [icon] [name] [bin], the bin a button of its own next to the tab button (not inside it).
+	auto AddTab = [&](int32 Index, const FString& Title, bool bDesign, float Width)
 	{
-		UWidget* Button = Buttons->GetChildAt(Index);
-		if (!Button)
-		{
-			continue;
-		}
-		const bool bOurTab = Titles.IsValidIndex(Index);
-		if (UCanvasPanelSlot* ButtonSlot = Cast<UCanvasPanelSlot>(Button->Slot))
-		{
-			ButtonSlot->SetAnchors(FAnchors(0.f, 0.f));
-			ButtonSlot->SetAlignment(FVector2D::ZeroVector);
-			ButtonSlot->SetAutoSize(false);
-			ButtonSlot->SetPosition(FVector2D(ButtonSize.X * Index, 0.0));
-			ButtonSlot->SetSize(ButtonSize);
-		}
-		// A leftover button beyond our tabs: hidden.
-		Button->SetVisibility(bOurTab ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
-		if (!bOurTab)
-		{
-			continue;
-		}
-		AMST_CallWith<FTextProperty>(Button, TEXT("SetTitle"), Titles[Index]);
-		const bool bDesignTab = Index > 0 && Index < Titles.Num() - 1;
-		if (bDesignTab && Icon)
-		{
-			AMST_CallWithObject(Button, TEXT("SetIcon"), Icon);
-		}
-
-		// One handler per button, bound once; its index follows the button's place.
-		UAMSignTabHandler* Handler = mButtonHandlers.FindRef(Button).Get();
-		if (!Handler)
-		{
-			Handler = NewObject<UAMSignTabHandler>(this);
-			Handler->Owner = this;
-			mHandlers.Add(Handler);
-			mButtonHandlers.Add(Button, Handler);
-			if (UButton* Inner = Cast<UButton>(AMST_GetObject(Button, TEXT("mButton"))))
-			{
-				Inner->OnClicked.AddUniqueDynamic(Handler, &UAMSignTabHandler::OnTabClicked);
-			}
-		}
+		UAMSignTabHandler* Handler = NewObject<UAMSignTabHandler>(this);
+		Handler->Owner = this;
 		Handler->Index = Index;
+		mHandlers.Add(Handler);
+		const bool bSelected = Index == mSelected;
+		const FLinearColor Colour = bSelected ? AMUI::Orange : FLinearColor(FColor(87, 87, 87));
 
-		// One bin per button, shown on design tabs only.
-		UButton* Remove = mButtonBins.FindRef(Button).Get();
-		if (!Remove && bDesignTab)
+		UHorizontalBox* Tab = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UTextBlock* Label = nullptr;
+		UButton* TabButton = AMUI::MakeButton(WidgetTree, Title, Font, Colour, &Label);
+		TabButton->OnClicked.AddDynamic(Handler, &UAMSignTabHandler::OnTabClicked);
+		if (Label)
 		{
-			if (UHorizontalBox* Content = Cast<UHorizontalBox>(AMST_GetObject(Button, TEXT("mContent"))))
+			Label->SetColorAndOpacity(FSlateColor(AMUI::White));
+		}
+		if (bDesign && Icon && Label)
+		{
+			// The tab's label with the Wi-Fi icon in front.
+			UHorizontalBox* Content = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			UImage* IconImage = AMUI::MakeImage(WidgetTree, AMST_TabIconPath, FVector2D(18.f, 18.f));
+			if (UHorizontalBoxSlot* IconSlot = Content->AddChildToHorizontalBox(IconImage))
 			{
-				Remove = AMUI::MakeRemoveButton(WidgetTree, Font);
-				Remove->OnClicked.AddUniqueDynamic(Handler, &UAMSignTabHandler::OnRemoveClicked);
-				if (UHorizontalBoxSlot* RemoveSlot = Content->AddChildToHorizontalBox(Remove))
-				{
-					RemoveSlot->SetVerticalAlignment(VAlign_Center);
-					RemoveSlot->SetPadding(FMargin(4.f, 0.f, 4.f, 0.f));
-				}
-				mButtonBins.Add(Button, Remove);
+				IconSlot->SetVerticalAlignment(VAlign_Center);
+				IconSlot->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+			}
+			Label->RemoveFromParent();
+			if (UHorizontalBoxSlot* LabelSlot = Content->AddChildToHorizontalBox(Label))
+			{
+				LabelSlot->SetVerticalAlignment(VAlign_Center);
+			}
+			if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(TabButton->AddChild(Content)))
+			{
+				ContentSlot->SetHorizontalAlignment(HAlign_Left);
+				ContentSlot->SetVerticalAlignment(VAlign_Center);
 			}
 		}
-		if (Remove)
+		USizeBox* TabSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		TabSize->SetWidthOverride(bDesign ? Width - TabHeight : Width);
+		TabSize->SetHeightOverride(TabHeight);
+		TabSize->AddChild(TabButton);
+		Tab->AddChildToHorizontalBox(TabSize);
+		if (bDesign)
 		{
-			Remove->SetVisibility(bDesignTab ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+			UButton* Remove = AMUI::MakeRemoveButton(WidgetTree, Font);
+			AMUI::SetButtonColor(Remove, Colour);
+			Remove->OnClicked.AddDynamic(Handler, &UAMSignTabHandler::OnRemoveClicked);
+			USizeBox* RemoveSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			RemoveSize->SetWidthOverride(TabHeight);
+			RemoveSize->SetHeightOverride(TabHeight);
+			RemoveSize->AddChild(Remove);
+			Tab->AddChildToHorizontalBox(RemoveSize);
 		}
-	}
-	if (UWidget* Selected = Buttons->GetChildAt(mSelected))
+		if (UHorizontalBoxSlot* TabSlot = mTabRow->AddChildToHorizontalBox(Tab))
+		{
+			TabSlot->SetPadding(FMargin(Index == 0 ? 0.f : 4.f, 0.f, 0.f, 0.f));
+		}
+		return TabButton;
+	};
+
+	AddTab(0, TEXT("Normal"), false, 140.f);
+	for (int32 Index = 0; Index < mDesigns.Num(); ++Index)
 	{
-		AMST_CallWithObject(TabsContainer, TEXT("SetActiveButton"), Selected);
+		AddTab(Index + 1, mDesigns[Index].Event, true, TabWidth);
 	}
-	mBoundButtons.Reset();
-	for (int32 Index = 0; Index < Buttons->GetChildrenCount(); ++Index)
-	{
-		mBoundButtons.Add(Buttons->GetChildAt(Index));
-	}
+	mAddButton = AddTab(mDesigns.Num() + 1, AMST_AddTitle, false, 130.f);
 }
 
 void UAMSignTabs::SelectTab(int32 Index)
 {
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: tab %d clicked"), Index);
-	const int32 AddIndex = mDesigns.Num() + 1;
-	if (Index == AddIndex)
+	if (Index == mDesigns.Num() + 1)
 	{
-		UObject* TabsContainer = AMST_GetObject(GetWindowFrame(), AMST_TabsContainerProperty);
-		const UPanelWidget* Buttons = Cast<UPanelWidget>(AMST_GetObject(TabsContainer, AMST_ButtonsPanelProperty));
-		OpenPicker(Buttons ? Buttons->GetChildAt(Index) : nullptr);
-		// Keep the highlight on the tab being edited.
-		if (UWidget* Selected = Buttons ? Buttons->GetChildAt(mSelected) : nullptr)
-		{
-			AMST_CallWithObject(TabsContainer, TEXT("SetActiveButton"), Selected);
-		}
+		OpenPicker(mAddButton);
 		return;
 	}
 	if (Index < 0 || Index > mDesigns.Num())
@@ -646,12 +534,11 @@ void UAMSignTabs::SelectTab(int32 Index)
 		CaptureEditor();
 		mSelected = Index;
 		LoadEditor(GetSlot(Index));
-	}
-	UObject* TabsContainer = AMST_GetObject(GetWindowFrame(), AMST_TabsContainerProperty);
-	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMST_GetObject(TabsContainer, AMST_ButtonsPanelProperty));
-	if (UWidget* Selected = Buttons ? Buttons->GetChildAt(mSelected) : nullptr)
-	{
-		AMST_CallWithObject(TabsContainer, TEXT("SetActiveButton"), Selected);
+		// The highlight (orange) moves: on the next tick, not inside the click.
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMSignTabs::RebuildTabs));
+		}
 	}
 }
 

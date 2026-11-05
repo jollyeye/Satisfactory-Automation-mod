@@ -183,9 +183,9 @@ Biomass Burner, Coal Generator, Fuel Generator and Nuclear Power Plant are the s
 ### Signs: a design per alarm (decided 5 Nov 2026)
 
 Signs only react (no machine events). The Sign Designer's tab bar gets one tab per design:
-`[ Sign Designer ][ PLATES BACKED UP x ][ PLATES FLOWING x ][ + Alarm ]`.
+`Sign Designer  [ Normal ][ PLATES BACKED UP | bin ][ PLATES FLOWING | bin ][ + Alarm ]` (our own tabs right of the window's title).
 
-- "Sign Designer" is the sign's normal design; each other tab is the design shown when its alarm rings. The game's own designer edits the selected tab (the preview shows it). The bin on a tab removes that design.
+- "Normal" is the sign's normal design; each other tab is the design shown when its alarm rings. The game's own designer edits the selected tab (the preview shows it). The bin on a tab removes that design.
 - "+ Alarm" opens a list of alarms with a search field; typing a name that does not exist yet and pressing Enter makes a design for a new alarm. A new design starts as a copy of the one being edited.
 - When an alarm rings, the sign shows its design and keeps it until another of its alarms rings (an alarm has no "stopped ringing"; use pairs: BACKED UP red, FLOWING green). The design showing is saved.
 - Copy: Ctrl+C / Ctrl+V and middle click copy the design and the alarm designs; the window's Copy / Paste Settings buttons only the design.

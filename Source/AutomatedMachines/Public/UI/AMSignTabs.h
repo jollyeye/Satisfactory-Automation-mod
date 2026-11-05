@@ -76,8 +76,11 @@ private:
 	/** On the tick after construct (retried while the window has not filled its tab list yet). */
 	void Setup();
 
-	/** Tab list = normal + one per design + "+ Alarm"; makes the buttons again. */
+public:
+	/** Our tab row: Normal + one per design + "+ Alarm" (made again on every change). */
 	void RebuildTabs();
+
+private:
 
 	/**
 	 * While the window is open (4 times a second): the window is reused for other signs and may
@@ -130,16 +133,15 @@ private:
 	bool bHadDesigns = false;
 	int32 mSetupTries = 0;
 
-	/**
-	 * One click handler and one bin per tab button, kept for as long as the button lives: the window
-	 * reuses its buttons when it is opened again, so binding new ones each time piled up handlers and
-	 * bins on the same button.
-	 */
 	UPROPERTY()
 	TArray<TObjectPtr<UAMSignTabHandler>> mHandlers;
 
-	TMap<TWeakObjectPtr<UWidget>, TWeakObjectPtr<UAMSignTabHandler>> mButtonHandlers;
-	TMap<TWeakObjectPtr<UWidget>, TWeakObjectPtr<class UButton>> mButtonBins;
+	/** Our own row of tabs in the window's title bar, and its "+ Alarm" button (where the picker opens). */
+	UPROPERTY()
+	TObjectPtr<class UHorizontalBox> mTabRow;
+
+	UPROPERTY()
+	TObjectPtr<class UButton> mAddButton;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UAMSignTabHandler>> mPickerHandlers;
