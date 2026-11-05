@@ -608,7 +608,6 @@ void UAMSignTabs::RebuildTabs()
 		if (Label)
 		{
 			Label->SetColorAndOpacity(FSlateColor(AMUI::White));
-			Label->SetClipping(EWidgetClipping::ClipToBounds);
 		}
 		if (bDesign && Label)
 		{
@@ -638,6 +637,9 @@ void UAMSignTabs::RebuildTabs()
 		}
 		USizeBox* ButtonSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 		ButtonSize->SetHeightOverride(RowHeight);
+		// A long name stops at the row's edge, before the bin (clipping the row, not the text:
+		// the text's own box is shorter than its letters and cut them at the bottom).
+		ButtonSize->SetClipping(EWidgetClipping::ClipToBounds);
 		ButtonSize->AddChild(RowButton);
 		if (UHorizontalBoxSlot* ButtonSlot = Row->AddChildToHorizontalBox(ButtonSize))
 		{

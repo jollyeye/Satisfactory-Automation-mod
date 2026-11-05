@@ -198,6 +198,8 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
   (plain Python) and call that function by name through reflection (`FindFunction` + `ProcessEvent`)
   if it is a UFUNCTION.
 - **LNK2019 on a game struct's destructor** (e.g. `FInstanceData::~FInstanceData`): copying a struct that has an exported destructor in a game module we do not link. Do not copy it: read the data in place by reflection (`FindFProperty` on the owner, `FScriptArrayHelper`, field properties of the inner struct).
+- **`InsertChildAt` / `ShiftChild` do not reorder what is on screen**: on a live panel they change the UMG list only; Slate adds the new child at the end. To put something first in a game panel, the panel's other children would have to be removed and added again after it.
+- **`ClipToBounds` on a text block cuts its letters** (the text's box is shorter than the font's glyphs): clip a size box around it instead.
 - **A collapsed widget has no geometry**: placing something from `GetCachedGeometry()` of a widget that was collapsed (or just made) gives size 0 and wrong positions. Show it first (render opacity 0), place it on the next tick, then make it visible.
 - The window frame is null in `NativeOnInitialized`; do window work in `NativeConstruct` or later.
 - **C2001 "newline in constant"**: a C++ text written by a Python edit script with `\n` in a normal
