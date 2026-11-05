@@ -89,6 +89,10 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::ResearchCompleted: return AMTY_Text(TEXT("Research completed"));
 	case EAMCondition::SwitchedOn:        return AMTY_Text(TEXT("Switched on"));
 	case EAMCondition::SwitchedOff:       return AMTY_Text(TEXT("Switched off"));
+	case EAMCondition::GridAUsesMore:     return AMTY_Text(TEXT("Grid A uses more than B"));
+	case EAMCondition::GridBUsesMore:     return AMTY_Text(TEXT("Grid B uses more than A"));
+	case EAMCondition::GridAMakesMore:    return AMTY_Text(TEXT("Grid A makes more than B"));
+	case EAMCondition::GridBMakesMore:    return AMTY_Text(TEXT("Grid B makes more than A"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -191,6 +195,14 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the switch is turned on: by a player, or by an action of an alarm. The two power grids it joins are one again."));
 	case EAMCondition::SwitchedOff:
 		return AMTY_Text(TEXT("Rings when the switch is turned off: by a player, by an action of an alarm, or (a priority switch) by the game during a power shortage.\n\nUse it to get a message when a priority switch cuts off part of the factory."));
+	case EAMCondition::GridAUsesMore:
+		return AMTY_Text(TEXT("Rings when the machines of Power Grid A (the left graph in the switch's window) use more power than those of Power Grid B.\n\nPair it with \"Grid B uses more than A\", which rings when it turns the other way."));
+	case EAMCondition::GridBUsesMore:
+		return AMTY_Text(TEXT("Rings when the machines of Power Grid B (the right graph in the switch's window) use more power than those of Power Grid A."));
+	case EAMCondition::GridAMakesMore:
+		return AMTY_Text(TEXT("Rings when the generators of Power Grid A make more power than those of Power Grid B.\n\nPair it with \"Grid B makes more than A\", which rings when it turns the other way."));
+	case EAMCondition::GridBMakesMore:
+		return AMTY_Text(TEXT("Rings when the generators of Power Grid B make more power than those of Power Grid A."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -332,7 +344,8 @@ bool AMRules::IsMamCondition(EAMCondition Condition)
 
 bool AMRules::IsSwitchCondition(EAMCondition Condition)
 {
-	return Condition == EAMCondition::SwitchedOn || Condition == EAMCondition::SwitchedOff;
+	return Condition == EAMCondition::SwitchedOn || Condition == EAMCondition::SwitchedOff
+		|| (Condition >= EAMCondition::GridAUsesMore && Condition <= EAMCondition::GridBMakesMore);
 }
 
 bool AMRules::IsSwitchAction(EAMAction Action)

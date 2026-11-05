@@ -13,6 +13,8 @@
 #include "Buildables/FGBuildableGeneratorFuel.h"
 #include "Buildables/FGBuildableCircuitSwitch.h"
 #include "Buildables/FGBuildablePriorityPowerSwitch.h"
+#include "FGCircuitSubsystem.h"
+#include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
 #include "Buildables/FGCentralStorageContainer.h"
 #include "Resources/FGExtractableResourceInterface.h"
@@ -1233,13 +1235,60 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 	}
 }
 
+namespace
+{
+	/**
+	 * The power used (bConsumed) or made by the grid on one side of a switch, in MW; false if that side
+	 * is not connected. The circuit's numbers are private: read by name (they are UPROPERTYs).
+	 */
+	bool AMAS_GetGridPower(const AFGBuildableCircuitSwitch* Switch, int32 Side, bool bConsumed, float& OutPower)
+	{
+		AFGCircuitSubsystem* Circuits = AFGCircuitSubsystem::GetCircuitSubsystem(const_cast<AFGBuildableCircuitSwitch*>(Switch));
+		const int32 CircuitID = Side == 0 ? Switch->GetCircuitID0() : Switch->GetCircuitID1();
+		const UFGPowerCircuit* Circuit = Circuits && CircuitID != INDEX_NONE ? Circuits->FindCircuit<UFGPowerCircuit>(CircuitID) : nullptr;
+		if (!Circuit)
+		{
+			return false;
+		}
+		static const FFloatProperty* ConsumedProperty = FindFProperty<FFloatProperty>(UFGPowerCircuit::StaticClass(), TEXT("mPowerConsumed"));
+		static const FFloatProperty* ProducedProperty = FindFProperty<FFloatProperty>(UFGPowerCircuit::StaticClass(), TEXT("mPowerProduced"));
+		const FFloatProperty* Property = bConsumed ? ConsumedProperty : ProducedProperty;
+		if (!Property)
+		{
+			return false;
+		}
+		OutPower = Property->GetPropertyValue_InContainer(Circuit);
+		return true;
+	}
+
+	/**
+	 * Side A has more than side B: by a small margin (0.1 MW, or 1% of the larger), so two nearly
+	 * equal grids do not ring the pair of alarms over and over.
+	 */
+	bool AMAS_GridHasMore(const AFGBuildableCircuitSwitch* Switch, int32 Side, bool bConsumed)
+	{
+		float Mine = 0.f;
+		float Other = 0.f;
+		if (!AMAS_GetGridPower(Switch, Side, bConsumed, Mine) || !AMAS_GetGridPower(Switch, 1 - Side, bConsumed, Other))
+		{
+			return false;
+		}
+		const float Margin = FMath::Max(0.1f, 0.01f * FMath::Max(Mine, Other));
+		return Mine > Other + Margin;
+	}
+}
+
 bool AAMAutomationSubsystem::IsSwitchConditionTrue(const AFGBuildableCircuitSwitch* Switch, const FAMFireRule& Rule)
 {
 	switch (Rule.Condition)
 	{
-	case EAMCondition::SwitchedOn:  return Switch->IsSwitchOn();
-	case EAMCondition::SwitchedOff: return !Switch->IsSwitchOn();
-	default:                        return false;
+	case EAMCondition::SwitchedOn:     return Switch->IsSwitchOn();
+	case EAMCondition::SwitchedOff:    return !Switch->IsSwitchOn();
+	case EAMCondition::GridAUsesMore:  return AMAS_GridHasMore(Switch, 0, true);
+	case EAMCondition::GridBUsesMore:  return AMAS_GridHasMore(Switch, 1, true);
+	case EAMCondition::GridAMakesMore: return AMAS_GridHasMore(Switch, 0, false);
+	case EAMCondition::GridBMakesMore: return AMAS_GridHasMore(Switch, 1, false);
+	default:                           return false;
 	}
 }
 

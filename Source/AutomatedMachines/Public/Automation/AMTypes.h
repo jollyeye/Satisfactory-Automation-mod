@@ -59,6 +59,11 @@ enum class EAMCondition : uint8
 	// Power switches and priority power switches.
 	SwitchedOn         UMETA(DisplayName = "Switched on"),
 	SwitchedOff        UMETA(DisplayName = "Switched off"),
+	// The two power grids of a switch (Power Grid A and B of its window) compared.
+	GridAUsesMore      UMETA(DisplayName = "Grid A uses more than B"),
+	GridBUsesMore      UMETA(DisplayName = "Grid B uses more than A"),
+	GridAMakesMore     UMETA(DisplayName = "Grid A makes more than B"),
+	GridBMakesMore     UMETA(DisplayName = "Grid B makes more than A"),
 	Count              UMETA(Hidden)
 };
 
