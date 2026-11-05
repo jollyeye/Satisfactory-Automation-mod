@@ -167,6 +167,12 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
   `UFGBuildGunStateBuild::InternalConstructHologram` around `AFGBuildableSubsystem::BuildableConstructedGlobalDelegate`.
   The game's `GetClipboardMappingClass` groups all production machines: use the class to match.
   A just-built buildable has no bounds yet when the delegate fires: place things on it a moment later.
+  **Signs**: the copy reads the design stored on the sign (the one it shows now), not the window's
+  editor; the clipboard object is a `UFGSignClipboardSettings` (`mPrefabSignData`) in the player
+  state's `mFactoryClipboard` map. To copy what the editor shows, overwrite that field after
+  `CopyFactoryClipboard` with the window's `mSignData` (both by reflection). Pasting between sign
+  sizes of the same ratio works then. (Hooking the sign's `CopySettings_Implementation` did nothing:
+  that path was not called.)
 - **Saving without touching the game's objects**: one `AModSubsystem` with `IFGSaveInterface` holds
   all our data, so the mod can be removed and the save still loads.
 
