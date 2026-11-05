@@ -73,6 +73,16 @@ The window has `Widget_SlidingTabs` with its pages side by side in a HorizontalB
    becomes active (`SetInventoryVisibility(false, true)`), and show it again when going back to the
    page that had it (`mManufacturingTab`); the game does not do that itself when coming from us.
 
+### Two pages of ours in one Kind A window (HUB, tested 5 Nov 2026)
+
+Hook the same widget class twice into the pages box with two widget names (`AM_AutomationTab`,
+`AM_OverviewTab`) and choose the page's mode from `GetFName()` in `NativeOnInitialized`. Each page
+adds its own `mTabs` entry: **insert it at the page's child index** in the pages box (not at the
+end, or the tab order and the page order can differ), and find your tab index again by title before
+using it (the other page may have inserted its entry before yours). The tab buttons have a fixed
+width (`mButtonSize`): a longer title is cut on both sides, so give its `mTitleObject` a smaller font
+(taken from the first tab's title, so a reused button does not shrink again).
+
 ## 5. Kind B: one-page windows (miners)
 
 `Widget_ResourceExtractorUI_C` has no sliding pages: `WindowBody` holds one CanvasPanel
@@ -183,3 +193,6 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
   (plain Python) and call that function by name through reflection (`FindFunction` + `ProcessEvent`)
   if it is a UFUNCTION.
 - The window frame is null in `NativeOnInitialized`; do window work in `NativeConstruct` or later.
+- **C2001 "newline in constant"**: a C++ text written by a Python edit script with `\n` in a normal
+  Python string got a real line break. Use raw strings (`r"..."`) in edit scripts, and run
+  `python3 Tools/check_source.py` before pushing.

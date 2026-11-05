@@ -76,7 +76,8 @@ A table of every alarm in the world, to find alarms that are only half made (som
 
 - **Rung by**: how many machines ring the alarm. Its bin removes the alarm's rows from every machine that rings it.
 - **Listening**: how many machines, signs and the HUB do something when it rings. Its bin removes every action on that alarm, and the signs' designs for it (a sign with no designs left goes back to its normal design).
-- A count of 0 shows "nobody" in orange. Bins need two clicks within 4 seconds; pointing at a bin says what it will remove. Pointing at a name explains the alarm (who rings it, who listens).
+- The alarm name takes the rest of the row; the two count columns are fixed.
+- A count of 0 shows "nobody" in orange. **Bins are held down for 2.5 seconds**: a big bin in the middle of the screen fills up from the bottom, from transparent to solid white, with "Hold to remove ..." under it; letting go earlier removes nothing. Pointing at a bin says what it will remove. Pointing at a name explains the alarm (who rings it, who listens); names are not clickable.
 - Same class as the Automation tab (`UAMAutomationTab`), hooked a second time into the HUB with the name `AM_OverviewTab`; the name switches it to overview mode. Clearing goes to the server (`ServerClearAlarm`).
 
 ### Unlock
