@@ -25,6 +25,7 @@ Notes for the next session working on this mod. The design (what the mod does an
 | Alarms Overview: machine lists (Rung by / Listening), single bins, locate (compass like an ore with its ping, map, ring effect until 8 m) | 5 Nov 2026 |
 | HUB world alarms: Milestone completed rings an alarm (Show message heard it) | 5 Nov 2026 |
 | HUB Alarms Overview tab: every alarm with ringers / listeners, bins clear them (also sign designs) | 5 Nov 2026 |
+| Power Switch / Priority Power Switch: Automation tab (shared sliding-pages window), Switched on / off, grid A / B comparisons (switch off) | 5 Nov 2026 |
  Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
 
 ## Setup on the developer's PC (Windows)
@@ -226,6 +227,14 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Tested 5 Nov 2026: Ctrl+C / Ctrl+V, the window buttons, our container buttons, middle click (the new machine gets the rules). The marker of a just-built machine was missing: its bounds are not there yet when it gets its rules, so `AAMMarkers::OnRulesChanged` places the markers again one second later.
 - Tab: Copy / Paste automation settings buttons at the bottom of every machine's page. The tab now listens to `OnRulesChanged` and reloads its rows when the world's rules of its machine differ from its own (e.g. pasted with the game's button on the other tab), unless it has rows without an alarm name yet.
 - Recipe dropdown: icon of the recipe's first product.
+
+## Power switches (5 Nov 2026, tab and events work)
+
+- Classes: `AFGBuildableCircuitSwitch` (Power Switch), `AFGBuildablePriorityPowerSwitch` (its subclass). Not factories: `EvaluateFireRules` / `FireEvent` take them through `IsSwitchConditionTrue` / `ApplySwitchAction`.
+- Events: Switched on / off (`IsSwitchOn()`); A usage > / < B usage, A power > / < B power (margin 0.1 MW or 1%). Grid A = `GetCircuitID0()` (left graph), B = `GetCircuitID1()`.
+- **While the switch is on, both circuits report the joined grid's numbers** (`mPowerConsumed`, `mPowerProduced`, also `GetStats`): measured 5 Nov 2026. So each side is summed from its own buildings: the circuit's private `mPowerInfos` (read by name), `GetActualConsumption()` and `GetBaseProduction() + GetRegulatedDynamicProduction()`, once per check per circuit.
+- Actions: Turn on / off / Turn on or off (`SetSwitchOn`), Set priority 0..8 (`SetPriority`, priority switches only).
+- Messages name the switch with its tag: "Power Switch MAIN BASE" (`HasBuildingTag_Implementation`, `GetBuildingTag_Implementation`).
 
 ## Fuel generators (5 Nov 2026, Biomass Burner works)
 

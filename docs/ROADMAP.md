@@ -22,7 +22,7 @@ No settings tab in the HUB. Nothing in the mod needs a world setting: every beha
 
 - Generators: Coal (fuel + water), Fuel (fluid fuel), Nuclear (fuel rods, waste output), Geothermal (nothing to feed: power events only).
 - Extractors: Water Extractor, Oil Extractor, Resource Well Pressurizer.
-- Power: **power switches and priority switches** (actions On / Off), **power storage** (events: charge above / below N%, full, empty).
+- Power: ~~power switches and priority switches~~ (done 5 Nov 2026), **power storage** (events: charge above / below N%, full, empty).
 - Logistics: programmable / smart splitters (action: change the filter), pipeline pumps / valves (action: set the flow limit), fluid buffers and industrial fluid buffers (fill level, like storage).
 - Lights and light control panels (actions On / Off, change colour).
 - Trains: stations, freight platforms, railway signals; truck and drone stations.

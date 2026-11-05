@@ -82,6 +82,16 @@ end, or the tab order and the page order can differ), and find your tab index ag
 using it (the other page may have inserted its entry before yours). The tab buttons have a fixed
 width (`mButtonSize`): a longer title is scrolled left and right by the game itself, no fix needed.
 
+### A Kind A window shared by two buildings (power switches, tested 5 Nov 2026)
+
+`BPW_PowerSwitch` (`/Game/FactoryGame/Buildable/Factory/PowerSwitch/UI/BPW_PowerSwitch.BPW_PowerSwitch_C`)
+is the window of both the Power Switch and the Priority Power Switch. Pages in `HorizontalBox_0`:
+the switch page and `BPW_PowerSwitch_PriorityList`. On a plain switch the list page is only
+`Hidden` and its tab button (index 1) `Collapsed`: both stay in `mTabs`. Our page goes in as page 2,
+like in the production window. If our code ever makes the buttons again, collapse button 1 again
+for a plain switch (`EnsureTabButtonExists`). The collapsed button leaves no gap: the tabs container
+puts our button at its place (X 220). The building is `mInteractObject` (also `mPowerSwitch`).
+
 ## 5. Kind B: one-page windows (miners)
 
 `Widget_ResourceExtractorUI_C` has no sliding pages: `WindowBody` holds one CanvasPanel
