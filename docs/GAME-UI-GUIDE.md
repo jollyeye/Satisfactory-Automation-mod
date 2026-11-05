@@ -102,6 +102,9 @@ The window has `Widget_SlidingTabs` with its pages side by side in a HorizontalB
    reverse. Visibility only, nothing is moved.
 9. **Size**: our page keeps its own width (the window fits around whichever page shows); its height
    is set to the machine page's height, measured while that page shows (`USizeBox::SetHeightOverride`).
+12. **Tab buttons are reused too**: `GenerateButtons` can hand back the same button widgets. Never
+    add widgets or bind handlers to a game button without remembering it: keep one handler / one
+    added widget per button (a map from the button), bind once, and update its data on rebuild.
 11. **Windows are reused** (sign window, tested): on reopening, its variables can still hold the
     previous building for a moment, and it can make its tab buttons again after our setup. Keep a
     watch while open (a timer): set up again if the building changed, bind again if the buttons are

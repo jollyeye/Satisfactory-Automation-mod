@@ -130,8 +130,16 @@ private:
 	bool bHadDesigns = false;
 	int32 mSetupTries = 0;
 
+	/**
+	 * One click handler and one bin per tab button, kept for as long as the button lives: the window
+	 * reuses its buttons when it is opened again, so binding new ones each time piled up handlers and
+	 * bins on the same button.
+	 */
 	UPROPERTY()
 	TArray<TObjectPtr<UAMSignTabHandler>> mHandlers;
+
+	TMap<TWeakObjectPtr<UWidget>, TWeakObjectPtr<UAMSignTabHandler>> mButtonHandlers;
+	TMap<TWeakObjectPtr<UWidget>, TWeakObjectPtr<class UButton>> mButtonBins;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UAMSignTabHandler>> mPickerHandlers;

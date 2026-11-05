@@ -511,14 +511,40 @@ void UAMSignTabs::RebuildTabs()
 		}
 	}
 	const int32 Count = Buttons->GetChildrenCount();
-	if (Count > 4)
+	if (Titles.Num() > 4)
 	{
-		ButtonSize.X = FMath::Max(120.0, ButtonSize.X * 4.0 / Count);
+		ButtonSize.X = FMath::Max(120.0, ButtonSize.X * 4.0 / Titles.Num());
 	}
 
-	mHandlers.Reset();
 	UTexture2D* Icon = LoadObject<UTexture2D>(nullptr, AMST_TabIconPath);
 	const FSlateFontInfo Font = GetFont();
+	// Forget buttons that are gone.
+	for (auto It = mButtonHandlers.CreateIterator(); It; ++It)
+	{
+		if (!It->Key.IsValid() || !It->Value.IsValid())
+		{
+			It.RemoveCurrent();
+		}
+	}
+	for (auto It = mButtonBins.CreateIterator(); It; ++It)
+	{
+		if (!It->Key.IsValid() || !It->Value.IsValid())
+		{
+			It.RemoveCurrent();
+		}
+	}
+	mHandlers.RemoveAll([this](const TObjectPtr<UAMSignTabHandler>& Handler)
+	{
+		for (const TPair<TWeakObjectPtr<UWidget>, TWeakObjectPtr<UAMSignTabHandler>>& Pair : mButtonHandlers)
+		{
+			if (Pair.Value.Get() == Handler)
+			{
+				return false;
+			}
+		}
+		return true;
+	});
+
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		UWidget* Button = Buttons->GetChildAt(Index);
@@ -526,6 +552,7 @@ void UAMSignTabs::RebuildTabs()
 		{
 			continue;
 		}
+		const bool bOurTab = Titles.IsValidIndex(Index);
 		if (UCanvasPanelSlot* ButtonSlot = Cast<UCanvasPanelSlot>(Button->Slot))
 		{
 			ButtonSlot->SetAnchors(FAnchors(0.f, 0.f));
@@ -534,38 +561,53 @@ void UAMSignTabs::RebuildTabs()
 			ButtonSlot->SetPosition(FVector2D(ButtonSize.X * Index, 0.0));
 			ButtonSlot->SetSize(ButtonSize);
 		}
-		Button->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-		if (Titles.IsValidIndex(Index))
+		// A leftover button beyond our tabs: hidden.
+		Button->SetVisibility(bOurTab ? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed);
+		if (!bOurTab)
 		{
-			AMST_CallWith<FTextProperty>(Button, TEXT("SetTitle"), Titles[Index]);
+			continue;
 		}
-		const bool bDesignTab = Index > 0 && Index < Count - 1;
+		AMST_CallWith<FTextProperty>(Button, TEXT("SetTitle"), Titles[Index]);
+		const bool bDesignTab = Index > 0 && Index < Titles.Num() - 1;
 		if (bDesignTab && Icon)
 		{
 			AMST_CallWithObject(Button, TEXT("SetIcon"), Icon);
 		}
 
-		UAMSignTabHandler* Handler = NewObject<UAMSignTabHandler>(this);
-		Handler->Owner = this;
-		Handler->Index = Index;
-		mHandlers.Add(Handler);
-		if (UButton* Inner = Cast<UButton>(AMST_GetObject(Button, TEXT("mButton"))))
+		// One handler per button, bound once; its index follows the button's place.
+		UAMSignTabHandler* Handler = mButtonHandlers.FindRef(Button).Get();
+		if (!Handler)
 		{
-			Inner->OnClicked.AddDynamic(Handler, &UAMSignTabHandler::OnTabClicked);
+			Handler = NewObject<UAMSignTabHandler>(this);
+			Handler->Owner = this;
+			mHandlers.Add(Handler);
+			mButtonHandlers.Add(Button, Handler);
+			if (UButton* Inner = Cast<UButton>(AMST_GetObject(Button, TEXT("mButton"))))
+			{
+				Inner->OnClicked.AddUniqueDynamic(Handler, &UAMSignTabHandler::OnTabClicked);
+			}
 		}
-		// A bin on each design's tab.
-		if (bDesignTab)
+		Handler->Index = Index;
+
+		// One bin per button, shown on design tabs only.
+		UButton* Remove = mButtonBins.FindRef(Button).Get();
+		if (!Remove && bDesignTab)
 		{
 			if (UHorizontalBox* Content = Cast<UHorizontalBox>(AMST_GetObject(Button, TEXT("mContent"))))
 			{
-				UButton* Remove = AMUI::MakeRemoveButton(WidgetTree, Font);
-				Remove->OnClicked.AddDynamic(Handler, &UAMSignTabHandler::OnRemoveClicked);
+				Remove = AMUI::MakeRemoveButton(WidgetTree, Font);
+				Remove->OnClicked.AddUniqueDynamic(Handler, &UAMSignTabHandler::OnRemoveClicked);
 				if (UHorizontalBoxSlot* RemoveSlot = Content->AddChildToHorizontalBox(Remove))
 				{
 					RemoveSlot->SetVerticalAlignment(VAlign_Center);
 					RemoveSlot->SetPadding(FMargin(4.f, 0.f, 4.f, 0.f));
 				}
+				mButtonBins.Add(Button, Remove);
 			}
+		}
+		if (Remove)
+		{
+			Remove->SetVisibility(bDesignTab ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
 		}
 	}
 	if (UWidget* Selected = Buttons->GetChildAt(mSelected))
