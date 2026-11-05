@@ -5,6 +5,7 @@
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Buildables/FGBuildableStorage.h"
+#include "Buildables/FGBuildableGeneratorFuel.h"
 
 namespace
 {
@@ -48,6 +49,13 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::FillBelow:         return AMTY_Text(TEXT("Filled below"));
 	case EAMCondition::ItemCountAbove:    return AMTY_Text(TEXT("Item count above"));
 	case EAMCondition::ItemCountBelow:    return AMTY_Text(TEXT("Item count below"));
+	case EAMCondition::FuelEmpty:         return AMTY_Text(TEXT("Out of fuel"));
+	case EAMCondition::FuelAvailable:     return AMTY_Text(TEXT("Has fuel"));
+	case EAMCondition::FuelBelow:         return AMTY_Text(TEXT("Fuel below"));
+	case EAMCondition::LoadAbove:         return AMTY_Text(TEXT("Load above"));
+	case EAMCondition::LoadBelow:         return AMTY_Text(TEXT("Load below"));
+	case EAMCondition::FuseBlown:         return AMTY_Text(TEXT("Fuse blown"));
+	case EAMCondition::FuseReset:         return AMTY_Text(TEXT("Fuse reset"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -124,6 +132,20 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the container holds more of one item than the number you set. Pick the item under the alarm.\n\nMade for containers with several kinds of items: e.g. pause the Constructor making Iron Plates when there are more than 500."));
 	case EAMCondition::ItemCountBelow:
 		return AMTY_Text(TEXT("Rings when the container holds less of one item than the number you set. Pick the item under the alarm.\n\nE.g. resume the Constructor making Iron Plates when there are fewer than 200."));
+	case EAMCondition::FuelEmpty:
+		return AMTY_Text(TEXT("Rings when the generator has burned its last fuel: no fuel in its slot and nothing burning, so it stops making power.\n\nUse it to get a message, or to start a backup generator."));
+	case EAMCondition::FuelAvailable:
+		return AMTY_Text(TEXT("Rings when the generator has fuel again."));
+	case EAMCondition::FuelBelow:
+		return AMTY_Text(TEXT("Rings when the generator's fuel slot holds fewer items than the number you set: it is running low.\n\nUse it to start the machines that bring its fuel, or to get a warning before it runs out."));
+	case EAMCondition::LoadAbove:
+		return AMTY_Text(TEXT("Rings when the generator's load rises above the percentage you set: how much of what it can make the power grid is using.\n\nUse it to start more generators before the grid runs out of power and the fuse blows."));
+	case EAMCondition::LoadBelow:
+		return AMTY_Text(TEXT("Rings when the generator's load drops below the percentage you set: the grid needs less power.\n\nUse it to pause extra generators and save fuel."));
+	case EAMCondition::FuseBlown:
+		return AMTY_Text(TEXT("Rings when the fuse of the generator's power grid blows: the machines used more power than the generators make, so the whole grid is off until someone resets the fuse."));
+	case EAMCondition::FuseReset:
+		return AMTY_Text(TEXT("Rings when the fuse of the generator's power grid is reset and the grid is on again."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -176,6 +198,23 @@ AMRules::FValueInfo AMRules::GetConditionValueInfo(EAMCondition Condition)
 		Info.Min = 0.f;
 		Info.Max = 100.f;
 		Info.Default = Condition == EAMCondition::FillAbove ? 90.f : 10.f;
+	}
+	else if (Condition == EAMCondition::LoadAbove || Condition == EAMCondition::LoadBelow)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Load");
+		Info.Min = 0.f;
+		Info.Max = 100.f;
+		Info.Default = Condition == EAMCondition::LoadAbove ? 90.f : 20.f;
+	}
+	else if (Condition == EAMCondition::FuelBelow)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("#");
+		Info.Min = 0.f;
+		Info.Max = 999999.f;
+		Info.Default = 20.f;
+		Info.Unit = TEXT("");
 	}
 	else if (Condition == EAMCondition::ItemCountAbove || Condition == EAMCondition::ItemCountBelow)
 	{
@@ -284,17 +323,42 @@ float AMRules::CleanValue(const FValueInfo& Info, float Value)
 bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machine)
 {
 	const bool bStorageEvent = Condition >= EAMCondition::StorageFull && Condition <= EAMCondition::ItemCountBelow;
+	const bool bGeneratorEvent = Condition >= EAMCondition::FuelEmpty && Condition <= EAMCondition::FuseReset;
 	if (!Machine)
 	{
 		return true;
 	}
 	if (Machine->IsA<AFGBuildableManufacturer>())
 	{
-		return !bStorageEvent;
+		return !bStorageEvent && !bGeneratorEvent;
 	}
 	if (Machine->IsA<AFGBuildableStorage>())
 	{
 		return bStorageEvent;
+	}
+	if (Machine->IsA<AFGBuildableGeneratorFuel>())
+	{
+		switch (Condition)
+		{
+		case EAMCondition::StartsProducing:
+		case EAMCondition::StopsProducing:
+		case EAMCondition::Paused:
+		case EAMCondition::Resumed:
+		case EAMCondition::InputFull:
+		case EAMCondition::InputNotFull:
+		case EAMCondition::WrongInput:
+		case EAMCondition::InputCorrect:
+		case EAMCondition::FuelEmpty:
+		case EAMCondition::FuelAvailable:
+		case EAMCondition::FuelBelow:
+		case EAMCondition::LoadAbove:
+		case EAMCondition::LoadBelow:
+		case EAMCondition::FuseBlown:
+		case EAMCondition::FuseReset:
+			return true;
+		default:
+			return false;
+		}
 	}
 	if (Machine->IsA<AFGBuildableResourceExtractor>())
 	{
@@ -331,6 +395,20 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	if (Machine->IsA<AFGBuildableStorage>())
 	{
 		return Action == EAMAction::DeleteContents;
+	}
+	if (Machine->IsA<AFGBuildableGeneratorFuel>())
+	{
+		switch (Action)
+		{
+		case EAMAction::Pause:
+		case EAMAction::Resume:
+		case EAMAction::TogglePause:
+		case EAMAction::SetClockSpeed:
+		case EAMAction::DeleteInput:
+			return true;
+		default:
+			return false;
+		}
 	}
 	if (Machine->IsA<AFGBuildableResourceExtractor>())
 	{

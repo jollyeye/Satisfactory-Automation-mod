@@ -169,6 +169,14 @@ Automation is copied together with the game's own machine settings:
 - Only between the same machine (Constructor to Constructor, Miner Mk1 to Miner Mk1): the game's own grouping puts all production machines together, which is not wanted. Pasting replaces the machine's automation; copying a machine without automation and pasting it removes the other machine's automation (decided 5 Nov 2026).
 - A notification says what was copied / pasted ("AUTOMATION COPIED: 2 alarms, 1 action").
 
+### Fuel generators (started 5 Nov 2026: Biomass Burner first)
+
+Biomass Burner, Coal Generator, Fuel Generator and Nuclear Power Plant are the same kind of machine in the game (one input: fuel); their windows come one by one, the Biomass Burner first.
+
+- Machine events: Starts / Stops producing, Paused / Resumed, Out of fuel / Has fuel, Fuel below N (items in the fuel slot), Load above / below N% (how much of what it can make the grid uses), Fuse blown / Fuse reset (its grid's fuse), Input full / not full (fuel slot), Wrong input / Input correct (a belt brings something that is not fuel).
+- Actions: Pause, Resume, Pause or resume, Set clock speed N%, Delete input (its fuel).
+- Ideas: Load above 90% on the main generators starts backup burners; Load below 20% pauses them; Fuse blown shows a message.
+
 ### Wrong items on a belt (decided 4 Nov 2026)
 
 A machine refuses an item that is not an ingredient of its recipe, so the belt stops behind it. Deleting that item was rejected: it would be a cheat. Instead:

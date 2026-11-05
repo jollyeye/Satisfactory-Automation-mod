@@ -28,10 +28,17 @@ namespace
 	const TCHAR* const AMWH_StorageWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Storage.Widget_Storage_C");
 	const TCHAR* const AMWH_StoragePage = TEXT("mInventoryVertBox");
 
+	// Fuel generators (Biomass Burner, ...): a one-page window too. Its page panel has no stable
+	// name, so the hook goes into the panel holding the standby button (Indirect_Child: the
+	// named widget's parent), a variable every machine window with a standby switch has.
+	const TCHAR* const AMWH_GeneratorWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C");
+	const TCHAR* const AMWH_StandbyButton = TEXT("Widget_StandbyButton");
+
 	bool AMWH_Registered = false;
 
 	/** Adds UAMAutomationTab as the last page of a window's tab pages. */
-	void AMWH_HookPages(UWidgetBlueprintHookManager* HookManager, const TCHAR* Window, const TCHAR* Pages, const TCHAR* HookName, bool bSlotSetup = true)
+	void AMWH_HookPages(UWidgetBlueprintHookManager* HookManager, const TCHAR* Window, const TCHAR* Pages, const TCHAR* HookName, bool bSlotSetup = true,
+		EWidgetBlueprintHookParentType ParentType = EWidgetBlueprintHookParentType::Direct_Any)
 	{
 		UWidgetBlueprintHookData* Hook = NewObject<UWidgetBlueprintHookData>(GetTransientPackage(), HookName);
 		Hook->AddToRoot();
@@ -39,7 +46,7 @@ namespace
 		Hook->WidgetClass = TSoftClassPtr<UUserWidget>(FSoftObjectPath(Window));
 		Hook->NewWidgetClass = UAMAutomationTab::StaticClass();
 		Hook->NewWidgetName = TEXT("AM_AutomationTab");
-		Hook->ParentWidgetType = EWidgetBlueprintHookParentType::Direct_Any;
+		Hook->ParentWidgetType = ParentType;
 		Hook->ParentWidgetName = Pages;
 
 		// SML 3.12 bug: the generic slot setup crashes on a VerticalBox parent (its VerticalBox branch
@@ -74,6 +81,8 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_HubWindow, AMWH_HubPages, TEXT("AM_HubAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_ExtractorWindow, AMWH_ExtractorPage, TEXT("AM_ExtractorAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"), false);
+		AMWH_HookPages(HookManager, AMWH_GeneratorWindow, AMWH_StandbyButton, TEXT("AM_GeneratorAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
 	}
 }
 

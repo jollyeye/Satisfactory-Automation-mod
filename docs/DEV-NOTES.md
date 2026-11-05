@@ -198,6 +198,11 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Tab: Copy / Paste automation settings buttons at the bottom when `AMClipboard::GameCanCopy` is false. The tab now listens to `OnRulesChanged` and reloads its rows when the world's rules of its machine differ from its own (e.g. pasted with the game's button on the other tab), unless it has rows without an alarm name yet.
 - Recipe dropdown: icon of the recipe's first product.
 
+## Fuel generators (5 Nov 2026, untested)
+
+- Window: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C` (`mInteractWidgetSoftClass` of `Build_GeneratorBiomass` and `Build_GeneratorBiomass_Automated`, class `AFGBuildableGeneratorFuel`). One-page window: `Widget_Window_DarkMode`, `WindowBody`, no sliding tabs. The page panel's name is not readable from the asset (names like `CanvasPanel_3` are stored as name + number), so the hook uses **`Indirect_Child` on `Widget_StandbyButton`**: SML takes the named widget's parent panel. No slot setup. The dump is pointed at `Widget_Generator_C`.
+- Engine: `IsOutOfFuel` = `!HasFuel()`; `CountFuel` = items at `GetFuelInventoryIndex()`; `GetLoad` = `GetLoadPercentage()` (0..1); `IsFuseBlown` = `GetPowerInfo()->IsFuseTriggered()`; Input full = the fuel slot has no room for one more of its fuel; Wrong input = a belt item / pipe fluid that is neither `IsValidFuel` nor `IsValidSupplementalResource`; Delete input = `DeleteAllItems(GetFuelInventory())`.
+
 ## The widget dump
 
 Now pointed at the HUB terminal (`BPW_Hub_C`): its tree, plus variables and functions of every widget in it whose class name contains Tab, Menu or Hub, to find where an Automation tab goes next to Milestones.

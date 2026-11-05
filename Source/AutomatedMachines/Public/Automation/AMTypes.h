@@ -44,6 +44,13 @@ enum class EAMCondition : uint8
 	FillBelow          UMETA(DisplayName = "Filled below"),
 	ItemCountAbove     UMETA(DisplayName = "Item count above"),
 	ItemCountBelow     UMETA(DisplayName = "Item count below"),
+	FuelEmpty          UMETA(DisplayName = "Out of fuel"),
+	FuelAvailable      UMETA(DisplayName = "Has fuel"),
+	FuelBelow          UMETA(DisplayName = "Fuel below"),
+	LoadAbove          UMETA(DisplayName = "Load above"),
+	LoadBelow          UMETA(DisplayName = "Load below"),
+	FuseBlown          UMETA(DisplayName = "Fuse blown"),
+	FuseReset          UMETA(DisplayName = "Fuse reset"),
 	Count              UMETA(Hidden)
 };
 

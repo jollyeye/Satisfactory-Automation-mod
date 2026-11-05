@@ -6,6 +6,8 @@
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Buildables/FGBuildableStorage.h"
+#include "Buildables/FGBuildableGeneratorFuel.h"
+#include "FGPowerInfoComponent.h"
 #include "Buildables/FGCentralStorageContainer.h"
 #include "Resources/FGExtractableResourceInterface.h"
 #include "FGInventoryComponent.h"
@@ -417,8 +419,10 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 	// Production machines, and extractors (miners; also water and oil extractors, resource well
 	// extractors: they are the same class).
 	// Storage containers too (not the Dimensional Depot uploader: its own window, later).
+	// Fuel generators: Biomass Burner, Coal, Fuel, Nuclear (one class; their windows come one by one).
 	return Machine && (Machine->IsA<AFGBuildableManufacturer>() || Machine->IsA<AFGBuildableResourceExtractor>()
-		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>()));
+		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
+		|| Machine->IsA<AFGBuildableGeneratorFuel>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -604,6 +608,13 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::FillBelow:         return GetFillLevel(Factory) * 100.f < Rule.Value;
 	case EAMCondition::ItemCountAbove:    return Rule.Item && CountItem(Factory, Rule.Item) > Rule.Value;
 	case EAMCondition::ItemCountBelow:    return Rule.Item && CountItem(Factory, Rule.Item) < Rule.Value;
+	case EAMCondition::FuelEmpty:         return IsOutOfFuel(Factory);
+	case EAMCondition::FuelAvailable:     return !IsOutOfFuel(Factory);
+	case EAMCondition::FuelBelow:         return CountFuel(Factory) < Rule.Value;
+	case EAMCondition::LoadAbove:         return GetLoad(Factory) * 100.f > Rule.Value;
+	case EAMCondition::LoadBelow:         return GetLoad(Factory) * 100.f < Rule.Value;
+	case EAMCondition::FuseBlown:         return IsFuseBlown(Factory);
+	case EAMCondition::FuseReset:         return !IsFuseBlown(Factory);
 	default:                              return false;
 	}
 }
@@ -628,6 +639,36 @@ float AAMAutomationSubsystem::GetFillLevel(const AFGBuildableFactory* Factory)
 		}
 	}
 	return static_cast<float>(Filled / Inventory->GetSizeLinear());
+}
+
+bool AAMAutomationSubsystem::IsOutOfFuel(const AFGBuildableFactory* Factory)
+{
+	const AFGBuildableGeneratorFuel* Generator = Cast<AFGBuildableGeneratorFuel>(Factory);
+	return Generator && !Generator->HasFuel();
+}
+
+int32 AAMAutomationSubsystem::CountFuel(const AFGBuildableFactory* Factory)
+{
+	const AFGBuildableGeneratorFuel* Generator = Cast<AFGBuildableGeneratorFuel>(Factory);
+	const UFGInventoryComponent* Fuel = Generator ? Generator->GetFuelInventory() : nullptr;
+	FInventoryStack Stack;
+	if (Fuel && Fuel->GetStackFromIndex(Generator->GetFuelInventoryIndex(), Stack) && Stack.HasItems())
+	{
+		return Stack.NumItems;
+	}
+	return 0;
+}
+
+float AAMAutomationSubsystem::GetLoad(const AFGBuildableFactory* Factory)
+{
+	const AFGBuildableGenerator* Generator = Cast<AFGBuildableGenerator>(Factory);
+	return Generator ? Generator->GetLoadPercentage() : 0.f;
+}
+
+bool AAMAutomationSubsystem::IsFuseBlown(const AFGBuildableFactory* Factory)
+{
+	const UFGPowerInfoComponent* Power = Factory ? Factory->GetPowerInfo() : nullptr;
+	return Power && Power->IsFuseTriggered();
 }
 
 int32 AAMAutomationSubsystem::CountItem(const AFGBuildableFactory* Factory, TSubclassOf<UFGItemDescriptor> Item)
@@ -664,6 +705,14 @@ bool AAMAutomationSubsystem::IsBeltBlocked(const AFGBuildableFactory* Factory)
 
 bool AAMAutomationSubsystem::IsInputFull(const AFGBuildableFactory* Factory)
 {
+	// A generator: its fuel slot has no room for one more of the fuel it holds.
+	if (const AFGBuildableGeneratorFuel* Generator = Cast<AFGBuildableGeneratorFuel>(Factory))
+	{
+		const UFGInventoryComponent* Fuel = Generator->GetFuelInventory();
+		FInventoryStack Stack;
+		return Fuel && Fuel->GetStackFromIndex(Generator->GetFuelInventoryIndex(), Stack) && Stack.HasItems()
+			&& !Fuel->HasEnoughSpaceForItem(FInventoryItem(Stack.Item.GetItemClass()));
+	}
 	// Full = some ingredient's input slot has no room for even one more.
 	const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
 	if (!Manufacturer || !Manufacturer->GetCurrentRecipe() || !Manufacturer->GetInputInventory())
@@ -682,19 +731,34 @@ bool AAMAutomationSubsystem::IsInputFull(const AFGBuildableFactory* Factory)
 
 bool AAMAutomationSubsystem::FindWrongInput(const AFGBuildableFactory* Factory, UFGFactoryConnectionComponent** OutBelt, FInventoryItem* OutItem)
 {
+	// What the machine takes: its recipe's ingredients, or a generator's fuels.
 	const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
-	if (!Manufacturer || !Manufacturer->GetCurrentRecipe())
+	const AFGBuildableGeneratorFuel* Generator = Cast<AFGBuildableGeneratorFuel>(Factory);
+	TArray<const UClass*> Ingredients;
+	if (Manufacturer && Manufacturer->GetCurrentRecipe())
+	{
+		for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(Manufacturer, Manufacturer->GetCurrentRecipe()))
+		{
+			Ingredients.Add(Ingredient.ItemClass.Get());
+		}
+	}
+	else if (!Generator)
 	{
 		return false;
 	}
-	TArray<const UClass*> Ingredients;
-	for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(Manufacturer, Manufacturer->GetCurrentRecipe()))
+	auto Accepts = [&Ingredients, Generator](const UClass* Item)
 	{
-		Ingredients.Add(Ingredient.ItemClass.Get());
-	}
+		if (Generator)
+		{
+			const TSubclassOf<UFGItemDescriptor> ItemClass(const_cast<UClass*>(Item));
+			return Generator->IsValidFuel(ItemClass) || Generator->IsValidSupplementalResource(ItemClass);
+		}
+		return Ingredients.Contains(Item);
+	};
+	const AFGBuildableFactory* Machine = Factory;
 
 	// Belts: the item waiting at the end of each input belt.
-	for (UFGFactoryConnectionComponent* Connection : Manufacturer->GetConnectionComponents())
+	for (UFGFactoryConnectionComponent* Connection : Machine->GetConnectionComponents())
 	{
 		if (!Connection || Connection->GetDirection() != EFactoryConnectionDirection::FCD_INPUT || !Connection->IsConnected())
 		{
@@ -702,7 +766,7 @@ bool AAMAutomationSubsystem::FindWrongInput(const AFGBuildableFactory* Factory, 
 		}
 		UFGFactoryConnectionComponent* BeltEnd = Connection->GetConnection();
 		TArray<FInventoryItem> Waiting;
-		if (BeltEnd && BeltEnd->Factory_PeekOutput(Waiting) && Waiting.Num() > 0 && !Ingredients.Contains(static_cast<const UClass*>(Waiting[0].GetItemClass().Get())))
+		if (BeltEnd && BeltEnd->Factory_PeekOutput(Waiting) && Waiting.Num() > 0 && !Accepts(Waiting[0].GetItemClass().Get()))
 		{
 			if (OutBelt)
 			{
@@ -718,13 +782,13 @@ bool AAMAutomationSubsystem::FindWrongInput(const AFGBuildableFactory* Factory, 
 
 	// Pipes: the fluid in each input pipe.
 	TArray<UFGPipeConnectionComponent*> Pipes;
-	Manufacturer->GetComponents<UFGPipeConnectionComponent>(Pipes);
+	Machine->GetComponents<UFGPipeConnectionComponent>(Pipes);
 	for (const UFGPipeConnectionComponent* Pipe : Pipes)
 	{
 		if (Pipe && Pipe->GetPipeConnectionType() == EPipeConnectionType::PCT_CONSUMER && Pipe->IsConnected())
 		{
 			const UClass* Fluid = Pipe->GetFluidDescriptor().Get();
-			if (Fluid && !Ingredients.Contains(Fluid))
+			if (Fluid && !Accepts(Fluid))
 			{
 				if (OutBelt)
 				{
@@ -885,6 +949,15 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 		// A production machine: below.
 		[[fallthrough]];
 	case EAMAction::DeleteInput:
+		if (AFGBuildableGeneratorFuel* Generator = Cast<AFGBuildableGeneratorFuel>(Factory))
+		{
+			if (Rule.Action == EAMAction::DeleteInput)
+			{
+				const int32 Slots = DeleteAllItems(Generator->GetFuelInventory());
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: fuel deleted (%d slots had items)"), *AMAS_Describe(Factory), Slots);
+			}
+			break;
+		}
 		if (AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory))
 		{
 			const bool bOutput = Rule.Action == EAMAction::DeleteOutput;

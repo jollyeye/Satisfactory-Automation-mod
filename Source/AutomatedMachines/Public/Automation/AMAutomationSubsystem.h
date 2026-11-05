@@ -96,6 +96,12 @@ private:
 	/** How full a storage container is, 0..1 (0 for other machines). */
 	static float GetFillLevel(const AFGBuildableFactory* Factory);
 
+	/** Fuel generators: no fuel left, fuel items in the slot, load 0..1, the grid's fuse blown. */
+	static bool IsOutOfFuel(const AFGBuildableFactory* Factory);
+	static int32 CountFuel(const AFGBuildableFactory* Factory);
+	static float GetLoad(const AFGBuildableFactory* Factory);
+	static bool IsFuseBlown(const AFGBuildableFactory* Factory);
+
 	/** A storage container: an input belt has an item waiting that does not fit. */
 	static bool IsBeltBlocked(const AFGBuildableFactory* Factory);
 
