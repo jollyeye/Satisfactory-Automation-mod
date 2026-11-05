@@ -53,6 +53,15 @@ private:
 	 */
 	bool PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const;
 
+	/**
+	 * How far the glows are drawn: the game's own distance for medium buildings (Constructors,
+	 * Assemblers: its optimization settings) times the View Distance video setting, read again
+	 * on every rebuild. Each decal then gets the fade screen size that matches that distance.
+	 */
+	void UpdateDrawDistance();
+	float mDrawDistance = 0.f;
+	void ApplyDrawDistance(UDecalComponent* Glow) const;
+
 	/** The machine's visible footprint in its local space (its meshes, not its clearance box). */
 	static FBox GetVisibleBox(const AActor* Machine);
 

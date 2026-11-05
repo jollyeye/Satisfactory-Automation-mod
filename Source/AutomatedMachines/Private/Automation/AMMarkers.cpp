@@ -10,6 +10,8 @@
 #include "Engine/StaticMesh.h"
 #include "CollisionQueryParams.h"
 #include "UObject/UnrealType.h"
+#include "FGOptimizationSettings.h"
+#include "HAL/IConsoleManager.h"
 #include "Components/SceneComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -41,8 +43,8 @@ namespace
 	/** The floor is probed this far outside the machine's visible edge, in cm. */
 	constexpr float AMMK_FloorProbeOut = 20.f;
 
-	/** Glows smaller than this part of the screen are not drawn (far away). */
-	constexpr float AMMK_FadeScreenSize = 0.004f;
+	/** If the game's distance for medium buildings cannot be read: this far, in cm (times View Distance). */
+	constexpr float AMMK_FallbackDrawDistance = 30000.f;
 
 	/** Glows are checked again this often, in seconds (a machine may have been dismantled, the floor loaded). */
 	constexpr float AMMK_RefreshInterval = 5.f;
@@ -97,6 +99,8 @@ void AAMMarkers::Rebuild()
 		}
 		return;
 	}
+
+	UpdateDrawDistance();
 
 	// The machines that should glow.
 	TSet<const AActor*> Wanted;
@@ -203,7 +207,6 @@ UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine, bool& bOutSettled)
 	Glow->SetUsingAbsoluteLocation(true);
 	Glow->SetUsingAbsoluteRotation(true);
 	Glow->SetUsingAbsoluteScale(true);
-	Glow->SetFadeScreenSize(AMMK_FadeScreenSize);
 	Glow->SetDecalMaterial(UMaterialInstanceDynamic::Create(mGlowMaterial, Glow));
 	const FBox Box = GetVisibleBox(Machine);
 	if (!Box.IsValid || Box.GetExtent().X < 1.0 || Box.GetExtent().Y < 1.0)
@@ -214,6 +217,7 @@ UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine, bool& bOutSettled)
 	AddInstanceComponent(Glow);
 	Glow->RegisterComponent();
 	bOutSettled = PlaceGlow(Glow, Machine);
+	ApplyDrawDistance(Glow);
 	return Glow;
 }
 
@@ -281,6 +285,52 @@ bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
 		Material->SetScalarParameterValue(TEXT("BaseZ"), static_cast<float>(FloorZ));
 	}
 	return bFound;
+}
+
+void AAMMarkers::UpdateDrawDistance()
+{
+	float GameDistance = 0.f;
+	if (const UFGOptimizationSettings* Settings = GetDefault<UFGOptimizationSettings>())
+	{
+		// The game's cull distances (min, max) for medium buildings; the engine scales them by View Distance.
+		GameDistance = static_cast<float>(Settings->GetCullDistanceByCategory(EDistanceCullCategory::FGDCC_BuildingMedium, 1.f).Y);
+	}
+	const bool bFromGame = GameDistance > 0.f;
+	if (!bFromGame)
+	{
+		GameDistance = AMMK_FallbackDrawDistance;
+	}
+	float ViewDistanceScale = 1.f;
+	if (const IConsoleVariable* Scale = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ViewDistanceScale")))
+	{
+		ViewDistanceScale = FMath::Max(0.1f, Scale->GetFloat());
+	}
+	const float Distance = GameDistance * ViewDistanceScale;
+	if (FMath::IsNearlyEqual(Distance, mDrawDistance, 1.f))
+	{
+		return;
+	}
+	mDrawDistance = Distance;
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Underglow drawn up to %.0f m (%s %.0f m x View Distance %.2f)"),
+		Distance / 100.f, bFromGame ? TEXT("game's medium buildings") : TEXT("fallback"), GameDistance / 100.f, ViewDistanceScale);
+	for (const TPair<TWeakObjectPtr<const AActor>, FGlow>& Entry : mGlows)
+	{
+		if (UDecalComponent* Glow = Entry.Value.Decal.Get())
+		{
+			ApplyDrawDistance(Glow);
+		}
+	}
+}
+
+void AAMMarkers::ApplyDrawDistance(UDecalComponent* Glow) const
+{
+	// A decal is drawn while it is at least FadeScreenSize of the screen; its screen size is about
+	// its bounds radius / distance (90 degrees field of view), so this size stops it near mDrawDistance.
+	if (Glow && mDrawDistance > 0.f)
+	{
+		const float Radius = static_cast<float>(Glow->DecalSize.Size());
+		Glow->SetFadeScreenSize(FMath::Clamp(Radius / mDrawDistance, 0.0001f, 0.5f));
+	}
 }
 
 void AAMMarkers::EndPlay(const EEndPlayReason::Type Reason)

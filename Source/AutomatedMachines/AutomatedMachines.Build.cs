@@ -19,6 +19,8 @@ public class AutomatedMachines : ModuleRules
 			"UMG",
 			"Slate",
 			"SlateCore",
+			// UFGOptimizationSettings is a UDeveloperSettings (the underglow's draw distance).
+			"DeveloperSettings",
 			// Satisfactory + mod loader
 			"FactoryGame",
 			"SML",
