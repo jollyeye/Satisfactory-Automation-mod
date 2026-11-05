@@ -47,6 +47,7 @@ public:
 	/** A row of an alarm's machine list: its machine (or the HUB); its bin removes the alarm from it only. */
 	TWeakObjectPtr<AFGBuildable> Machine;
 	bool bHub = false;
+	bool bMam = false;
 	bool bOne = false;
 	FString TargetName;
 
@@ -161,7 +162,7 @@ public:
 	void ExplainOverviewLocate(const FString& TargetName);
 
 	/** Overview: removes the alarm from one machine (or the HUB) at once. */
-	void RemoveFromOne(const FString& Event, bool bRingers, AFGBuildable* Machine, bool bHub, const FString& TargetName);
+	void RemoveFromOne(const FString& Event, bool bRingers, AFGBuildable* Machine, bool bHub, bool bMam, const FString& TargetName);
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -367,6 +368,9 @@ private:
 	 */
 	bool bOverviewMode = false;
 
+	/** The MAM's tab (a world tab like the HUB's): its world events' alarms only, no actions. */
+	bool bMamMode = false;
+
 	/**
 	 * Sliding pages (production window, HUB): our page as high as the game's tallest page, so our
 	 * lists scroll instead of making the window (and with it every tab) taller.
@@ -421,7 +425,9 @@ private:
 	struct FAMOverviewEntry
 	{
 		TWeakObjectPtr<AFGBuildable> Machine;
+		/** The HUB or the MAM (a world entry: not located). */
 		bool bHub = false;
+		bool bMam = false;
 		FString Name;
 		TWeakObjectPtr<UTexture2D> Icon;
 		float Distance = 0.f;

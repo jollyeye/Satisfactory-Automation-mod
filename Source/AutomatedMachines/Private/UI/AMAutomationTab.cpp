@@ -64,6 +64,7 @@ namespace
 	const FName AMAT_FontSourceWidget(TEXT("mRecipeName"));
 	const FName AMAT_TabTitleWidget(TEXT("mTitleObject"));
 	const TCHAR* const AMAT_HubWindowClass = TEXT("BPW_Hub_C");
+	const TCHAR* const AMAT_MamWindowClass = TEXT("BPW_MAM_C");
 	const FName AMAT_ActiveTabChangedProperty(TEXT("OnActiveTabChanged"));
 	const FName AMAT_ProductionPageName(TEXT("mManufacturingTab"));
 	const FName AMAT_WindowBodyProperty(TEXT("WindowBody"));
@@ -504,10 +505,15 @@ void UAMAutomationTab::BuildLayout()
 		MakePanel(TEXT("Alarms"), TEXT("Alarm Name"), AMRowLayout::AlarmName, TEXT("Machine Event"), AMRowLayout::MachineEvent,
 			TEXT("+ Add alarm"), mFireRowsBox, 0.f, AMAT_AlarmsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddFireClicked);
 	}
-	if (!bOverviewMode)
+	if (!bOverviewMode && !bMamMode)
 	{
 		MakePanel(TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
 			TEXT("+ Add action"), mReactionRowsBox, AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+	}
+	else if (bMamMode)
+	{
+		// No actions here (the HUB has the world's actions, machines their own): the list exists, hidden.
+		mReactionRowsBox = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	}
 
 	// Options of the machine, at the bottom (the HUB has none).
@@ -633,6 +639,12 @@ void UAMAutomationTab::ShowDefaultInfo()
 			FText::FromString(TEXT("Rung by: how many machines ring the alarm. Listening: how many machines, signs and the HUB do something when it rings.\n\nAn alarm nobody rings never makes its listeners act; one nobody listens to does nothing.\n\nThe bins remove the alarm from all of them at once: hold one down for 2.5 seconds.")));
 		return;
 	}
+	if (bMamMode)
+	{
+		ShowInfo(FText::FromString(TEXT("Alarms of the MAM")),
+			FText::FromString(TEXT("The MAM rings these alarms on its events, such as a research completed.\n\nWhat happens when they ring is set where it happens: on a machine, a sign, or in the HUB's Automation tab (Show message, Play sound).")));
+		return;
+	}
 	if (bWorldMode)
 	{
 		ShowInfo(FText::FromString(TEXT("Alarms and actions of the whole world")),
@@ -689,8 +701,12 @@ void UAMAutomationTab::LoadRules()
 	if (bWorldMode)
 	{
 		// The HUB's world alarms only (it saves those; the MAM's stay).
-		mFires = Subsystem->GetWorldFires().FilterByPredicate([](const FAMFireRule& Rule) { return !AMRules::IsMamCondition(Rule.Condition); });
-		mReactions = Subsystem->GetWorldActions();
+		const bool bMam = bMamMode;
+		mFires = Subsystem->GetWorldFires().FilterByPredicate([bMam](const FAMFireRule& Rule) { return AMRules::IsMamCondition(Rule.Condition) == bMam; });
+		if (!bMamMode)
+		{
+			mReactions = Subsystem->GetWorldActions();
+		}
 	}
 	else if (const FAMMachineRules* Rules = Subsystem->FindRules(Machine))
 	{
@@ -1177,7 +1193,7 @@ void UAMAutomationTab::OnRulesEdited()
 {
 	if (bWorldMode)
 	{
-		UAMRemoteCallObject::RequestSetWorldRules(GetOwningPlayer(), mFires, mReactions);
+		UAMRemoteCallObject::RequestSetWorldRules(GetOwningPlayer(), mFires, mReactions, bMamMode);
 	}
 	else if (AFGBuildable* Machine = Cast<AFGBuildable>(GetMachine()))
 	{
@@ -1355,7 +1371,7 @@ void UAMAutomationTab::ScrollToEndLater(UWidget* Rows)
 bool UAMAutomationTab::IsConditionAvailableHere(EAMCondition Condition) const
 {
 	// The HUB: its own world events (the MAM's are in the MAM's tab).
-	return bWorldMode ? (AMRules::IsWorldCondition(Condition) && !AMRules::IsMamCondition(Condition)) : AMRules::IsConditionAvailable(Condition, GetMachine());
+	return bWorldMode ? (AMRules::IsWorldCondition(Condition) && AMRules::IsMamCondition(Condition) == bMamMode) : AMRules::IsConditionAvailable(Condition, GetMachine());
 }
 
 void UAMAutomationTab::OnAddFireClicked()
@@ -1486,7 +1502,8 @@ void UAMAutomationTab::UpdateMachineName()
 		{
 			mMachineText->SetText(FText::FromString(bOverviewMode
 				? TEXT("Every alarm in the world: who rings it and who listens to it.")
-				: TEXT("The HUB hears every alarm in the world, and does these actions when one rings.")));
+				: bMamMode ? TEXT("The MAM rings these alarms on its events.")
+				: TEXT("The HUB rings alarms on world events, hears every alarm in the world, and does these actions when one rings.")));
 		}
 		return;
 	}
@@ -1566,7 +1583,8 @@ void UAMAutomationTab::NativeOnInitialized()
 	Super::NativeOnInitialized();
 	// In the HUB terminal: world actions only.
 	const UUserWidget* Host = GetHostWindow();
-	bWorldMode = Host && Host->GetClass()->GetName() == AMAT_HubWindowClass;
+	bMamMode = Host && Host->GetClass()->GetName() == AMAT_MamWindowClass;
+	bWorldMode = Host && (Host->GetClass()->GetName() == AMAT_HubWindowClass || bMamMode);
 	bOverviewMode = bWorldMode && GetFName() == FName(TEXT("AM_OverviewTab"));
 	// No sliding pages (the miner's window): we make our own switch between its page and ours.
 	bSinglePageMode = Host && !bWorldMode && !FindFProperty<FObjectPropertyBase>(Host->GetClass(), AMAT_SlidingTabsProperty);
@@ -2264,14 +2282,14 @@ void UAMAutomationTab::OnOverviewLocate(AFGBuildable* Machine, bool bHub, const 
 	}
 }
 
-void UAMAutomationTab::RemoveFromOne(const FString& Event, bool bRingers, AFGBuildable* Machine, bool bHub, const FString& TargetName)
+void UAMAutomationTab::RemoveFromOne(const FString& Event, bool bRingers, AFGBuildable* Machine, bool bHub, bool bMam, const FString& TargetName)
 {
 	// Never all of them: a machine that is gone meanwhile removes nothing.
 	if (!Machine && !bHub)
 	{
 		return;
 	}
-	UAMRemoteCallObject::RequestClearAlarm(GetOwningPlayer(), Event, bRingers, Machine, bHub);
+	UAMRemoteCallObject::RequestClearAlarm(GetOwningPlayer(), Event, bRingers, Machine, bHub, bMam);
 	ShowInfo(FText::FromString(Event), FText::FromString(FString::Printf(TEXT("Removed from %s."), *TargetName)));
 }
 
@@ -2343,16 +2361,31 @@ void UAMAutomationTab::AddExpandedList()
 		Added.Distance = static_cast<float>(FVector::Dist(From, Machine->GetActorLocation()));
 	}
 	mExpandedEntries.Sort([](const FAMOverviewEntry& A, const FAMOverviewEntry& B) { return A.Distance < B.Distance; });
-	const bool bHubUses = bExpandedRingers
-		? Subsystem->GetWorldFires().ContainsByPredicate([&Event](const FAMFireRule& Rule) { return Rule.Event == Event; })
-		: Subsystem->GetWorldActions().ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
-	if (bHubUses)
+	// The HUB and the MAM (world events, world actions) first.
+	auto AddWorldEntry = [this](const TCHAR* Name, bool bMam)
 	{
-		FAMOverviewEntry Hub;
-		Hub.bHub = true;
-		Hub.Name = bExpandedRingers ? TEXT("The HUB (world events)") : TEXT("The HUB (world actions)");
-		Hub.Distance = -1.f;
-		mExpandedEntries.Insert(Hub, 0);
+		FAMOverviewEntry World;
+		World.bHub = true;
+		World.bMam = bMam;
+		World.Name = Name;
+		World.Distance = -1.f;
+		mExpandedEntries.Insert(World, 0);
+	};
+	if (bExpandedRingers)
+	{
+		const TArray<FAMFireRule>& WorldFires = Subsystem->GetWorldFires();
+		if (WorldFires.ContainsByPredicate([&Event](const FAMFireRule& Rule) { return Rule.Event == Event && AMRules::IsMamCondition(Rule.Condition); }))
+		{
+			AddWorldEntry(TEXT("The MAM (world events)"), true);
+		}
+		if (WorldFires.ContainsByPredicate([&Event](const FAMFireRule& Rule) { return Rule.Event == Event && !AMRules::IsMamCondition(Rule.Condition); }))
+		{
+			AddWorldEntry(TEXT("The HUB (world events)"), false);
+		}
+	}
+	else if (Subsystem->GetWorldActions().ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; }))
+	{
+		AddWorldEntry(TEXT("The HUB (world actions)"), false);
 	}
 
 	// In the Machines region: what it is, the rows (scrolling, the region's height), and the progress while they are made.
@@ -2422,6 +2455,7 @@ void UAMAutomationTab::BuildExpandedRows()
 		Handler->bRingers = bExpandedRingers;
 		Handler->Machine = Entry.Machine;
 		Handler->bHub = Entry.bHub;
+		Handler->bMam = Entry.bMam;
 		Handler->bOne = true;
 		Handler->TargetName = Entry.Name;
 		mOverviewHandlers.Add(Handler);
@@ -2481,22 +2515,37 @@ void UAMAutomationTab::BuildExpandedRows()
 				ButtonSlot->SetPadding(FMargin(AMRowLayout::Gap, 0.f, 0.f, 0.f));
 			}
 		};
-		// Locate: the bin button's look with a map pin instead of the bin.
-		UButton* Locate = AMUI::MakeRemoveButton(WidgetTree, Font);
-		USizeBox* PinSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		PinSize->SetWidthOverride(20.f);
-		PinSize->SetHeightOverride(20.f);
-		PinSize->AddChild(AMUI::MakeImage(WidgetTree, AMAT_LocateIconPath, FVector2D(20.f, 20.f)));
-		Locate->SetContent(PinSize);
-		Locate->SetToolTipText(FText::FromString(TEXT("Locate")));
-		Locate->OnHovered.AddDynamic(Handler, &UAMOverviewHandler::OnLocateHovered);
-		if (UButtonSlot* PinSlot = Cast<UButtonSlot>(PinSize->Slot))
+		// Locate: the bin button's look with a map pin instead of the bin. Not for the HUB or the MAM
+		// (world entries), nor for a machine already this close (it would end at once): an empty space.
+		constexpr float AMAT_NoLocateCloserThan = 800.f;
+		const bool bCanLocate = !Entry.bHub && Entry.Distance > AMAT_NoLocateCloserThan;
+		if (!bCanLocate)
 		{
-			PinSlot->SetHorizontalAlignment(HAlign_Center);
-			PinSlot->SetVerticalAlignment(VAlign_Center);
+			USizeBox* Space = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			Space->SetWidthOverride(AMRowLayout::Remove + 10.f);
+			if (UHorizontalBoxSlot* SpaceSlot = Row->AddChildToHorizontalBox(Space))
+			{
+				SpaceSlot->SetPadding(FMargin(AMRowLayout::Gap, 0.f, 0.f, 0.f));
+			}
 		}
-		Locate->OnClicked.AddDynamic(Handler, &UAMOverviewHandler::OnLocateClicked);
-		AddIconButton(Locate);
+		UButton* Locate = bCanLocate ? AMUI::MakeRemoveButton(WidgetTree, Font) : nullptr;
+		if (Locate)
+		{
+			USizeBox* PinSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			PinSize->SetWidthOverride(20.f);
+			PinSize->SetHeightOverride(20.f);
+			PinSize->AddChild(AMUI::MakeImage(WidgetTree, AMAT_LocateIconPath, FVector2D(20.f, 20.f)));
+			Locate->SetContent(PinSize);
+			Locate->SetToolTipText(FText::FromString(TEXT("Locate")));
+			Locate->OnHovered.AddDynamic(Handler, &UAMOverviewHandler::OnLocateHovered);
+			if (UButtonSlot* PinSlot = Cast<UButtonSlot>(PinSize->Slot))
+			{
+				PinSlot->SetHorizontalAlignment(HAlign_Center);
+				PinSlot->SetVerticalAlignment(VAlign_Center);
+			}
+			Locate->OnClicked.AddDynamic(Handler, &UAMOverviewHandler::OnLocateClicked);
+			AddIconButton(Locate);
+		}
 		// One machine at a time: a click removes it (no hold; an undo may come later).
 		UButton* Bin = AMUI::MakeRemoveButton(WidgetTree, Font);
 		Bin->OnClicked.AddDynamic(Handler, &UAMOverviewHandler::OnSingleBinClicked);
@@ -2693,7 +2742,7 @@ void UAMOverviewHandler::OnSingleBinClicked()
 {
 	if (Tab)
 	{
-		Tab->RemoveFromOne(Event, bRingers, Machine.Get(), bHub, TargetName);
+		Tab->RemoveFromOne(Event, bRingers, Machine.Get(), bHub, bMam, TargetName);
 	}
 }
 

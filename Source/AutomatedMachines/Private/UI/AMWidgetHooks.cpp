@@ -6,6 +6,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "UObject/Package.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
 
 namespace
 {
@@ -18,6 +20,30 @@ namespace
 	/** The HUB terminal and its tab pages ("Select Milestone", "Active Milestone", and then ours). */
 	const TCHAR* const AMWH_HubWindow = TEXT("/Game/FactoryGame/Buildable/Factory/TradingPost/UI/BPW_Hub.BPW_Hub_C");
 	const TCHAR* const AMWH_HubPages = TEXT("HorizontalBox_25");
+
+	// MAM: the same sliding pages (dump 5 Nov 2026: pages MolecularAnalysisMachine and HardDriveLibrary
+	// in HorizontalBox_0). The window's path is looked up by its name, BPW_MAM.
+	const TCHAR* const AMWH_MamWindowName = TEXT("BPW_MAM");
+	const TCHAR* const AMWH_MamPages = TEXT("HorizontalBox_0");
+
+	/** The class path of a game widget blueprint, by its asset name (e.g. ".../BPW_MAM.BPW_MAM_C"). */
+	FString AMWH_FindWidgetPath(const TCHAR* AssetName)
+	{
+		IAssetRegistry& Registry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+		for (const TCHAR* Folder : { TEXT("/Game/FactoryGame/Buildable/Factory/Mam"), TEXT("/Game/FactoryGame/Interface"), TEXT("/Game/FactoryGame") })
+		{
+			TArray<FAssetData> Assets;
+			Registry.GetAssetsByPath(FName(Folder), Assets, true);
+			for (const FAssetData& Asset : Assets)
+			{
+				if (Asset.AssetName == FName(AssetName))
+				{
+					return FString::Printf(TEXT("%s.%s_C"), *Asset.PackageName.ToString(), AssetName);
+				}
+			}
+		}
+		return FString();
+	}
 
 	// Miners (Mk1-3): a window with one page (no tab pages). Our widget goes into that page first,
 	// then moves itself next to it (UAMAutomationTab::SetupSinglePage).
@@ -89,6 +115,12 @@ namespace
 		// A second page in the HUB: every alarm of the world (UAMAutomationTab in overview mode, by its name).
 		AMWH_HookPages(HookManager, AMWH_HubWindow, AMWH_HubPages, TEXT("AM_HubOverviewTabHook"), true,
 			EWidgetBlueprintHookParentType::Direct_Any, nullptr, TEXT("AM_OverviewTab"));
+		const FString MamWindow = AMWH_FindWidgetPath(AMWH_MamWindowName);
+		UE_LOG(LogAutomatedMachines, Log, TEXT("MAM window: %s"), MamWindow.IsEmpty() ? TEXT("not found") : *MamWindow);
+		if (!MamWindow.IsEmpty())
+		{
+			AMWH_HookPages(HookManager, *MamWindow, AMWH_MamPages, TEXT("AM_MamAutomationTabHook"));
+		}
 		AMWH_HookPages(HookManager, AMWH_ExtractorWindow, AMWH_ExtractorPage, TEXT("AM_ExtractorAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"), false);
 		AMWH_HookPages(HookManager, AMWH_GeneratorWindow, AMWH_StandbyButton, TEXT("AM_GeneratorAutomationTabHook"), false,

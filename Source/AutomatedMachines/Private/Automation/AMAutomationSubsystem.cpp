@@ -746,7 +746,7 @@ void AAMAutomationSubsystem::EvaluateFireRules()
 	}
 }
 
-void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringer)
+void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringer, const FString& RungBy)
 {
 	if (!HasAuthority())
 	{
@@ -756,7 +756,7 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringe
 	{
 		if (Rule.Event == Event)
 		{
-			ApplyWorldAction(Rule, Ringer);
+			ApplyWorldAction(Rule, Ringer, RungBy);
 		}
 	}
 	for (FAMMachineRules& Entry : mMachines)
@@ -1213,7 +1213,7 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 	}
 }
 
-void AAMAutomationSubsystem::ApplyWorldAction(const FAMReactionRule& Rule, const AActor* Ringer)
+void AAMAutomationSubsystem::ApplyWorldAction(const FAMReactionRule& Rule, const AActor* Ringer, const FString& RungBy)
 {
 	switch (Rule.Action)
 	{
@@ -1223,7 +1223,8 @@ void AAMAutomationSubsystem::ApplyWorldAction(const FAMReactionRule& Rule, const
 		FString Body = Rule.Message;
 		if (Body.IsEmpty())
 		{
-			Body = Ringer ? FString::Printf(TEXT("Rung by %s"), *GetMachineName(Ringer)) : FString(TEXT("Rang"));
+			Body = !RungBy.IsEmpty() ? FString::Printf(TEXT("Rung by %s"), *RungBy)
+				: Ringer ? FString::Printf(TEXT("Rung by %s"), *GetMachineName(Ringer)) : FString(TEXT("Rang"));
 		}
 		MulticastShowMessage(Rule.Event, Body);
 		break;
@@ -1331,20 +1332,6 @@ void AAMAutomationSubsystem::OnResearchCompleted(TSubclassOf<UFGSchematic> Schem
 	FireWorldEvent(EAMCondition::ResearchCompleted, UFGSchematic::GetSchematicDisplayName(Schematic).ToString());
 }
 
-const AActor* AAMAutomationSubsystem::FindWorldBuilding(bool bMam) const
-{
-	// The HUB is the trading post (Build_TradingPost_C), the MAM Build_Mam_C.
-	const TCHAR* Name = bMam ? TEXT("Mam") : TEXT("TradingPost");
-	for (TActorIterator<AFGBuildable> It(GetWorld()); It; ++It)
-	{
-		if (It->GetClass()->GetName().Contains(Name))
-		{
-			return *It;
-		}
-	}
-	return nullptr;
-}
-
 void AAMAutomationSubsystem::OnSchematicPurchased(TSubclassOf<UFGSchematic> Schematic)
 {
 	if (!HasAuthority() || !Schematic || UFGSchematic::GetType(Schematic) != ESchematicType::EST_Milestone)
@@ -1364,8 +1351,8 @@ void AAMAutomationSubsystem::OnSchematicPurchased(TSubclassOf<UFGSchematic> Sche
 
 void AAMAutomationSubsystem::FireWorldEvent(EAMCondition Condition, const FString& Detail)
 {
-	// The HUB (or the MAM) rings them: its building, if there is one.
-	const AActor* Hub = FindWorldBuilding(AMRules::IsMamCondition(Condition));
+	// The world rings them, not a building: "Rung by the MAM (Caterium Research)".
+	const FString RungBy = FString::Printf(TEXT("the %s (%s)"), AMRules::IsMamCondition(Condition) ? TEXT("MAM") : TEXT("HUB"), *Detail);
 	TArray<FString> Events;
 	for (const FAMFireRule& Rule : mWorldFires)
 	{
@@ -1377,6 +1364,6 @@ void AAMAutomationSubsystem::FireWorldEvent(EAMCondition Condition, const FStrin
 	for (const FString& Event : Events)
 	{
 		UE_LOG(LogAutomatedMachines, Log, TEXT("World event %s (%s): rings %s"), *AMRules::GetConditionText(Condition).ToString(), *Detail, *Event);
-		FireEvent(Event, Hub);
+		FireEvent(Event, nullptr, RungBy);
 	}
 }

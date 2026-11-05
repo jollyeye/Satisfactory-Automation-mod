@@ -55,7 +55,7 @@ public:
 	const TArray<FAMMachineRules>& GetAllMachines() const { return mMachines; }
 
 	/** Fires an event now: every machine that reacts to it acts, and the world actions run (server only). */
-	void FireEvent(const FString& Event, const AActor* Ringer = nullptr);
+	void FireEvent(const FString& Event, const AActor* Ringer = nullptr, const FString& RungBy = FString());
 
 	/** Actions of the whole world (the HUB terminal's Automation tab): they need no machine. */
 	const TArray<FAMReactionRule>& GetWorldActions() const { return mWorldActions; }
@@ -76,9 +76,6 @@ public:
 	 * machine only; bOnlyHub: from the HUB's actions only (the overview's per-machine bins).
 	 */
 		void ClearAlarm(const FString& Event, bool bRingers, const AActor* OnlyMachine = nullptr, bool bOnlyHub = false, bool bMam = false);
-
-	/** The HUB's or the MAM's building (rings their world events; found by class name). */
-	const AActor* FindWorldBuilding(bool bMam) const;
 
 	/** Replaces the world actions (server only). Only world actions are kept. */
 	/**
@@ -198,7 +195,7 @@ private:
 	void FireWorldEvent(EAMCondition Condition, const FString& Detail);
 
 	/** Runs one world action; Ringer is the machine that rang the alarm. */
-	void ApplyWorldAction(const FAMReactionRule& Rule, const AActor* Ringer);
+	void ApplyWorldAction(const FAMReactionRule& Rule, const AActor* Ringer, const FString& RungBy = FString());
 
 	/** Older saves had world actions on machines: move them to the world actions. */
 	void MoveWorldActionsFromMachines();
