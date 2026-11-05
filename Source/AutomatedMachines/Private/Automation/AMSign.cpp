@@ -9,11 +9,15 @@ FAMSignDesign AMSign::FromSignData(const FPrefabSignData& Data, const FString& E
 	Design.Layout = FSoftClassPath(Data.PrefabLayout.ToString());
 	for (const TPair<FString, FString>& Text : Data.TextElementData)
 	{
-		Design.Texts.Add(FAMSignText{Text.Key, Text.Value});
+		FAMSignText& Entry = Design.Texts.AddDefaulted_GetRef();
+		Entry.Key = Text.Key;
+		Entry.Value = Text.Value;
 	}
 	for (const TPair<FString, int32>& Icon : Data.IconElementData)
 	{
-		Design.Icons.Add(FAMSignIcon{Icon.Key, Icon.Value});
+		FAMSignIcon& Entry = Design.Icons.AddDefaulted_GetRef();
+		Entry.Key = Icon.Key;
+		Entry.Id = Icon.Value;
 	}
 	Design.Foreground = Data.ForegroundColor;
 	Design.Background = Data.BackgroundColor;
