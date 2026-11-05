@@ -199,6 +199,7 @@ void UAMSignTabs::NativeConstruct()
 
 void UAMSignTabs::Watch()
 {
+	UpdateTabStripWidth();
 	if (bSetUp && GetSign() != mSetupSign.Get())
 	{
 		// The window now edits another sign: its designs, not the last sign's.
@@ -564,16 +565,17 @@ void UAMSignTabs::RebuildTabs()
 			{
 				Start = ContainerSlot->GetPosition();
 			}
-			// Stretched across the title bar: from right of the window's title to its right end
-			// (offsets: left, top, right margin, height). The alarm tabs scroll inside it.
-			RowSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 0.f));
+			// Right of the window's title, as wide as its tabs (the alarm tabs scroll once the row
+			// would reach the close button: UpdateTabStripWidth).
+			mRowStartX = static_cast<float>(Start.X + TitleSize.X + 4.0);
+			RowSlot->SetAnchors(FAnchors(0.f, 0.f));
 			RowSlot->SetAlignment(FVector2D::ZeroVector);
-			RowSlot->SetAutoSize(false);
-			RowSlot->SetOffsets(FMargin(static_cast<float>(Start.X + TitleSize.X + 4.0), static_cast<float>(Start.Y),
-				4.f, static_cast<float>(TitleSize.Y) + 5.f));
+			RowSlot->SetAutoSize(true);
+			RowSlot->SetPosition(FVector2D(mRowStartX, Start.Y));
 			RowSlot->SetZOrder(100);
 		}
 	}
+	mHeader = Header;
 	mTabRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	if (mTabScroll)
 	{
@@ -677,11 +679,14 @@ void UAMSignTabs::RebuildTabs()
 	};
 
 	AddTab(mTabRow, 0, TEXT("Default"), false, 140.f);
-	if (UHorizontalBoxSlot* ScrollSlot = mTabRow->AddChildToHorizontalBox(mTabScroll))
+	mTabScrollSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	mTabScrollSize->AddChild(mTabScroll);
+	if (UHorizontalBoxSlot* ScrollSlot = mTabRow->AddChildToHorizontalBox(mTabScrollSize))
 	{
-		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-		ScrollSlot->SetPadding(FMargin(0.f, 0.f, 4.f, 0.f));
+		ScrollSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 0.f));
+		ScrollSlot->SetVerticalAlignment(VAlign_Top);
 	}
+	UpdateTabStripWidth();
 	for (int32 Index = 0; Index < mDesigns.Num(); ++Index)
 	{
 		AddTab(DesignRow, Index + 1, mDesigns[Index].Event, true, 0.f);
@@ -768,6 +773,49 @@ void UAMSignTabs::RemoveDesign(int32 Index)
 	SendDesigns();
 }
 
+void UAMSignTabs::UpdateTabStripWidth()
+{
+	const UCanvasPanel* Header = mHeader.Get();
+	if (!mTabScrollSize || !Header)
+	{
+		return;
+	}
+	const float HeaderWidth = static_cast<float>(Header->GetCachedGeometry().GetLocalSize().X);
+	if (HeaderWidth < 1.f)
+	{
+		return;
+	}
+	// Room left in the title bar: minus where the row starts, the Default tab (140 + 4), the
+	// "+ AutoDesign" tab (130 + 4) and the window's close button on the right (about 110).
+	constexpr float CloseButtonRoom = 110.f;
+	const float MaxWidth = FMath::Max(110.f, HeaderWidth - mRowStartX - 144.f - 134.f - CloseButtonRoom);
+	if (!FMath::IsNearlyEqual(mTabScrollSize->GetMaxDesiredWidth(), MaxWidth, 1.f))
+	{
+		mTabScrollSize->SetMaxDesiredWidth(MaxWidth);
+	}
+}
+
+void UAMSignTabs::PlacePicker()
+{
+	UWidget* Window = mPickerWindow.Get();
+	UCanvasPanelSlot* WindowSlot = Window ? Cast<UCanvasPanelSlot>(Window->Slot) : nullptr;
+	if (!WindowSlot)
+	{
+		return;
+	}
+	constexpr float Width = 300.f;
+	FVector2D Position(16.0, 8.0);
+	if (const UWidget* Anchor = mPickerAnchor.Get())
+	{
+		const FGeometry& PageGeometry = GetCachedGeometry();
+		const FVector2D AnchorLocal = PageGeometry.AbsoluteToLocal(Anchor->GetCachedGeometry().GetAbsolutePosition());
+		const FVector2D PageSize = PageGeometry.GetLocalSize();
+		Position.X = FMath::Clamp(AnchorLocal.X, 0.0, FMath::Max(0.0, PageSize.X - Width));
+	}
+	WindowSlot->SetPosition(Position);
+	Window->SetRenderOpacity(1.f);
+}
+
 void UAMSignTabs::OpenPicker(UWidget* Anchor)
 {
 	ClosePicker();
@@ -837,25 +885,31 @@ void UAMSignTabs::OpenPicker(UWidget* Anchor)
 	}
 	FillPicker(FString());
 
-	// Under the "+ Alarm" tab, inside the page.
-	FVector2D Position(16.0, 8.0);
-	if (Anchor)
-	{
-		const FGeometry& PageGeometry = GetCachedGeometry();
-		const FGeometry& AnchorGeometry = Anchor->GetCachedGeometry();
-		const FVector2D AnchorPosition = AnchorGeometry.GetAbsolutePosition();
-		const FVector2D AnchorLocal = PageGeometry.AbsoluteToLocal(AnchorPosition);
-		const FVector2D PageSize = PageGeometry.GetLocalSize();
-		Position.X = FMath::Clamp(AnchorLocal.X, 0.0, FMath::Max(0.0, PageSize.X - Width));
-	}
+	// Under the "+ AutoDesign" tab, inside the page: placed on the next tick, once this widget has
+	// been drawn (it is collapsed until the picker opens, so the first time it has no size yet and
+	// the picker ended up at the page's left edge). Invisible until then.
 	if (UCanvasPanelSlot* WindowSlot = mLayer->AddChildToCanvas(WindowSize))
 	{
 		WindowSlot->SetAnchors(FAnchors(0.f, 0.f));
 		WindowSlot->SetAlignment(FVector2D::ZeroVector);
 		WindowSlot->SetAutoSize(true);
-		WindowSlot->SetPosition(Position);
+		WindowSlot->SetPosition(FVector2D(16.0, 8.0));
 	}
+	mPickerWindow = WindowSize;
+	mPickerAnchor = Anchor;
+	WindowSize->SetRenderOpacity(0.f);
 	SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	if (UWorld* World = GetWorld())
+	{
+		TWeakObjectPtr<UAMSignTabs> WeakThis(this);
+		World->GetTimerManager().SetTimerForNextTick([WeakThis]()
+		{
+			if (UAMSignTabs* Tabs = WeakThis.Get())
+			{
+				Tabs->PlacePicker();
+			}
+		});
+	}
 
 	if (UWorld* World = GetWorld())
 	{
@@ -977,6 +1031,7 @@ void UAMSignTabs::ClosePicker()
 	}
 	mPickerList = nullptr;
 	mPickerSearch = nullptr;
+	mPickerWindow = nullptr;
 	mPickerHandlers.Reset();
 	SetVisibility(ESlateVisibility::Collapsed);
 }

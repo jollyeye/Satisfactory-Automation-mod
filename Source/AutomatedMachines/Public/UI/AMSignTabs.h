@@ -160,10 +160,30 @@ private:
 	UPROPERTY()
 	TObjectPtr<class UHorizontalBox> mTabRow;
 
-	/** The alarm tabs' scroll box (its offset is kept when the row is made again). */
+	/** The alarm tabs' scroll box (its offset is kept when the row is made again), and its size box. */
 	UPROPERTY()
 	TObjectPtr<class UScrollBox> mTabScroll;
 	float mTabScrollOffset = 0.f;
+
+	UPROPERTY()
+	TObjectPtr<class USizeBox> mTabScrollSize;
+
+	/** The title bar canvas the row is in, and where the row starts in it. */
+	TWeakObjectPtr<class UCanvasPanel> mHeader;
+	float mRowStartX = 0.f;
+
+	/**
+	 * The alarm tabs grow with their names until the row would reach the window's close button,
+	 * then they scroll: their size box's maximum width from the title bar's width (known once it
+	 * has been drawn: again on every Watch).
+	 */
+	void UpdateTabStripWidth();
+
+	/** The picker's box and its slot: placed under the anchor once it has been drawn (next tick). */
+	UPROPERTY()
+	TObjectPtr<class UWidget> mPickerWindow;
+	TWeakObjectPtr<UWidget> mPickerAnchor;
+	void PlacePicker();
 
 	UPROPERTY()
 	TObjectPtr<class UButton> mAddButton;

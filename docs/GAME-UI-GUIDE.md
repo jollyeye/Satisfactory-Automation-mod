@@ -198,6 +198,7 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
   (plain Python) and call that function by name through reflection (`FindFunction` + `ProcessEvent`)
   if it is a UFUNCTION.
 - **LNK2019 on a game struct's destructor** (e.g. `FInstanceData::~FInstanceData`): copying a struct that has an exported destructor in a game module we do not link. Do not copy it: read the data in place by reflection (`FindFProperty` on the owner, `FScriptArrayHelper`, field properties of the inner struct).
+- **A collapsed widget has no geometry**: placing something from `GetCachedGeometry()` of a widget that was collapsed (or just made) gives size 0 and wrong positions. Show it first (render opacity 0), place it on the next tick, then make it visible.
 - The window frame is null in `NativeOnInitialized`; do window work in `NativeConstruct` or later.
 - **C2001 "newline in constant"**: a C++ text written by a Python edit script with `\n` in a normal
   Python string got a real line break. Use raw strings (`r"..."`) in edit scripts, and run
