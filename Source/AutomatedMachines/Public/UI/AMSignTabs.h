@@ -1,16 +1,21 @@
-// Alarm designs in the Sign Designer: one tab per design in the window's tab bar.
+// Alarm designs in the Sign Designer: a list of designs on the left of the window.
 //
-//   [ Default ][ PLATES BACKED UP x ][ PLATES FLOWING x ][ + AutoDesign ]
+//   | Designs            |  ...the game's designer...
+//   | Default            |
+//   | PLATES BACKED UP x |
+//   | PLATES FLOWING x   |
+//   | + AutoDesign       |
 //
-// "Default" is the sign's normal design; each other tab is the design the sign shows when its
-// alarm rings. The game's own designer below edits whichever tab is selected: switching tabs keeps
+// "Default" is the sign's normal design; each other row is the design the sign shows when its
+// alarm rings. The game's own designer next to it edits whichever row is selected: switching tabs keeps
 // the edited design and loads the next one into it ("Set Sign Data"). "+ AutoDesign" picks an alarm (or a
 // new name) and makes a design for it, starting as a copy of the one being edited.
 // The designs are sent to the server when they change and when the window closes; the server then
 // shows on the sign the design it should show (its last rung alarm's, or the normal one).
 //
-// This widget is hooked into the Sign Designer's page (collapsed); it only shows itself as the
-// alarm picker floating over the page.
+// This widget is hooked into the Sign Designer's page and stays collapsed; the list (made in its
+// widget tree) goes into the window's body row, left of the page, and the alarm picker opens inside
+// the list, under "+ AutoDesign".
 #pragma once
 
 #include "CoreMinimal.h"
@@ -81,9 +86,6 @@ protected:
 	virtual void NativeDestruct() override;
 
 	UFUNCTION()
-	void OnPickerBackgroundClicked();
-
-	UFUNCTION()
 	void OnPickerSearchChanged(const FText& Text);
 
 	UFUNCTION()
@@ -94,7 +96,7 @@ private:
 	void Setup();
 
 public:
-	/** Our tab row: Normal + one per design + "+ AutoDesign" (made again on every change). */
+	/** Our list: Default + one per design + "+ AutoDesign" (made again on every change). */
 	void RebuildTabs();
 
 private:
@@ -125,7 +127,7 @@ private:
 
 	FAMSignDesign& GetSlot(int32 Index);
 
-	void OpenPicker(UWidget* Anchor);
+	void OpenPicker();
 	void ClosePicker();
 	void FillPicker(const FString& Filter);
 
@@ -154,36 +156,20 @@ private:
 	TArray<TObjectPtr<UAMSignTabHandler>> mHandlers;
 
 	/**
-	 * Our own row of tabs in the window's title bar, and its "+ AutoDesign" button (where the picker
-	 * opens): [Default][ alarm tabs, scrolling sideways ][+ AutoDesign], filling the title bar's width.
+	 * Our list of designs on the left of the designer, in the window's body row (the parent of its
+	 * WindowBody, next to the page): "Designs", then Default and one row per alarm design (scrolling),
+	 * "+ AutoDesign" under them, and the alarm picker under that while it is open.
 	 */
 	UPROPERTY()
-	TObjectPtr<class UHorizontalBox> mTabRow;
+	TObjectPtr<class USizeBox> mSidePanel;
 
-	/** The alarm tabs' scroll box (its offset is kept when the row is made again), and its size box. */
+	/** The list's scroll box (its offset is kept when the list is made again). */
 	UPROPERTY()
 	TObjectPtr<class UScrollBox> mTabScroll;
 	float mTabScrollOffset = 0.f;
 
-	UPROPERTY()
-	TObjectPtr<class USizeBox> mTabScrollSize;
-
-	/** The title bar canvas the row is in, and where the row starts in it. */
-	TWeakObjectPtr<class UCanvasPanel> mHeader;
-	float mRowStartX = 0.f;
-
-	/**
-	 * The alarm tabs grow with their names until the row would reach the window's close button,
-	 * then they scroll: their size box's maximum width from the title bar's width (known once it
-	 * has been drawn: again on every Watch).
-	 */
-	void UpdateTabStripWidth();
-
-	/** The picker's box and its slot: placed under the anchor once it has been drawn (next tick). */
-	UPROPERTY()
-	TObjectPtr<class UWidget> mPickerWindow;
-	TWeakObjectPtr<UWidget> mPickerAnchor;
-	void PlacePicker();
+	/** The picker is open (shown under "+ AutoDesign" in the list). */
+	bool bPickerOpen = false;
 
 	UPROPERTY()
 	TObjectPtr<class UButton> mAddButton;

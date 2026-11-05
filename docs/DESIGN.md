@@ -193,13 +193,13 @@ Biomass Burner, Coal Generator, Fuel Generator and Nuclear Power Plant are the s
 
 ### Signs: a design per alarm (decided 5 Nov 2026)
 
-Signs only react (no machine events). The Sign Designer's tab bar gets one tab per design:
-`Sign Designer  [ Normal ][ PLATES BACKED UP | bin ][ PLATES FLOWING | bin ][ + AutoDesign ]` (our own tabs right of the window's title).
+Signs only react (no machine events). The Sign Designer gets a list of designs on its left (first tabs in the title bar: crowded with many designs and too close to the close button):
+`Designs: Default / PLATES BACKED UP [bin] / PLATES FLOWING [bin] / ... (scrolls) / + AutoDesign`.
 
-- "Default" (was "Normal") is the sign's normal design; each other tab is the design shown when its alarm rings. The game's own designer edits the selected tab (the preview shows it). The bin on a tab removes that design.
-- "+ AutoDesign" opens a list of alarms with a search field; typing a name that does not exist yet and pressing Enter makes a design for a new alarm. A new design starts as a copy of the one being edited.
+- "Default" (was "Normal") is the sign's normal design; each other row is the design shown when its alarm rings. The game's own designer edits the selected row (the preview shows it). The bin on a row removes that design.
+- "+ AutoDesign" opens, inside the list under it, a search field and the alarms without a design (the button reads "Cancel" meanwhile); typing a name that does not exist yet and pressing Enter makes a design for a new alarm. A new design starts as a copy of the one being edited.
 - When an alarm rings, the sign shows its design and keeps it until another of its alarms rings (an alarm has no "stopped ringing"; use pairs: BACKED UP red, FLOWING green). The design showing is saved.
-- Copy: Ctrl+C / Ctrl+V and middle click copy the design and the alarm designs; the window's Copy / Paste Settings buttons only the design.
+- Copy: Ctrl+C / Ctrl+V and middle click copy the design and the alarm designs; the window's Copy / Paste Settings buttons only the design open in the editor (any row).
 - Uninstall-safe: without the mod the sign keeps the design it was showing.
 
 ### Wrong items on a belt (decided 4 Nov 2026)

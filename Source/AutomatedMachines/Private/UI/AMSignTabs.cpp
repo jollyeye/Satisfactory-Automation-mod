@@ -199,7 +199,6 @@ void UAMSignTabs::NativeConstruct()
 
 void UAMSignTabs::Watch()
 {
-	UpdateTabStripWidth();
 	if (bSetUp && GetSign() != mSetupSign.Get())
 	{
 		// The window now edits another sign: its designs, not the last sign's.
@@ -241,6 +240,11 @@ void UAMSignTabs::NativeDestruct()
 		}
 	}
 	RestoreWindowTabs();
+	// Our list out of the window (it may be reused for another building).
+	if (mSidePanel)
+	{
+		mSidePanel->RemoveFromParent();
+	}
 	bSetUp = false;
 	mSetupSign = nullptr;
 	if (AMST_Open.Get() == this)
@@ -533,75 +537,62 @@ void UAMSignTabs::Setup()
 
 void UAMSignTabs::RebuildTabs()
 {
-	// Our own row of tabs in the title bar, right of the window's title ("Sign Designer"): the game's
-	// tab buttons are made again and reused by the window, so we do not use them.
+	// Our list on the left of the designer, in the window's body row (the game's tab buttons are
+	// made again and reused by the window, and a row in the title bar crowded it).
 	UObject* Frame = GetWindowFrame();
-	UWidget* TabsContainer = Cast<UWidget>(AMST_GetObject(Frame, AMST_TabsContainerProperty));
-	UCanvasPanel* Header = TabsContainer ? Cast<UCanvasPanel>(TabsContainer->GetParent()) : nullptr;
-	if (!Header || !WidgetTree)
+	const UWidget* Body = Cast<UWidget>(AMST_GetObject(Frame, TEXT("WindowBody")));
+	UHorizontalBox* BodyRow = Body ? Cast<UHorizontalBox>(Body->GetParent()) : nullptr;
+	if (!BodyRow || !WidgetTree)
 	{
-		UE_LOG(LogAutomatedMachines, Warning, TEXT("Sign designs: no title bar to put the tabs in"));
+		UE_LOG(LogAutomatedMachines, Warning, TEXT("Sign designs: no window body row to put the list in"));
 		return;
 	}
-	FVector2D TitleSize(220.0, 36.0);
-	if (const FStructProperty* SizeProperty = FindFProperty<FStructProperty>(TabsContainer->GetClass(), TEXT("mButtonSize")))
+	constexpr float ListWidth = 250.f;
+	constexpr float RowHeight = 36.f;
+	if (!mSidePanel)
 	{
-		if (SizeProperty->Struct == TBaseStructure<FVector2D>::Get())
+		mSidePanel = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("AMSignDesignList"));
+		mSidePanel->SetWidthOverride(ListWidth);
+	}
+	if (mSidePanel->GetParent() != BodyRow)
+	{
+		mSidePanel->RemoveFromParent();
+		if (UHorizontalBoxSlot* ListSlot = Cast<UHorizontalBoxSlot>(BodyRow->InsertChildAt(0, mSidePanel)))
 		{
-			TitleSize = *SizeProperty->ContainerPtrToValuePtr<FVector2D>(TabsContainer);
+			ListSlot->SetVerticalAlignment(VAlign_Fill);
+			ListSlot->SetHorizontalAlignment(HAlign_Fill);
+			ListSlot->SetSize(FSlateChildSize(ESlateSizeRule::Automatic));
 		}
 	}
-	if (!mTabRow)
-	{
-		mTabRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("AMSignTabRow"));
-	}
-	if (mTabRow->GetParent() != Header)
-	{
-		mTabRow->RemoveFromParent();
-		if (UCanvasPanelSlot* RowSlot = Header->AddChildToCanvas(mTabRow))
-		{
-			FVector2D Start = FVector2D::ZeroVector;
-			if (const UCanvasPanelSlot* ContainerSlot = Cast<UCanvasPanelSlot>(TabsContainer->Slot))
-			{
-				Start = ContainerSlot->GetPosition();
-			}
-			// Right of the window's title, as wide as its tabs (the alarm tabs scroll once the row
-			// would reach the close button: UpdateTabStripWidth).
-			mRowStartX = static_cast<float>(Start.X + TitleSize.X + 4.0);
-			RowSlot->SetAnchors(FAnchors(0.f, 0.f));
-			RowSlot->SetAlignment(FVector2D::ZeroVector);
-			RowSlot->SetAutoSize(true);
-			RowSlot->SetPosition(FVector2D(mRowStartX, Start.Y));
-			RowSlot->SetZOrder(100);
-		}
-	}
-	mHeader = Header;
-	mTabRow->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	if (mTabScroll)
 	{
 		mTabScrollOffset = mTabScroll->GetScrollOffset();
 	}
-	mTabRow->ClearChildren();
+	mSidePanel->ClearChildren();
 	mHandlers.Reset();
 
-	// The alarm tabs: a sideways scroll box between Default and + AutoDesign (mouse wheel or the thin
-	// bar under the tabs), so any number of designs fits in the title bar.
-	mTabScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
-	mTabScroll->SetOrientation(Orient_Horizontal);
-	mTabScroll->SetScrollbarThickness(FVector2D(3.f, 3.f));
-	mTabScroll->SetScrollbarPadding(FMargin(0.f, 2.f, 0.f, 0.f));
-	mTabScroll->SetConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible);
-	UHorizontalBox* DesignRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	mTabScroll->AddChild(DesignRow);
-	UWidget* SelectedTab = nullptr;
-
 	const FSlateFontInfo Font = GetFont();
-	UTexture2D* Icon = LoadObject<UTexture2D>(nullptr, AMST_TabIconPath);
-	const float TabHeight = static_cast<float>(TitleSize.Y);
+	UBorder* Panel = AMUI::MakeBox(WidgetTree, AMUI::SidePanel, FMargin(8.f));
+	mSidePanel->AddChild(Panel);
+	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	Panel->AddChild(Column);
+	if (UVerticalBoxSlot* TitleSlot = Column->AddChildToVerticalBox(AMUI::MakeText(WidgetTree, TEXT("Designs"), AMUI::SizedFont(Font, 15), AMUI::White)))
+	{
+		TitleSlot->SetPadding(FMargin(4.f, 2.f, 0.f, 8.f));
+	}
 
-	// One tab: [icon] [name] [bin], the bin a button of its own next to the tab button (not inside it).
-	// Width 0: as wide as the name (at least 110), so a long name never runs under its bin.
-	auto AddTab = [&](UPanelWidget* Target, int32 Index, const FString& Title, bool bDesign, float Width)
+	mTabScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+	mTabScroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
+	UVerticalBox* Rows = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	mTabScroll->AddChild(Rows);
+	if (UVerticalBoxSlot* ScrollSlot = Column->AddChildToVerticalBox(mTabScroll))
+	{
+		ScrollSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+	}
+	UWidget* SelectedRow = nullptr;
+
+	// One row: [icon] [name] [bin], the bin a button of its own next to the row's button.
+	auto AddRow = [&](int32 Index, const FString& Title, bool bDesign)
 	{
 		UAMSignTabHandler* Handler = NewObject<UAMSignTabHandler>(this);
 		Handler->Owner = this;
@@ -610,17 +601,18 @@ void UAMSignTabs::RebuildTabs()
 		const bool bSelected = Index == mSelected;
 		const FLinearColor Colour = bSelected ? AMUI::Orange : FLinearColor(FColor(87, 87, 87));
 
-		UHorizontalBox* Tab = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 		UTextBlock* Label = nullptr;
-		UButton* TabButton = AMUI::MakeButton(WidgetTree, Title, Font, Colour, &Label);
-		TabButton->OnClicked.AddDynamic(Handler, &UAMSignTabHandler::OnTabClicked);
+		UButton* RowButton = AMUI::MakeButton(WidgetTree, Title, Font, Colour, &Label);
+		RowButton->OnClicked.AddDynamic(Handler, &UAMSignTabHandler::OnTabClicked);
 		if (Label)
 		{
 			Label->SetColorAndOpacity(FSlateColor(AMUI::White));
+			Label->SetClipping(EWidgetClipping::ClipToBounds);
 		}
-		if (bDesign && Icon && Label)
+		if (bDesign && Label)
 		{
-			// The tab's label with the Wi-Fi icon in front.
+			// The design's alarm with the Wi-Fi icon in front.
 			UHorizontalBox* Content = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 			UImage* IconImage = AMUI::MakeImage(WidgetTree, AMST_TabIconPath, FVector2D(18.f, 18.f));
 			if (UHorizontalBoxSlot* IconSlot = Content->AddChildToHorizontalBox(IconImage))
@@ -632,72 +624,120 @@ void UAMSignTabs::RebuildTabs()
 			if (UHorizontalBoxSlot* LabelSlot = Content->AddChildToHorizontalBox(Label))
 			{
 				LabelSlot->SetVerticalAlignment(VAlign_Center);
+				LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			}
-			if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(TabButton->AddChild(Content)))
+			if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(RowButton->AddChild(Content)))
 			{
-				ContentSlot->SetHorizontalAlignment(HAlign_Left);
+				ContentSlot->SetHorizontalAlignment(HAlign_Fill);
 				ContentSlot->SetVerticalAlignment(VAlign_Center);
 			}
 		}
-		USizeBox* TabSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		if (Width > 0.f)
+		else if (UButtonSlot* LabelSlot = Label ? Cast<UButtonSlot>(Label->Slot) : nullptr)
 		{
-			TabSize->SetWidthOverride(Width);
+			LabelSlot->SetHorizontalAlignment(HAlign_Left);
 		}
-		else
+		USizeBox* ButtonSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		ButtonSize->SetHeightOverride(RowHeight);
+		ButtonSize->AddChild(RowButton);
+		if (UHorizontalBoxSlot* ButtonSlot = Row->AddChildToHorizontalBox(ButtonSize))
 		{
-			TabSize->SetMinDesiredWidth(110.f);
+			ButtonSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		}
-		TabSize->SetHeightOverride(TabHeight);
-		TabSize->AddChild(TabButton);
-		Tab->AddChildToHorizontalBox(TabSize);
 		if (bDesign)
 		{
 			UButton* Remove = AMUI::MakeRemoveButton(WidgetTree, Font);
 			AMUI::SetButtonColor(Remove, Colour);
 			Remove->OnClicked.AddDynamic(Handler, &UAMSignTabHandler::OnRemoveClicked);
 			USizeBox* RemoveSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-			// Room for the button's padding around the 21 px bin (36 was too narrow: squished).
-			RemoveSize->SetWidthOverride(TabHeight + 10.f);
-			RemoveSize->SetHeightOverride(TabHeight);
+			RemoveSize->SetWidthOverride(RowHeight + 10.f);
+			RemoveSize->SetHeightOverride(RowHeight);
 			RemoveSize->AddChild(Remove);
-			Tab->AddChildToHorizontalBox(RemoveSize);
-		}
-		if (UPanelSlot* TabSlot = Target->AddChild(Tab))
-		{
-			if (UHorizontalBoxSlot* RowSlot = Cast<UHorizontalBoxSlot>(TabSlot))
+			if (UHorizontalBoxSlot* RemoveSlot = Row->AddChildToHorizontalBox(RemoveSize))
 			{
-				RowSlot->SetPadding(FMargin(Index == 0 ? 0.f : 4.f, 0.f, 0.f, 0.f));
-				RowSlot->SetVerticalAlignment(VAlign_Top);
+				RemoveSlot->SetPadding(FMargin(4.f, 0.f, 0.f, 0.f));
 			}
+		}
+		if (UVerticalBoxSlot* RowSlot = Rows->AddChildToVerticalBox(Row))
+		{
+			RowSlot->SetPadding(FMargin(0.f, Index == 0 ? 0.f : 4.f, 0.f, 0.f));
 		}
 		if (bSelected)
 		{
-			SelectedTab = Tab;
+			SelectedRow = Row;
 		}
-		return TabButton;
 	};
 
-	AddTab(mTabRow, 0, TEXT("Default"), false, 140.f);
-	mTabScrollSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	mTabScrollSize->AddChild(mTabScroll);
-	if (UHorizontalBoxSlot* ScrollSlot = mTabRow->AddChildToHorizontalBox(mTabScrollSize))
-	{
-		ScrollSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 0.f));
-		ScrollSlot->SetVerticalAlignment(VAlign_Top);
-	}
-	UpdateTabStripWidth();
+	AddRow(0, TEXT("Default"), false);
 	for (int32 Index = 0; Index < mDesigns.Num(); ++Index)
 	{
-		AddTab(DesignRow, Index + 1, mDesigns[Index].Event, true, 0.f);
+		AddRow(Index + 1, mDesigns[Index].Event, true);
 	}
-	mAddButton = AddTab(mTabRow, mDesigns.Num() + 1, AMST_AddTitle, false, 130.f);
 
-	// Where it was before, and the selected tab in view.
-	mTabScroll->SetScrollOffset(mTabScrollOffset);
-	if (SelectedTab && mSelected > 0)
+	// "+ AutoDesign" under the list (its handler's index is one past the designs: SelectTab opens the picker).
+	UAMSignTabHandler* AddHandler = NewObject<UAMSignTabHandler>(this);
+	AddHandler->Owner = this;
+	AddHandler->Index = mDesigns.Num() + 1;
+	mHandlers.Add(AddHandler);
+	mAddButton = AMUI::MakeButton(WidgetTree, bPickerOpen ? TEXT("Cancel") : AMST_AddTitle, Font, AMUI::Button, nullptr);
+	mAddButton->OnClicked.AddDynamic(AddHandler, &UAMSignTabHandler::OnTabClicked);
+	USizeBox* AddSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	AddSize->SetHeightOverride(RowHeight);
+	AddSize->AddChild(mAddButton);
+	if (UVerticalBoxSlot* AddSlot = Column->AddChildToVerticalBox(AddSize))
 	{
-		mTabScroll->ScrollWidgetIntoView(SelectedTab, true, EDescendantScrollDestination::IntoView);
+		AddSlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+	}
+
+	// The picker, under "+ AutoDesign" while it is open: a search box and the alarms without a design here.
+	mPickerList = nullptr;
+	mPickerSearch = nullptr;
+	if (bPickerOpen)
+	{
+		USizeBox* SearchSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		SearchSize->SetHeightOverride(RowHeight);
+		UBorder* SearchField = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 0.f));
+		SearchField->SetVerticalAlignment(VAlign_Center);
+		SearchSize->AddChild(SearchField);
+		mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
+		mPickerSearch->SetFont(Font);
+		mPickerSearch->SetHintText(FText::FromString(TEXT("design for which alarm?")));
+		mPickerSearch->OnTextChanged.AddDynamic(this, &UAMSignTabs::OnPickerSearchChanged);
+		mPickerSearch->OnTextCommitted.AddDynamic(this, &UAMSignTabs::OnPickerSearchCommitted);
+		SearchField->AddChild(mPickerSearch);
+		if (UVerticalBoxSlot* SearchSlot = Column->AddChildToVerticalBox(SearchSize))
+		{
+			SearchSlot->SetPadding(FMargin(0.f, 6.f, 0.f, 0.f));
+		}
+		USizeBox* ListSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		ListSize->SetMaxDesiredHeight(240.f);
+		UScrollBox* PickerScroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
+		PickerScroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
+		ListSize->AddChild(PickerScroll);
+		mPickerList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		PickerScroll->AddChild(mPickerList);
+		if (UVerticalBoxSlot* ListSlot = Column->AddChildToVerticalBox(ListSize))
+		{
+			ListSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+		}
+		FillPicker(FString());
+		if (UWorld* World = GetWorld())
+		{
+			TWeakObjectPtr<UEditableText> WeakSearch(mPickerSearch);
+			World->GetTimerManager().SetTimerForNextTick([WeakSearch]()
+			{
+				if (UEditableText* Search = WeakSearch.Get())
+				{
+					Search->SetKeyboardFocus();
+				}
+			});
+		}
+	}
+
+	// Where it was before, and the selected row in view.
+	mTabScroll->SetScrollOffset(mTabScrollOffset);
+	if (SelectedRow && mSelected > 0)
+	{
+		mTabScroll->ScrollWidgetIntoView(SelectedRow, true, EDescendantScrollDestination::IntoView);
 	}
 }
 
@@ -706,7 +746,16 @@ void UAMSignTabs::SelectTab(int32 Index)
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: tab %d clicked"), Index);
 	if (Index == mDesigns.Num() + 1)
 	{
-		OpenPicker(mAddButton);
+		// "+ AutoDesign" opens the picker under it; pressed again ("Cancel"), closes it.
+		if (bPickerOpen)
+		{
+			ClosePicker();
+			RebuildTabs();
+		}
+		else
+		{
+			OpenPicker();
+		}
 		return;
 	}
 	if (Index < 0 || Index > mDesigns.Num())
@@ -732,6 +781,7 @@ void UAMSignTabs::AddDesign(const FString& Alarm)
 	const FString Event = AMRules::NormalizeEventName(Alarm);
 	if (Event.IsEmpty())
 	{
+		RebuildTabs();
 		return;
 	}
 	CaptureEditor();
@@ -739,6 +789,7 @@ void UAMSignTabs::AddDesign(const FString& Alarm)
 	if (Existing != INDEX_NONE)
 	{
 		SelectTab(Existing + 1);
+		RebuildTabs();
 		return;
 	}
 	// Starts as a copy of the design being edited.
@@ -773,58 +824,8 @@ void UAMSignTabs::RemoveDesign(int32 Index)
 	SendDesigns();
 }
 
-void UAMSignTabs::UpdateTabStripWidth()
+void UAMSignTabs::OpenPicker()
 {
-	const UCanvasPanel* Header = mHeader.Get();
-	if (!mTabScrollSize || !Header)
-	{
-		return;
-	}
-	const float HeaderWidth = static_cast<float>(Header->GetCachedGeometry().GetLocalSize().X);
-	if (HeaderWidth < 1.f)
-	{
-		return;
-	}
-	// Room left in the title bar: minus where the row starts, the Default tab (140 + 4), the
-	// "+ AutoDesign" tab (130 + 4) and the window's close button on the right (about 110).
-	constexpr float CloseButtonRoom = 110.f;
-	const float MaxWidth = FMath::Max(110.f, HeaderWidth - mRowStartX - 144.f - 134.f - CloseButtonRoom);
-	if (!FMath::IsNearlyEqual(mTabScrollSize->GetMaxDesiredWidth(), MaxWidth, 1.f))
-	{
-		mTabScrollSize->SetMaxDesiredWidth(MaxWidth);
-	}
-}
-
-void UAMSignTabs::PlacePicker()
-{
-	UWidget* Window = mPickerWindow.Get();
-	UCanvasPanelSlot* WindowSlot = Window ? Cast<UCanvasPanelSlot>(Window->Slot) : nullptr;
-	if (!WindowSlot)
-	{
-		return;
-	}
-	constexpr float Width = 300.f;
-	FVector2D Position(16.0, 8.0);
-	if (const UWidget* Anchor = mPickerAnchor.Get())
-	{
-		const FGeometry& PageGeometry = GetCachedGeometry();
-		const FVector2D AnchorLocal = PageGeometry.AbsoluteToLocal(Anchor->GetCachedGeometry().GetAbsolutePosition());
-		const FVector2D PageSize = PageGeometry.GetLocalSize();
-		Position.X = FMath::Clamp(AnchorLocal.X, 0.0, FMath::Max(0.0, PageSize.X - Width));
-	}
-	WindowSlot->SetPosition(Position);
-	Window->SetRenderOpacity(1.f);
-}
-
-void UAMSignTabs::OpenPicker(UWidget* Anchor)
-{
-	ClosePicker();
-	if (!mLayer)
-	{
-		return;
-	}
-	const FSlateFontInfo Font = GetFont();
-
 	// Alarms without a design on this sign yet.
 	mPickerAlarms.Reset();
 	if (const AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(this))
@@ -837,91 +838,8 @@ void UAMSignTabs::OpenPicker(UWidget* Anchor)
 			}
 		}
 	}
-
-	UButton* Background = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass());
-	FButtonStyle Clear;
-	Clear.SetNormal(FSlateNoResource());
-	Clear.SetHovered(FSlateNoResource());
-	Clear.SetPressed(FSlateNoResource());
-	Background->SetStyle(Clear);
-	Background->OnClicked.AddDynamic(this, &UAMSignTabs::OnPickerBackgroundClicked);
-	if (UCanvasPanelSlot* BackgroundSlot = mLayer->AddChildToCanvas(Background))
-	{
-		BackgroundSlot->SetAnchors(FAnchors(0.f, 0.f, 1.f, 1.f));
-		BackgroundSlot->SetOffsets(FMargin(0.f));
-	}
-
-	constexpr float Width = 300.f;
-	USizeBox* WindowSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	WindowSize->SetWidthOverride(Width);
-	UBorder* Window = AMUI::MakeBox(WidgetTree, AMUI::SidePanel, FMargin(0.f, 0.f, 0.f, 4.f));
-	WindowSize->AddChild(Window);
-	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	Window->AddChild(Column);
-
-	USizeBox* SearchSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	SearchSize->SetHeightOverride(36.f);
-	UBorder* SearchField = AMUI::MakeBox(WidgetTree, AMUI::Field, FMargin(10.f, 0.f));
-	SearchField->SetVerticalAlignment(VAlign_Center);
-	SearchSize->AddChild(SearchField);
-	mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
-	mPickerSearch->SetFont(Font);
-	mPickerSearch->SetHintText(FText::FromString(TEXT("design for which alarm?")));
-	mPickerSearch->OnTextChanged.AddDynamic(this, &UAMSignTabs::OnPickerSearchChanged);
-	mPickerSearch->OnTextCommitted.AddDynamic(this, &UAMSignTabs::OnPickerSearchCommitted);
-	SearchField->AddChild(mPickerSearch);
-	Column->AddChildToVerticalBox(SearchSize);
-
-	USizeBox* ListSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-	ListSize->SetMaxDesiredHeight(300.f);
-	UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
-	Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
-	ListSize->AddChild(Scroll);
-	mPickerList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
-	Scroll->AddChild(mPickerList);
-	if (UVerticalBoxSlot* ListSlot = Column->AddChildToVerticalBox(ListSize))
-	{
-		ListSlot->SetPadding(FMargin(4.f, 4.f, 4.f, 0.f));
-	}
-	FillPicker(FString());
-
-	// Under the "+ AutoDesign" tab, inside the page: placed on the next tick, once this widget has
-	// been drawn (it is collapsed until the picker opens, so the first time it has no size yet and
-	// the picker ended up at the page's left edge). Invisible until then.
-	if (UCanvasPanelSlot* WindowSlot = mLayer->AddChildToCanvas(WindowSize))
-	{
-		WindowSlot->SetAnchors(FAnchors(0.f, 0.f));
-		WindowSlot->SetAlignment(FVector2D::ZeroVector);
-		WindowSlot->SetAutoSize(true);
-		WindowSlot->SetPosition(FVector2D(16.0, 8.0));
-	}
-	mPickerWindow = WindowSize;
-	mPickerAnchor = Anchor;
-	WindowSize->SetRenderOpacity(0.f);
-	SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-	if (UWorld* World = GetWorld())
-	{
-		TWeakObjectPtr<UAMSignTabs> WeakThis(this);
-		World->GetTimerManager().SetTimerForNextTick([WeakThis]()
-		{
-			if (UAMSignTabs* Tabs = WeakThis.Get())
-			{
-				Tabs->PlacePicker();
-			}
-		});
-	}
-
-	if (UWorld* World = GetWorld())
-	{
-		TWeakObjectPtr<UEditableText> WeakSearch(mPickerSearch);
-		World->GetTimerManager().SetTimerForNextTick([WeakSearch]()
-		{
-			if (UEditableText* Search = WeakSearch.Get())
-			{
-				Search->SetKeyboardFocus();
-			}
-		});
-	}
+	bPickerOpen = true;
+	RebuildTabs();
 }
 
 void UAMSignTabs::FillPicker(const FString& Filter)
@@ -979,7 +897,14 @@ void UAMSignTabs::OnPickerSearchCommitted(const FText& Text, ETextCommit::Type C
 	{
 		if (UWorld* World = GetWorld())
 		{
-			World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMSignTabs::ClosePicker));
+			World->GetTimerManager().SetTimerForNextTick([WeakThis = TWeakObjectPtr<UAMSignTabs>(this)]()
+			{
+				if (UAMSignTabs* Tabs = WeakThis.Get())
+				{
+					Tabs->ClosePicker();
+					Tabs->RebuildTabs();
+				}
+			});
 		}
 		return;
 	}
@@ -1015,23 +940,11 @@ void UAMSignTabs::OnPickerSearchCommitted(const FText& Text, ETextCommit::Type C
 	}
 }
 
-void UAMSignTabs::OnPickerBackgroundClicked()
-{
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMSignTabs::ClosePicker));
-	}
-}
-
 void UAMSignTabs::ClosePicker()
 {
-	if (mLayer)
-	{
-		mLayer->ClearChildren();
-	}
+	// Closed for the next time the list is made (the callers make it again, or the window closes).
+	bPickerOpen = false;
 	mPickerList = nullptr;
 	mPickerSearch = nullptr;
-	mPickerWindow = nullptr;
 	mPickerHandlers.Reset();
-	SetVisibility(ESlateVisibility::Collapsed);
 }
