@@ -132,6 +132,14 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
 
 ## 8. Build pitfalls (each one cost a build)
 
+- **SML 3.12 bug (crash at game start):** `UWidgetBlueprintHookSlot_Generic` crashes when the hook's
+  parent is a **VerticalBox** (`SetupPanelSlot` calls `HorizontalBoxSlot->SetSize` on null in its
+  VerticalBox branch; stack: `UHorizontalBoxSlot::SetSize` < `SetupPanelSlot` < `RegisterWidgetBlueprintHook`).
+  Hooking into a VerticalBox: give no `SlotConfiguration` (set the slot in code later), or pick an
+  HorizontalBox / Overlay / Canvas parent.
+- Game headers are in subfolders of `SML/Source/FactoryGame/Public` (`Buildables/...`): check the
+  path before including.
+
 - C4458 / C4459 are errors: no local or parameter named like a base-class member (`Padding`, `Text`)
   or like a global / namespace name (`Button` inside `AMUI`).
 - Unity builds merge `.cpp` files: anonymous-namespace helpers need file-specific prefixes.

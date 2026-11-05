@@ -31,7 +31,7 @@ namespace
 	bool AMWH_Registered = false;
 
 	/** Adds UAMAutomationTab as the last page of a window's tab pages. */
-	void AMWH_HookPages(UWidgetBlueprintHookManager* HookManager, const TCHAR* Window, const TCHAR* Pages, const TCHAR* HookName)
+	void AMWH_HookPages(UWidgetBlueprintHookManager* HookManager, const TCHAR* Window, const TCHAR* Pages, const TCHAR* HookName, bool bSlotSetup = true)
 	{
 		UWidgetBlueprintHookData* Hook = NewObject<UWidgetBlueprintHookData>(GetTransientPackage(), HookName);
 		Hook->AddToRoot();
@@ -42,11 +42,17 @@ namespace
 		Hook->ParentWidgetType = EWidgetBlueprintHookParentType::Direct_Any;
 		Hook->ParentWidgetName = Pages;
 
-		UWidgetBlueprintHookSlot_Generic* SlotSetup = NewObject<UWidgetBlueprintHookSlot_Generic>(Hook);
-		SlotSetup->Size = FSlateChildSize(ESlateSizeRule::Automatic);
-		SlotSetup->HorizontalAlignment = HAlign_Fill;
-		SlotSetup->VerticalAlignment = VAlign_Fill;
-		Hook->SlotConfiguration = SlotSetup;
+		// SML 3.12 bug: the generic slot setup crashes on a VerticalBox parent (its VerticalBox branch
+		// calls SetSize on a null HorizontalBoxSlot). One-page windows move our widget anyway, so
+		// their hooks go without a slot setup.
+		if (bSlotSetup)
+		{
+			UWidgetBlueprintHookSlot_Generic* SlotSetup = NewObject<UWidgetBlueprintHookSlot_Generic>(Hook);
+			SlotSetup->Size = FSlateChildSize(ESlateSizeRule::Automatic);
+			SlotSetup->HorizontalAlignment = HAlign_Fill;
+			SlotSetup->VerticalAlignment = VAlign_Fill;
+			Hook->SlotConfiguration = SlotSetup;
+		}
 
 		HookManager->RegisterWidgetBlueprintHook(Hook);
 		UE_LOG(LogAutomatedMachines, Log, TEXT("Registered the Automation tab hook on %s"), Window);
@@ -67,7 +73,7 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_ManufacturingWindow, AMWH_ManufacturingPages, TEXT("AM_ManufacturingAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_HubWindow, AMWH_HubPages, TEXT("AM_HubAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_ExtractorWindow, AMWH_ExtractorPage, TEXT("AM_ExtractorAutomationTabHook"));
-		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"));
+		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"), false);
 	}
 }
 
