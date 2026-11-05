@@ -405,8 +405,13 @@ void UAMAutomationTab::BuildLayout()
 			NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 			NameSlot->SetVerticalAlignment(VAlign_Center);
 		}
-		mPassWrongSwitch = AMUI::MakeImage(WidgetTree, AMUI::SwitchOffPath, FVector2D(40.f, 20.f));
-		if (UHorizontalBoxSlot* SwitchSlot = OptionRow->AddChildToHorizontalBox(mPassWrongSwitch))
+		// 2:1 like the textures; the size box keeps it from being squeezed.
+		mPassWrongSwitch = AMUI::MakeImage(WidgetTree, AMUI::SwitchOffPath, FVector2D(44.f, 22.f));
+		USizeBox* SwitchSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		SwitchSize->SetWidthOverride(44.f);
+		SwitchSize->SetHeightOverride(22.f);
+		SwitchSize->AddChild(mPassWrongSwitch);
+		if (UHorizontalBoxSlot* SwitchSlot = OptionRow->AddChildToHorizontalBox(SwitchSize))
 		{
 			SwitchSlot->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
 			SwitchSlot->SetVerticalAlignment(VAlign_Center);

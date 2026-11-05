@@ -103,6 +103,10 @@ UImage* AMUI::MakeImage(UWidgetTree* Tree, const TCHAR* Path, const FVector2D& S
 {
 	UImage* Image = Tree->ConstructWidget<UImage>(UImage::StaticClass());
 	SetImage(Image, Path);
+	// The brush keeps this size when the texture is changed (SetImage), so wide pictures stay wide.
+	FSlateBrush Brush = Image->GetBrush();
+	Brush.ImageSize = Size;
+	Image->SetBrush(Brush);
 	Image->SetDesiredSizeOverride(Size);
 	return Image;
 }
