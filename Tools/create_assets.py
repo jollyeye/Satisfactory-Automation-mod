@@ -180,8 +180,8 @@ log("  material: unlit, masked, two-sided, camera-facing")
 
 # --- Underglow material (decal under automated machines) ---------------------------------------
 # Projected down onto the floor around a machine: cyan light, brightest at the machine's edge and
-# fading out with a rounded shape; fading out above the machine's anchor (30 cm), with depth below
-# it (180 cm), and on surfaces that do not face up (legs, foundation edges, grass blades). Only emissive and opacity are connected, so the decal adds light
+# fading out with a rounded shape; fading out above the floor height (30 cm), a little with depth
+# below it (slopes), and on walls (surfaces steeper than about 75 degrees). Only emissive and opacity are connected, so the decal adds light
 # and leaves the floor's own colour alone. "Inner" (set per machine by AAMMarkers) is the machine's
 # footprint as a part of the decal: R along U, G along V.
 glow_path = ROOT + "/Marker/M_AM_Underglow"
@@ -220,9 +220,9 @@ g_shape.set_editor_property("code",
     "float G = saturate(1.0 - length(D));\n"
     "G = G * G * (3.0 - 2.0 * G);\n"
     "float Up = 1.0 - saturate(H / 30.0);\n"
-    "float Down = 1.0 - saturate(-H / 180.0);\n"
+    "float Down = 1.0 - saturate(-H / 400.0);\n"
     "float3 N = normalize(cross(ddx(RP), ddy(RP)));\n"
-    "float Flat = saturate((abs(N.z) - 0.55) / 0.35);\n"
+    "float Flat = saturate((abs(N.z) - 0.2) / 0.3);\n"
     "return G * Up * Down * Flat;")
 g_shape.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
 g_shape.set_editor_property("description", "UnderglowShape")

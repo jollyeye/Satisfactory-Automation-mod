@@ -6,6 +6,10 @@
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableWidgetSign.h"
 #include "Components/DecalComponent.h"
+#include "Components/MeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "CollisionQueryParams.h"
+#include "InstanceData.h"
 #include "Components/SceneComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -15,23 +19,29 @@ namespace
 	// Made by Tools/create_assets.py.
 	const TCHAR* const AMMK_GlowMaterialPath = TEXT("/AutomatedMachines/Marker/M_AM_Underglow.M_AM_Underglow");
 
-	/** How far the glow reaches out from the machine's edge, in cm. */
-	constexpr float AMMK_Margin = 60.f;
+	/** How far the glow reaches out from the machine's visible edge, in cm. */
+	constexpr float AMMK_Margin = 45.f;
 
-	/**
-	 * The projection box, around the machine's anchor (its actor location: where it stands on the
-	 * floor or the resource node; its lowest point can be underground, like a miner's): from this
-	 * high above it (the material fades the light out over the first 30 cm) ...
-	 */
+	/** The projection box around the floor height: this high above it (the material fades the light out over 30 cm) ... */
 	constexpr float AMMK_Above = 60.f;
 
-	/** ... to this far below it, in cm (the ground may be lower than the anchor; the material fades with depth). */
-	constexpr float AMMK_Below = 200.f;
+	/** ... to this far below it, in cm (slopes, uneven ground). */
+	constexpr float AMMK_Below = 300.f;
+
+	/**
+	 * The floor is looked for from this far above the machine's anchor (or from its top, if lower:
+	 * not on a floor above it) to this far below, in cm (a miner's anchor is underground).
+	 */
+	constexpr float AMMK_FloorSearchUp = 400.f;
+	constexpr float AMMK_FloorSearchDown = 300.f;
+
+	/** The floor is probed this far outside the machine's visible edge, in cm. */
+	constexpr float AMMK_FloorProbeOut = 20.f;
 
 	/** Glows smaller than this part of the screen are not drawn (far away). */
 	constexpr float AMMK_FadeScreenSize = 0.004f;
 
-	/** Glows are checked again this often, in seconds (a machine may have been dismantled). */
+	/** Glows are checked again this often, in seconds (a machine may have been dismantled, the floor loaded). */
 	constexpr float AMMK_RefreshInterval = 5.f;
 }
 
@@ -101,7 +111,7 @@ void AAMMarkers::Rebuild()
 	for (auto It = mGlows.CreateIterator(); It; ++It)
 	{
 		const AActor* Machine = It->Key.Get();
-		UDecalComponent* Glow = It->Value.Get();
+		UDecalComponent* Glow = It->Value.Decal.Get();
 		if (!IsValid(Machine) || !Wanted.Contains(Machine) || !IsValid(Glow))
 		{
 			if (IsValid(Glow))
@@ -113,58 +123,148 @@ void AAMMarkers::Rebuild()
 		}
 	}
 
-	// Add the new ones.
+	// Add the new ones; place again the ones whose floor was not found yet.
 	for (const AActor* Machine : Wanted)
 	{
-		if (!mGlows.Contains(TWeakObjectPtr<const AActor>(Machine)))
+		if (FGlow* Existing = mGlows.Find(TWeakObjectPtr<const AActor>(Machine)))
 		{
-			if (UDecalComponent* Glow = MakeGlow(Machine))
+			if (!Existing->bSettled)
 			{
-				mGlows.Add(TWeakObjectPtr<const AActor>(Machine), Glow);
+				if (UDecalComponent* Decal = Existing->Decal.Get())
+				{
+					Existing->bSettled = PlaceGlow(Decal, Machine);
+				}
 			}
+			continue;
+		}
+		bool bSettled = false;
+		if (UDecalComponent* Glow = MakeGlow(Machine, bSettled))
+		{
+			FGlow& Added = mGlows.Add(TWeakObjectPtr<const AActor>(Machine));
+			Added.Decal = Glow;
+			Added.bSettled = bSettled;
 		}
 	}
 }
 
-UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine)
+FBox AAMMarkers::GetVisibleBox(const AActor* Machine)
 {
-	// The machine's own box, in its local space (X forward, Y right, Z up).
-	const FBox LocalBox = Machine->CalculateComponentsBoundingBoxInLocalSpace(true);
-	if (!LocalBox.IsValid || LocalBox.GetExtent().X < 1.0 || LocalBox.GetExtent().Y < 1.0)
-	{
-		return nullptr;
-	}
-	const FVector Extent = LocalBox.GetExtent();
+	FBox Box(ForceInit);
 	const FTransform& ToWorld = Machine->GetActorTransform();
-	const FVector LocalBase(LocalBox.GetCenter().X, LocalBox.GetCenter().Y, 0.0);
+	// The buildings' static parts: the game draws them as instances, listed by the building.
+	if (const AFGBuildable* Buildable = Cast<AFGBuildable>(Machine))
+	{
+		for (const FInstanceData& Instance : Buildable->GetActorLightweightInstanceData_Implementation())
+		{
+			if (Instance.StaticMesh)
+			{
+				Box += Instance.StaticMesh->GetBoundingBox().TransformBy(Instance.RelativeTransform);
+			}
+		}
+	}
+	// Its own visible meshes (moving parts, miners), not the clearance or collision boxes.
+	TArray<UMeshComponent*> Meshes;
+	Machine->GetComponents<UMeshComponent>(Meshes);
+	for (const UMeshComponent* Mesh : Meshes)
+	{
+		if (Mesh && Mesh->IsVisible())
+		{
+			Box += Mesh->CalcBounds(Mesh->GetComponentTransform().GetRelativeTransform(ToWorld)).GetBox();
+		}
+	}
+	if (!Box.IsValid || Box.GetExtent().X < 1.0 || Box.GetExtent().Y < 1.0)
+	{
+		// Nothing visible found: the components' box (may include the clearance).
+		Box = Machine->CalculateComponentsBoundingBoxInLocalSpace(true);
+	}
+	return Box;
+}
 
+UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine, bool& bOutSettled)
+{
+	bOutSettled = false;
 	UDecalComponent* Glow = NewObject<UDecalComponent>(this);
 	Glow->SetupAttachment(GetRootComponent());
 	Glow->SetUsingAbsoluteLocation(true);
 	Glow->SetUsingAbsoluteRotation(true);
 	Glow->SetUsingAbsoluteScale(true);
+	Glow->SetFadeScreenSize(AMMK_FadeScreenSize);
+	Glow->SetDecalMaterial(UMaterialInstanceDynamic::Create(mGlowMaterial, Glow));
+	const FBox Box = GetVisibleBox(Machine);
+	if (!Box.IsValid || Box.GetExtent().X < 1.0 || Box.GetExtent().Y < 1.0)
+	{
+		Glow->DestroyComponent();
+		return nullptr;
+	}
+	AddInstanceComponent(Glow);
+	Glow->RegisterComponent();
+	bOutSettled = PlaceGlow(Glow, Machine);
+	return Glow;
+}
+
+bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
+{
+	const FBox Box = GetVisibleBox(Machine);
+	if (!Box.IsValid)
+	{
+		return false;
+	}
+	const FVector Extent = Box.GetExtent();
+	const FVector LocalCenter(Box.GetCenter().X, Box.GetCenter().Y, 0.0);
+	const FTransform& ToWorld = Machine->GetActorTransform();
+	const double AnchorZ = ToWorld.GetLocation().Z;
+
+	// The floor: straight down just outside the four sides, the median of what is hit (one side
+	// hanging over a cliff or touching a belt does not count).
+	TArray<double> FloorHits;
+	if (UWorld* World = GetWorld())
+	{
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(AMUnderglowFloor), false, Machine);
+		const double SearchTop = AnchorZ + FMath::Min(static_cast<double>(AMMK_FloorSearchUp), FMath::Max(Box.Max.Z, 50.0));
+		const FVector Probes[] = {
+			FVector(Extent.X + AMMK_FloorProbeOut, 0.0, 0.0), FVector(-Extent.X - AMMK_FloorProbeOut, 0.0, 0.0),
+			FVector(0.0, Extent.Y + AMMK_FloorProbeOut, 0.0), FVector(0.0, -Extent.Y - AMMK_FloorProbeOut, 0.0) };
+		for (const FVector& Probe : Probes)
+		{
+			const FVector Point = ToWorld.TransformPosition(LocalCenter + Probe);
+			FHitResult Hit;
+			if (World->LineTraceSingleByChannel(Hit, FVector(Point.X, Point.Y, SearchTop),
+				FVector(Point.X, Point.Y, AnchorZ - AMMK_FloorSearchDown), ECC_Visibility, Params))
+			{
+				FloorHits.Add(Hit.ImpactPoint.Z);
+			}
+		}
+	}
+	double FloorZ = AnchorZ;
+	const bool bFound = FloorHits.Num() >= 2;
+	if (bFound)
+	{
+		FloorHits.Sort();
+		const int32 Middle = FloorHits.Num() / 2;
+		FloorZ = FloorHits.Num() % 2 == 0 ? (FloorHits[Middle - 1] + FloorHits[Middle]) * 0.5 : FloorHits[Middle];
+	}
 
 	// A decal projects along its own X: pitched down, its X points at the floor, its Y stays the
 	// machine's Y and its Z becomes the machine's X.
 	const FQuat Down = ToWorld.GetRotation() * FRotator(-90.f, 0.f, 0.f).Quaternion();
 	const float HalfDepth = (AMMK_Above + AMMK_Below) * 0.5f;
-	const FVector Center = ToWorld.TransformPosition(LocalBase + FVector(0.f, 0.f, AMMK_Above - HalfDepth));
+	FVector Center = ToWorld.TransformPosition(LocalCenter);
+	Center.Z = FloorZ + AMMK_Above - HalfDepth;
 	Glow->SetWorldLocationAndRotation(Center, Down);
 	const float HalfY = static_cast<float>(Extent.Y) + AMMK_Margin;
 	const float HalfZ = static_cast<float>(Extent.X) + AMMK_Margin;
 	Glow->DecalSize = FVector(HalfDepth, HalfY, HalfZ);
-	Glow->SetFadeScreenSize(AMMK_FadeScreenSize);
+	Glow->MarkRenderStateDirty();
 
-	// The machine's footprint inside the decal, as a part of it (U along the machine's X, V along its Y).
-	UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(mGlowMaterial, Glow);
-	Material->SetVectorParameterValue(TEXT("Inner"), FLinearColor(
-		static_cast<float>(Extent.X) / HalfZ, static_cast<float>(Extent.Y) / HalfY, 0.f, 0.f));
-	// The floor height the light belongs to: above it the light fades out quickly, below it slowly.
-	Material->SetScalarParameterValue(TEXT("BaseZ"), static_cast<float>(ToWorld.GetLocation().Z));
-	Glow->SetDecalMaterial(Material);
-	AddInstanceComponent(Glow);
-	Glow->RegisterComponent();
-	return Glow;
+	// The machine's footprint inside the decal, as a part of it (U along the machine's X, V along
+	// its Y), and the floor height the light belongs to.
+	if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Glow->GetDecalMaterial()))
+	{
+		Material->SetVectorParameterValue(TEXT("Inner"), FLinearColor(
+			static_cast<float>(Extent.X) / HalfZ, static_cast<float>(Extent.Y) / HalfY, 0.f, 0.f));
+		Material->SetScalarParameterValue(TEXT("BaseZ"), static_cast<float>(FloorZ));
+	}
+	return bFound;
 }
 
 void AAMMarkers::EndPlay(const EEndPlayReason::Type Reason)

@@ -44,13 +44,29 @@ protected:
 
 private:
 	/** Makes the decal of one machine (null if it has no size yet). */
-	UDecalComponent* MakeGlow(const AActor* Machine);
+	UDecalComponent* MakeGlow(const AActor* Machine, bool& bOutSettled);
+
+	/**
+	 * Puts a machine's decal under its visible footprint, at the floor found around it. Returns
+	 * false if the floor was not found (not loaded yet): the anchor is used meanwhile, and it is
+	 * placed again on the next rebuild.
+	 */
+	bool PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const;
+
+	/** The machine's visible footprint in its local space (its meshes, not its clearance box). */
+	static FBox GetVisibleBox(const AActor* Machine);
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> mGlowMaterial;
 
 	/** The glow of each automated machine (the decals are kept alive as this actor's instance components). */
-	TMap<TWeakObjectPtr<const AActor>, TWeakObjectPtr<UDecalComponent>> mGlows;
+	struct FGlow
+	{
+		TWeakObjectPtr<UDecalComponent> Decal;
+		/** False while the floor around it was not found: placed again on the next rebuild. */
+		bool bSettled = false;
+	};
+	TMap<TWeakObjectPtr<const AActor>, FGlow> mGlows;
 
 	TWeakObjectPtr<AAMAutomationSubsystem> mSubsystem;
 	FDelegateHandle mRulesChangedHandle;
