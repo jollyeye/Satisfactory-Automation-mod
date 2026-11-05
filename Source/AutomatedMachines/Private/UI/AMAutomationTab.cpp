@@ -1053,6 +1053,8 @@ void UAMAutomationTab::SetupSinglePage()
 	}
 	mSetupTries = 0;
 	RegenerateTabButtons();
+	SetOurTabButtonLook();
+	BindSingleTabButtons();
 	ShowSinglePage(false);
 }
 
@@ -1111,6 +1113,56 @@ void UAMAutomationTab::RegenerateTabButtons()
 		// The single button of a one-tab window is a title (not clickable): make them all clickable.
 		Button->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
 	}
+	SetOurTabButtonLook();
+	BindSingleTabButtons();
+}
+
+void UAMAutomationTab::BindSingleTabButtons()
+{
+	UObject* TabsContainer = AMAT_GetObject(GetWindowFrame(), AMAT_TabsContainerProperty);
+	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
+	if (!Buttons)
+	{
+		return;
+	}
+	for (int32 Index = 0; Index < Buttons->GetChildrenCount(); ++Index)
+	{
+		UWidget* Button = Buttons->GetChildAt(Index);
+		FMulticastDelegateProperty* ClickedProperty = Button ? FindFProperty<FMulticastDelegateProperty>(Button->GetClass(), TEXT("OnClicked")) : nullptr;
+		if (ClickedProperty)
+		{
+			FScriptDelegate Delegate;
+			Delegate.BindUFunction(this, GET_FUNCTION_NAME_CHECKED(UAMAutomationTab, OnSingleTabButtonClicked));
+			// Remove first, so binding again (window reopened) never adds a second copy.
+			ClickedProperty->RemoveDelegate(Delegate, Button);
+			ClickedProperty->AddDelegate(MoveTemp(Delegate), Button);
+		}
+	}
+}
+
+void UAMAutomationTab::OnSingleTabButtonClicked(UUserWidget* Instigator)
+{
+	UObject* TabsContainer = AMAT_GetObject(GetWindowFrame(), AMAT_TabsContainerProperty);
+	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
+	const int32 Index = Buttons && Instigator ? Buttons->GetChildIndex(Instigator) : INDEX_NONE;
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation tab: tab button %d clicked (one-page window)"), Index);
+	if (Index == INDEX_NONE)
+	{
+		return;
+	}
+	// The highlight follows the clicked button.
+	AMAT_Call(TabsContainer, TEXT("SetActiveButton"), [Instigator](UFunction* Function, uint8* Params)
+	{
+		for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			if (const FObjectPropertyBase* ButtonParam = CastField<FObjectPropertyBase>(*It))
+			{
+				ButtonParam->SetObjectPropertyValue_InContainer(Params, Instigator);
+				break;
+			}
+		}
+	});
+	ShowSinglePage(Index == TabIndex);
 	SetOurTabButtonLook();
 }
 

@@ -80,6 +80,10 @@ protected:
 	UFUNCTION()
 	void OnPassWrongClicked();
 
+	/** One-page windows: bound to each tab button's own OnClicked (the frame does not pass clicks on there). */
+	UFUNCTION()
+	void OnSingleTabButtonClicked(UUserWidget* Instigator);
+
 	UFUNCTION()
 	void OnPassWrongHovered();
 
@@ -139,6 +143,9 @@ private:
 
 	/** Gives our tab button its title and icon (one-tab windows give every button the window's). */
 	void SetOurTabButtonLook();
+
+	/** One-page windows: listens to every tab button's OnClicked. */
+	void BindSingleTabButtons();
 
 	/** One-page windows: shows our page (true) or the machine's own page (false). */
 	void ShowSinglePage(bool bAutomation);
