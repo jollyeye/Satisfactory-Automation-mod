@@ -6,7 +6,7 @@
 #include "Buildables/FGBuildableManufacturer.h"
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Buildables/FGBuildableStorage.h"
-#include "FGCentralStorageContainer.h"
+#include "Buildables/FGCentralStorageContainer.h"
 #include "Resources/FGExtractableResourceInterface.h"
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
