@@ -19,6 +19,7 @@ Notes for the next session working on this mod. The design (what the mod does an
 | Copy / paste of automation (Ctrl+C / Ctrl+V, window buttons, container buttons), middle click sample | 5 Nov 2026 |
 | Biomass Burner: Automation tab (one-page window, hooked via the standby button's panel), its events and actions | 5 Nov 2026 |
 | Signs: design tabs (own tab row in the title bar), designs saved per alarm and shown when the alarm rings | 5 Nov 2026 |
+| Underglow under automated machines (decal, floor found by traces, miners too; signs none) | 5 Nov 2026 |
 | HUB Alarms Overview tab: every alarm with ringers / listeners, bins clear them (also sign designs) | 5 Nov 2026 |
  Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
 
@@ -216,7 +217,7 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Window: `/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C` (`mInteractWidgetSoftClass` of `Build_GeneratorBiomass` and `Build_GeneratorBiomass_Automated`, class `AFGBuildableGeneratorFuel`). One-page window: `Widget_Window_DarkMode`, `WindowBody`, no sliding tabs. The page panel's name is not readable from the asset (names like `CanvasPanel_3` are stored as name + number), so the hook uses **`Indirect_Child` on `Widget_StandbyButton`**: SML takes the named widget's parent panel. No slot setup. The dump is pointed at `Widget_Generator_C`.
 - Engine: `IsOutOfFuel` = `!HasFuel()`; `CountFuel` = items at `GetFuelInventoryIndex()`; `GetLoad` = `GetLoadPercentage()` (0..1); `IsFuseBlown` = `GetPowerInfo()->IsFuseTriggered()`; Input full = the fuel slot has no room for one more of its fuel; Wrong input = a belt item / pipe fluid that is neither `IsValidFuel` nor `IsValidSupplementalResource`; Delete input = `DeleteAllItems(GetFuelInventory())`.
 
-## Underglow (5 Nov 2026, replaces the marker)
+## Underglow (5 Nov 2026, replaces the marker; sixth version tested and approved)
 
 First test: too bright (floor almost white with bloom), too wide, and at the wrong height: the box went from 40 cm above the bounds' lowest point, so it lit the machines' feet and legs up to a hard line, and the miner (lowest point underground) showed nothing. Second version (not tested yet): the height comes from the actor location (the anchor the game builds from: floor, foundation or resource node), the box goes 60 cm above it to 200 cm below; the material fades the light out 30 cm above `BaseZ`, over 180 cm below it, and on surfaces that do not face up (normal from `cross(ddx, ddy)` of the camera-relative position, full at |N.z| >= 0.9, none below 0.55). Margin 60 cm, Brightness 2, Strength 0.7.
 
