@@ -80,8 +80,7 @@ Hook the same widget class twice into the pages box with two widget names (`AM_A
 adds its own `mTabs` entry: **insert it at the page's child index** in the pages box (not at the
 end, or the tab order and the page order can differ), and find your tab index again by title before
 using it (the other page may have inserted its entry before yours). The tab buttons have a fixed
-width (`mButtonSize`): a longer title is cut on both sides, so give its `mTitleObject` a smaller font
-(taken from the first tab's title, so a reused button does not shrink again).
+width (`mButtonSize`): a longer title is scrolled left and right by the game itself, no fix needed.
 
 ## 5. Kind B: one-page windows (miners)
 

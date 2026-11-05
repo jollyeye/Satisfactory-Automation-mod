@@ -349,9 +349,6 @@ private:
 	/** Rules changed while a bin was held: the rows are made again when it is let go. */
 	bool bOverviewDirty = false;
 
-	/** The overview tab's title is longer than the others: a smaller font on its button. */
-	void FitOverviewTabTitle();
-
 	/** Index of our tab button and page; INDEX_NONE until the tab entry is added. */
 	int32 TabIndex = INDEX_NONE;
 

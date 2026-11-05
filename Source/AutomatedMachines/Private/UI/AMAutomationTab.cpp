@@ -1381,7 +1381,6 @@ void UAMAutomationTab::EnsureTabButtonExists()
 		// The frame made its buttons before our entry was in the list: make them again.
 		RegenerateTabButtons();
 	}
-	FitOverviewTabTitle();
 }
 
 void UAMAutomationTab::ApplyGameFonts()
@@ -2117,32 +2116,6 @@ void UAMAutomationTab::StopOverviewHold(bool bDone)
 	{
 		RebuildOverview();
 	}
-}
-
-void UAMAutomationTab::FitOverviewTabTitle()
-{
-	if (!bOverviewMode)
-	{
-		return;
-	}
-	UObject* TabsContainer = AMAT_GetObject(GetWindowFrame(), AMAT_TabsContainerProperty);
-	const UPanelWidget* Buttons = Cast<UPanelWidget>(AMAT_GetObject(TabsContainer, AMAT_ButtonsPanelProperty));
-	UWidget* OurButton = Buttons && TabIndex != INDEX_NONE ? Buttons->GetChildAt(TabIndex) : nullptr;
-	UTextBlock* Title = Cast<UTextBlock>(AMAT_GetObject(OurButton, AMAT_TabTitleWidget));
-	if (!Title || Title->GetText().ToString() != GetTabTitle())
-	{
-		return;
-	}
-	// The font of the first tab's title, a bit smaller (from the first tab, so reopening the HUB with
-	// the same buttons does not shrink it again).
-	const UTextBlock* FirstTitle = Cast<UTextBlock>(AMAT_GetObject(Buttons->GetChildAt(0), AMAT_TabTitleWidget));
-	if (!FirstTitle || FirstTitle == Title)
-	{
-		return;
-	}
-	FSlateFontInfo Font = FirstTitle->GetFont();
-	Font.Size = FMath::Max(8, FMath::RoundToInt(Font.Size * 0.85f));
-	Title->SetFont(Font);
 }
 
 void UAMOverviewHandler::OnBinPressed()
