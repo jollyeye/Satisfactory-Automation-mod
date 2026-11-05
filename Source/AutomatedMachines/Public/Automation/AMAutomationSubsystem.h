@@ -36,6 +36,7 @@ public:
 
 	// IFGSaveInterface
 	virtual bool ShouldSave_Implementation() const override { return true; }
+	virtual void PreSaveGame_Implementation(int32 SaveVersion, int32 GameVersion) override;
 	virtual void PostLoadGame_Implementation(int32 SaveVersion, int32 GameVersion) override;
 
 	/** The rules of a machine, or null if it has none. */
@@ -70,6 +71,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UFUNCTION()
 	void OnRep_Machines();
@@ -93,8 +95,18 @@ private:
 	 */
 	static bool FindWrongInput(const AFGBuildableFactory* Factory, class UFGFactoryConnectionComponent** OutBelt, struct FInventoryItem* OutItem);
 
-	/** "Pass wrong items through": moves one wrong item from an input belt to the empty output slot. */
-	static void PassWrongItem(AFGBuildableFactory* Factory);
+	/**
+	 * "Pass wrong items through": takes a wrong item off an input belt; it waits (not in any slot)
+	 * until the output belt finds the machine has nothing of its own to give, then goes out on it.
+	 */
+	static void TakeWrongItem(AFGBuildableFactory* Factory);
+
+	/** Lets output belts take a machine's waiting wrong item (hooks on the game's belt connections). */
+	static void InstallOutputHooks();
+
+	/** The waiting wrong items, only while saving and loading. */
+	UPROPERTY(SaveGame)
+	TArray<FAMHeldItem> mHeldItems;
 	void ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule);
 
 	/** Shows a message on the screen of every player (runs on the server and on every client). */

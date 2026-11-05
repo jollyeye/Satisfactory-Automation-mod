@@ -19,6 +19,9 @@
 #include "EngineUtils.h"
 #include "UObject/UnrealType.h"
 #include "Engine/World.h"
+#include "Patching/NativeHookManager.h"
+#include "Misc/ScopeLock.h"
+#include <atomic>
 
 namespace
 {
@@ -28,6 +31,55 @@ namespace
 	FString AMAS_Describe(const AActor* Actor)
 	{
 		return Actor ? Actor->GetName() : TEXT("(none)");
+	}
+
+	// "Pass wrong items through": the wrong item each machine took off its input belt, waiting to
+	// go out on its output belt. Belts may take items from worker threads, hence the lock; the count
+	// lets every other grab in the factory skip the lock.
+	struct FAMASHeld
+	{
+		TWeakObjectPtr<const AFGBuildable> Machine;
+		FInventoryItem Item;
+	};
+	FCriticalSection AMAS_HeldLock;
+	TMap<const AFGBuildable*, FAMASHeld> AMAS_Held;
+	std::atomic<int32> AMAS_HeldCount{0};
+
+	void AMAS_Hold(const AFGBuildable* Machine, const FInventoryItem& Item)
+	{
+		FScopeLock HeldScope(&AMAS_HeldLock);
+		AMAS_Held.Add(Machine, FAMASHeld{Machine, Item});
+		AMAS_HeldCount = AMAS_Held.Num();
+	}
+
+	/** The waiting item of a machine, if it matches Type (null = any); bRemove: it leaves. */
+	bool AMAS_GiveHeld(const AFGBuildable* Machine, TSubclassOf<UFGItemDescriptor> Type, bool bRemove, FInventoryItem& OutItem)
+	{
+		FScopeLock HeldScope(&AMAS_HeldLock);
+		const FAMASHeld* Held = AMAS_Held.Find(Machine);
+		if (!Held || (Type.Get() && Held->Item.GetItemClass().Get() != Type.Get()))
+		{
+			return false;
+		}
+		OutItem = Held->Item;
+		if (bRemove)
+		{
+			AMAS_Held.Remove(Machine);
+			AMAS_HeldCount = AMAS_Held.Num();
+		}
+		return true;
+	}
+
+	bool AMAS_HasOutputBelt(const AFGBuildableFactory* Factory)
+	{
+		for (const UFGFactoryConnectionComponent* Connection : Factory->GetConnectionComponents())
+		{
+			if (Connection && Connection->GetDirection() == EFactoryConnectionDirection::FCD_OUTPUT && Connection->IsConnected())
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
@@ -78,6 +130,7 @@ void AAMAutomationSubsystem::InstallRegistration()
 			Manager->RegisterSubsystemActor(AAMAutomationSubsystem::StaticClass());
 		}
 	});
+	InstallOutputHooks();
 }
 
 void AAMAutomationSubsystem::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -104,8 +157,42 @@ void AAMAutomationSubsystem::BeginPlay()
 	}
 }
 
+void AAMAutomationSubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	{
+		FScopeLock HeldScope(&AMAS_HeldLock);
+		AMAS_Held.Reset();
+		AMAS_HeldCount = 0;
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
+void AAMAutomationSubsystem::PreSaveGame_Implementation(int32 SaveVersion, int32 GameVersion)
+{
+	// The waiting wrong items are saved, so none is lost.
+	mHeldItems.Reset();
+	FScopeLock HeldScope(&AMAS_HeldLock);
+	for (const TPair<const AFGBuildable*, FAMASHeld>& Pair : AMAS_Held)
+	{
+		if (AFGBuildable* Machine = const_cast<AFGBuildable*>(Pair.Value.Machine.Get()))
+		{
+			FAMHeldItem& Saved = mHeldItems.AddDefaulted_GetRef();
+			Saved.Machine = Machine;
+			Saved.Item = Pair.Value.Item.GetItemClass();
+		}
+	}
+}
+
 void AAMAutomationSubsystem::PostLoadGame_Implementation(int32 SaveVersion, int32 GameVersion)
 {
+	for (const FAMHeldItem& Saved : mHeldItems)
+	{
+		if (IsValid(Saved.Machine) && Saved.Item)
+		{
+			AMAS_Hold(Saved.Machine, FInventoryItem(Saved.Item));
+		}
+	}
+	mHeldItems.Reset();
 	MoveWorldActionsFromMachines();
 	RemoveInvalidEntries();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem loaded: %d automated machines, %d events"),
@@ -358,9 +445,21 @@ void AAMAutomationSubsystem::Tick(float DeltaSeconds)
 		{
 			if (AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Entry.Machine))
 			{
-				PassWrongItem(Factory);
+				TakeWrongItem(Factory);
 			}
 		}
+	}
+	// Waiting items of dismantled machines are gone with them.
+	{
+		FScopeLock HeldScope(&AMAS_HeldLock);
+		for (auto It = AMAS_Held.CreateIterator(); It; ++It)
+		{
+			if (!It.Value().Machine.IsValid())
+			{
+				It.RemoveCurrent();
+			}
+		}
+		AMAS_HeldCount = AMAS_Held.Num();
 	}
 }
 
@@ -548,55 +647,61 @@ bool AAMAutomationSubsystem::FindWrongInput(const AFGBuildableFactory* Factory, 
 	return false;
 }
 
-void AAMAutomationSubsystem::PassWrongItem(AFGBuildableFactory* Factory)
+void AAMAutomationSubsystem::TakeWrongItem(AFGBuildableFactory* Factory)
 {
-	AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
-	UFGInventoryComponent* Output = Manufacturer ? Manufacturer->GetOutputInventory() : nullptr;
+	// One wrong item per machine waits at a time; it leaves on the output belt first.
+	{
+		FScopeLock HeldScope(&AMAS_HeldLock);
+		if (AMAS_Held.Contains(Factory))
+		{
+			return;
+		}
+	}
 	UFGFactoryConnectionComponent* BeltEnd = nullptr;
 	FInventoryItem Wrong;
-	if (!Output || !FindWrongInput(Factory, &BeltEnd, &Wrong) || !BeltEnd)
+	if (!FindWrongInput(Factory, &BeltEnd, &Wrong) || !BeltEnd || !AMAS_HasOutputBelt(Factory))
 	{
 		return;
 	}
+	FInventoryItem Grabbed;
+	float OffsetBeyond = 0.f;
+	if (BeltEnd->Factory_GrabOutput(Grabbed, OffsetBeyond, Wrong.GetItemClass()))
+	{
+		AMAS_Hold(Factory, Grabbed);
+		UE_LOG(LogAutomatedMachines, Verbose, TEXT("%s took %s off its input belt"), *AMAS_Describe(Factory), *GetNameSafe(Grabbed.GetItemClass().Get()));
+	}
+}
 
-	// The empty output slot for solid products (not a fluid slot).
-	int32 SlotIndex = INDEX_NONE;
-	for (int32 Index = 0; Index < Output->GetSizeLinear(); ++Index)
-	{
-		const TSubclassOf<UFGItemDescriptor> Allowed = Output->GetAllowedItemOnIndex(Index);
-		const EResourceForm Form = Allowed ? UFGItemDescriptor::GetForm(Allowed) : EResourceForm::RF_SOLID;
-		if (Output->IsIndexEmpty(Index) && Form == EResourceForm::RF_SOLID)
+void AAMAutomationSubsystem::InstallOutputHooks()
+{
+	// The machine's own products go first: a wrong item is only given when the machine has nothing.
+	SUBSCRIBE_METHOD(UFGFactoryConnectionComponent::Factory_GrabOutput,
+		[](auto& Scope, UFGFactoryConnectionComponent* Self, FInventoryItem& OutItem, float& OutOffsetBeyond, TSubclassOf<UFGItemDescriptor> Type)
 		{
-			SlotIndex = Index;
-			break;
-		}
-	}
-	if (SlotIndex == INDEX_NONE)
-	{
-		return;
-	}
-
-	// The slot only takes the product: allow the wrong item for a moment, move it, set the filter
-	// back. The item stays until the output belt takes it.
-	const TSubclassOf<UFGItemDescriptor> Allowed = Output->GetAllowedItemOnIndex(SlotIndex);
-	Output->SetAllowedItemOnIndex(SlotIndex, Wrong.GetItemClass());
-	if (Output->IsItemAllowed(Wrong.GetItemClass(), SlotIndex))
-	{
-		FInventoryItem Grabbed;
-		float OffsetBeyond = 0.f;
-		if (BeltEnd->Factory_GrabOutput(Grabbed, OffsetBeyond, Wrong.GetItemClass()))
+			const bool bResult = Scope(Self, OutItem, OutOffsetBeyond, Type);
+			if (!bResult && AMAS_HeldCount.load() > 0 && Self && Self->GetDirection() == EFactoryConnectionDirection::FCD_OUTPUT)
+			{
+				if (AMAS_GiveHeld(Self->GetOuterBuildable(), Type, true, OutItem))
+				{
+					OutOffsetBeyond = 0.f;
+					Scope.Override(true);
+				}
+			}
+		});
+	SUBSCRIBE_METHOD(UFGFactoryConnectionComponent::Factory_PeekOutput,
+		[](auto& Scope, const UFGFactoryConnectionComponent* Self, TArray<FInventoryItem>& OutItems, TSubclassOf<UFGItemDescriptor> Type)
 		{
-			if (Output->AddStackToIndex(SlotIndex, FInventoryStack(Grabbed)) > 0)
+			const bool bResult = Scope(Self, OutItems, Type);
+			if (!bResult && AMAS_HeldCount.load() > 0 && Self && Self->GetDirection() == EFactoryConnectionDirection::FCD_OUTPUT)
 			{
-				UE_LOG(LogAutomatedMachines, Log, TEXT("%s passed %s through"), *AMAS_Describe(Factory), *GetNameSafe(Grabbed.GetItemClass().Get()));
+				FInventoryItem Item;
+				if (AMAS_GiveHeld(Self->GetOuterBuildable(), Type, false, Item))
+				{
+					OutItems.Add(Item);
+					Scope.Override(true);
+				}
 			}
-			else
-			{
-				UE_LOG(LogAutomatedMachines, Warning, TEXT("%s: %s taken off the belt but not into the output"), *AMAS_Describe(Factory), *GetNameSafe(Grabbed.GetItemClass().Get()));
-			}
-		}
-	}
-	Output->SetAllowedItemOnIndex(SlotIndex, Allowed);
+		});
 }
 
 bool AAMAutomationSubsystem::IsInputMissing(const AFGBuildableFactory* Factory)
@@ -625,25 +730,12 @@ bool AAMAutomationSubsystem::IsOutputFull(const AFGBuildableFactory* Factory)
 	{
 		return false;
 	}
-	// Each product goes in its own slot. A slot holding a wrong item that is passing through
-	// ("Pass wrong items through") counts as empty: it leaves on the next item the belt takes.
-	const UFGInventoryComponent* Output = Manufacturer->GetOutputInventory();
+	TArray<FInventoryStack> Products;
 	for (const FItemAmount& Product : UFGRecipe::GetProducts(Manufacturer->GetCurrentRecipe()))
 	{
-		for (int32 SlotIndex = 0; SlotIndex < Output->GetSizeLinear(); ++SlotIndex)
-		{
-			FInventoryStack Stack;
-			if (Output->GetStackFromIndex(SlotIndex, Stack) && Stack.HasItems() && Stack.Item.GetItemClass() == Product.ItemClass)
-			{
-				if (Stack.NumItems + Product.Amount > Output->GetSlotSize(SlotIndex, Product.ItemClass))
-				{
-					return true;
-				}
-				break;
-			}
-		}
+		Products.Emplace(Product.Amount, Product.ItemClass);
 	}
-	return false;
+	return Products.Num() > 0 && !Manufacturer->GetOutputInventory()->HasEnoughSpaceForStacks(Products);
 }
 
 void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAMReactionRule& Rule)

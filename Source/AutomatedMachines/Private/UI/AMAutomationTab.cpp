@@ -621,8 +621,8 @@ void UAMAutomationTab::RefreshOptions()
 void UAMAutomationTab::ShowPassWrongInfo()
 {
 	ShowInfo(FText::FromString(TEXT("Pass wrong items through")), FText::FromString(
-		TEXT("When a belt brings an item that is not an ingredient of the recipe, the machine takes it off the belt and puts it in its output, so the output belt carries it away and the input belt moves again.\n\n")
-		TEXT("It only works when the output slot is empty: the wrong item waits for the machine's own products to leave first. Each wrong item passed is a moment the output is not carrying products.\n\n")
+		TEXT("When a belt brings an item that is not an ingredient of the recipe, the machine takes it off the belt and puts it straight on its output belt, so the input belt moves again. Production does not stop.\n\n")
+		TEXT("The machine's own products go first: the wrong item goes out when the output has nothing to give. The machine needs an output belt.\n\n")
 		TEXT("Only for belts: a pipe with the wrong fluid stays stuck (use the alarm \"Wrong input\" to hear about it).")));
 }
 

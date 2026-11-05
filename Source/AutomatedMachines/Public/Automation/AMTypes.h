@@ -10,6 +10,7 @@
 
 class AFGBuildable;
 class UFGRecipe;
+class UFGItemDescriptor;
 
 /**
  * A status of a machine (a "machine event" in the game). A fire rule fires its event when the status
@@ -94,6 +95,19 @@ struct AUTOMATEDMACHINES_API FAMReactionRule
 	/** The text of "Show message" (empty: machine and alarm), else unused. */
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	FString Message;
+};
+
+/** A wrong item taken off a machine's input belt, waiting to leave on its output belt (saved). */
+USTRUCT()
+struct AUTOMATEDMACHINES_API FAMHeldItem
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame)
+	TObjectPtr<AFGBuildable> Machine;
+
+	UPROPERTY(SaveGame)
+	TSubclassOf<UFGItemDescriptor> Item;
 };
 
 /** Switches of a machine (the Options section of its Automation tab). */
