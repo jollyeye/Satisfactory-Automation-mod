@@ -2,6 +2,8 @@
 #include "FGRecipe.h"
 #include "ItemAmount.h"
 #include "Resources/FGItemDescriptor.h"
+#include "Buildables/FGBuildableManufacturer.h"
+#include "Buildables/FGBuildableResourceExtractor.h"
 
 namespace
 {
@@ -232,4 +234,60 @@ float AMRules::CleanValue(const FValueInfo& Info, float Value)
 		return Info.Default;
 	}
 	return FMath::Clamp(Value, Info.Min, Info.Max);
+}
+
+bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machine)
+{
+	if (!Machine || Machine->IsA<AFGBuildableManufacturer>())
+	{
+		return true;
+	}
+	if (Machine->IsA<AFGBuildableResourceExtractor>())
+	{
+		switch (Condition)
+		{
+		case EAMCondition::OutputFull:
+		case EAMCondition::OutputNotFull:
+		case EAMCondition::StartsProducing:
+		case EAMCondition::StopsProducing:
+		case EAMCondition::LosesPower:
+		case EAMCondition::GetsPower:
+		case EAMCondition::Paused:
+		case EAMCondition::Resumed:
+		case EAMCondition::ProductivityBelow:
+		case EAMCondition::ProductivityAbove:
+			return true;
+		default:
+			return false;
+		}
+	}
+	return false;
+}
+
+bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
+{
+	if (!Machine || Machine->IsA<AFGBuildableManufacturer>() || IsWorldAction(Action))
+	{
+		return true;
+	}
+	if (Machine->IsA<AFGBuildableResourceExtractor>())
+	{
+		switch (Action)
+		{
+		case EAMAction::Pause:
+		case EAMAction::Resume:
+		case EAMAction::TogglePause:
+		case EAMAction::SetClockSpeed:
+		case EAMAction::DeleteOutput:
+			return true;
+		default:
+			return false;
+		}
+	}
+	return false;
+}
+
+bool AMRules::HasPassWrongItems(const UObject* Machine)
+{
+	return Machine && Machine->IsA<AFGBuildableManufacturer>();
 }

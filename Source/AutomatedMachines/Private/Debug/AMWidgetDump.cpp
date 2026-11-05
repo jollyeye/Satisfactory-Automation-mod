@@ -20,13 +20,13 @@ namespace
 {
 	// Windows whose whole widget tree is written to the log (once per class).
 	const TCHAR* const AMWD_TreeClasses[] = {
-		TEXT("BPW_Hub_C"),
+		TEXT("Widget_ResourceExtractorUI_C"),
 	};
 
 	// Widgets inside those windows whose variables (with values) and functions are written too:
 	// the tab machinery, to learn how to add an Automation tab.
 	const TCHAR* const AMWD_ReflectionClasses[] = {
-		TEXT("BPW_Hub_C"),
+		TEXT("Widget_ResourceExtractorUI_C"),
 		TEXT("Widget_Window_DarkMode_C"),
 		TEXT("Widget_TabsContainer_C"),
 		TEXT("Widget_SlidingTabs_C"),
@@ -35,7 +35,7 @@ namespace
 
 	// Also every widget in those windows whose class name contains one of these (tab and menu parts).
 	const TCHAR* const AMWD_ReflectionKeywords[] = {
-		TEXT("Tab"), TEXT("Menu"), TEXT("Hub"),
+		TEXT("Tab"), TEXT("Overclock"), TEXT("Standby"),
 	};
 
 	constexpr int32 AMWD_MaxDepth = 40;

@@ -4,6 +4,8 @@
 #include "Buildables/FGBuildable.h"
 #include "Buildables/FGBuildableFactory.h"
 #include "Buildables/FGBuildableManufacturer.h"
+#include "Buildables/FGBuildableResourceExtractor.h"
+#include "Resources/FGExtractableResourceInterface.h"
 #include "FGInventoryComponent.h"
 #include "FGRecipe.h"
 #include "FGFactoryConnectionComponent.h"
@@ -223,12 +225,13 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	FAMMachineRules NewRules;
 	NewRules.Machine = Machine;
 	NewRules.Options = Options;
+	NewRules.Options.bPassWrongItems = Options.bPassWrongItems && AMRules::HasPassWrongItems(Machine);
 	for (const FAMFireRule& Rule : Fires)
 	{
 		FAMFireRule Clean = Rule;
 		Clean.Event = AMRules::NormalizeEventName(Rule.Event);
 		Clean.Value = AMRules::CleanValue(AMRules::GetConditionValueInfo(Rule.Condition), Rule.Value);
-		if (!Clean.Event.IsEmpty() && Clean.Condition < EAMCondition::Count)
+		if (!Clean.Event.IsEmpty() && Clean.Condition < EAMCondition::Count && AMRules::IsConditionAvailable(Clean.Condition, Machine))
 		{
 			NewRules.Fires.Add(Clean);
 		}
@@ -237,7 +240,7 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	{
 		const FAMReactionRule Clean = CleanReaction(Rule);
 		// World actions belong to the HUB, not to machines.
-		if (!Clean.Event.IsEmpty() && Clean.Action < EAMAction::Count && !AMRules::IsWorldAction(Clean.Action))
+		if (!Clean.Event.IsEmpty() && Clean.Action < EAMAction::Count && !AMRules::IsWorldAction(Clean.Action) && AMRules::IsActionAvailable(Clean.Action, Machine))
 		{
 			NewRules.Reactions.Add(Clean);
 		}
@@ -390,7 +393,9 @@ void AAMAutomationSubsystem::CountEventUses(const FString& Event, int32& OutRing
 
 bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 {
-	return Machine && Machine->IsA<AFGBuildableManufacturer>();
+	// Production machines, and extractors (miners; also water and oil extractors, resource well
+	// extractors: they are the same class).
+	return Machine && (Machine->IsA<AFGBuildableManufacturer>() || Machine->IsA<AFGBuildableResourceExtractor>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -725,6 +730,19 @@ bool AAMAutomationSubsystem::IsInputMissing(const AFGBuildableFactory* Factory)
 bool AAMAutomationSubsystem::IsOutputFull(const AFGBuildableFactory* Factory)
 {
 	// Full = the output has no room for one more production cycle (the machine would stop for that).
+	if (const AFGBuildableResourceExtractor* Extractor = Cast<AFGBuildableResourceExtractor>(Factory))
+	{
+		// A miner: room for one more cycle of what it mines.
+		const TScriptInterface<IFGExtractableResourceInterface> Resource = Extractor->GetExtractableResource();
+		const IFGExtractableResourceInterface* ResourceInterface = Resource.GetInterface();
+		UFGInventoryComponent* ExtractorOutput = Extractor->GetOutputInventory();
+		if (!ResourceInterface || !ExtractorOutput || !ResourceInterface->GetResourceClass())
+		{
+			return false;
+		}
+		const FInventoryStack Cycle(FMath::Max(1, Extractor->GetNumExtractedItemsPerCycle()), ResourceInterface->GetResourceClass());
+		return !ExtractorOutput->HasEnoughSpaceForStack(Cycle);
+	}
 	const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
 	if (!Manufacturer || !Manufacturer->GetCurrentRecipe() || !Manufacturer->GetOutputInventory())
 	{
@@ -773,6 +791,14 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 		}
 		break;
 	case EAMAction::DeleteOutput:
+		if (AFGBuildableResourceExtractor* Extractor = Cast<AFGBuildableResourceExtractor>(Factory))
+		{
+			const int32 Slots = DeleteAllItems(Extractor->GetOutputInventory());
+			UE_LOG(LogAutomatedMachines, Log, TEXT("%s: output deleted (%d slots had items)"), *AMAS_Describe(Factory), Slots);
+			break;
+		}
+		// A production machine: below.
+		[[fallthrough]];
 	case EAMAction::DeleteInput:
 		if (AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory))
 		{

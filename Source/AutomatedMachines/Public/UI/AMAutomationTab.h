@@ -140,6 +140,10 @@ private:
 	UPROPERTY()
 	TObjectPtr<class UButton> mPassWrongButton;
 
+	/** The Options section (title and box): hidden on machines without options (miners). */
+	UPROPERTY()
+	TArray<TObjectPtr<UWidget>> mOptionsWidgets;
+
 	/** The switch picture on the option's row. */
 	UPROPERTY()
 	TObjectPtr<class UImage> mPassWrongSwitch;

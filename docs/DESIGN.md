@@ -136,6 +136,16 @@ Actions: Pause, Resume, Pause or resume, Set clock speed N% (within what the mac
 
 Each one has an explanation in the tab's info panel.
 
+### Miners (started 5 Nov 2026)
+
+Miners have no input and no recipe, so they get fewer machine events and actions; the lists in the tab only show what the machine has.
+
+- Machine events: Output full, Output not full, Starts producing, Stops producing, Loses power, Gets power, Paused, Resumed, Productivity below N%, Productivity above N%.
+- Actions: Pause, Resume, Pause or resume, Set clock speed N%, Delete output.
+- No Options (Pass wrong items through needs input belts).
+- The same rules cover the other extractors (water extractor, oil extractor, resource well extractor): they are the same kind of machine in the game. Their windows come one by one.
+- The miner's window has no tabs (one page), unlike the production machines' window, so where the Automation page goes is worked out from a dump of that window.
+
 ### Wrong items on a belt (decided 4 Nov 2026)
 
 A machine refuses an item that is not an ingredient of its recipe, so the belt stops behind it. Deleting that item was rejected: it would be a cheat. Instead:

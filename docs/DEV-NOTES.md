@@ -153,6 +153,12 @@ Not offered: production boost (Somersloops are items, not a setting).
 - To test: do belts call the hooked `Factory_GrabOutput` (if the game inlined the call, nothing comes out: then hook elsewhere)? With the option on, a mixed belt should flow, the copper should leave on the output belt between ingots, and no other alarm should ring.
 - UI: an Options strip at the bottom of the machine page (not in the HUB), as wide as the Alarms panel. Each option is one button (the whole row clicks), coloured like "+ Add alarm": the name on the left, a switch picture on the right (`T_AM_SwitchOff` / `T_AM_SwitchOn`, 64 x 32, drawn by `make_icons.py` after the game's power switch window, in their own colours: off = white outline, see-through, white knob left; on = white, dark knob right; `...Disabled` versions in grey (110 / 64), not used yet). Hovering or clicking shows the explanation in the Info panel. Tested 5 Nov 2026: passing wrong items works (first version of the strip).
 
+## Miners (5 Nov 2026)
+
+- The miner (Mk1-3) window is `/Game/FactoryGame/Interface/UI/InGame/Widget_ResourceExtractorUI.Widget_ResourceExtractorUI_C` (from `mInteractWidgetSoftClass` in `Build_MinerMk1`). Its uasset has a `Widget_Window_DarkMode` frame but no `Widget_SlidingTabs` and no tab pages: one canvas page (`Widget_Overclock`, `Widget_StandbyButton`, `Widget_Manufacturing_Warning`, an inventory slot). Variables include `mResourceExtractor`, `mExtractorNode`, `mWantProdPaused`. So the Automation tab cannot go into a pages box as in the production window; the dump (now pointed at this window) shows its tree to decide how.
+- Machines: `CanAutomate` also accepts `AFGBuildableResourceExtractor` (miners, and water / oil / well extractors, same class). `AMRules::IsConditionAvailable` / `IsActionAvailable` list what each machine type has; the dropdowns show only those (the current choice stays), and `SetRules` drops the rest. `HasPassWrongItems`: production machines only; the Options section is hidden otherwise.
+- Output full on an extractor: the output inventory has no room for one more cycle (`GetNumExtractedItemsPerCycle` of the node's `GetResourceClass`). Delete output: its output inventory.
+
 ## The widget dump
 
 Now pointed at the HUB terminal (`BPW_Hub_C`): its tree, plus variables and functions of every widget in it whose class name contains Tab, Menu or Hub, to find where an Automation tab goes next to Milestones.

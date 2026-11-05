@@ -408,6 +408,11 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 		for (uint8 Value = 0; Value < static_cast<uint8>(EAMCondition::Count); ++Value)
 		{
 			const EAMCondition Condition = static_cast<EAMCondition>(Value);
+			// Only what this machine has (a miner has no input or recipe); the current one stays listed.
+			if (!AMRules::IsConditionAvailable(Condition, mTab->GetMachineObject()) && !(Rule && Rule->Condition == Condition))
+			{
+				continue;
+			}
 			AddChoice(AMRules::GetConditionText(Condition).ToString(), FString(), Value, Rule && Rule->Condition == Condition);
 		}
 	}
@@ -419,6 +424,10 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 			const EAMAction Action = static_cast<EAMAction>(Value);
 			// Machines: machine actions. HUB: world actions.
 			if (AMRules::IsWorldAction(Action) != mTab->IsWorldMode())
+			{
+				continue;
+			}
+			if (!AMRules::IsActionAvailable(Action, mTab->GetMachineObject()) && !(Rule && Rule->Action == Action))
 			{
 				continue;
 			}

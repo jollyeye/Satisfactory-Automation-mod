@@ -175,6 +175,16 @@ namespace AMRules
 	AUTOMATEDMACHINES_API FValueInfo GetConditionValueInfo(EAMCondition Condition);
 	AUTOMATEDMACHINES_API FValueInfo GetActionValueInfo(EAMAction Action);
 
+	/**
+	 * Machine events / actions this machine has (Machine null: all of them). Production machines
+	 * have all; miners have no input and no recipe.
+	 */
+	AUTOMATEDMACHINES_API bool IsConditionAvailable(EAMCondition Condition, const UObject* Machine);
+	AUTOMATEDMACHINES_API bool IsActionAvailable(EAMAction Action, const UObject* Machine);
+
+	/** True if the machine has the Options section's "Pass wrong items through" (it has input belts). */
+	AUTOMATEDMACHINES_API bool HasPassWrongItems(const UObject* Machine);
+
 	/** Actions that need a recipe (Change recipe). */
 	AUTOMATEDMACHINES_API bool ActionNeedsRecipe(EAMAction Action);
 

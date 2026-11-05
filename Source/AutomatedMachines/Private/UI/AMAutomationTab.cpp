@@ -377,12 +377,15 @@ void UAMAutomationTab::BuildLayout()
 	// Options of the machine, at the bottom (the HUB has none).
 	if (!bWorldMode)
 	{
-		AddTo(mContentBox, MakeText(TEXT("Options"), 15, AMUI::White), 14.f);
+		UTextBlock* OptionsTitle = MakeText(TEXT("Options"), 15, AMUI::White);
+		AddTo(mContentBox, OptionsTitle, 14.f);
+		mOptionsWidgets.Add(OptionsTitle);
 		// As wide as the Alarms panel; each option is one button (the whole row clicks), coloured
 		// like "+ Add alarm": its name on the left, a switch on the right.
 		USizeBox* OptionsSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 		OptionsSize->SetWidthOverride(AMAT_AlarmsWidth);
 		AddTo(mContentBox, OptionsSize, 8.f);
+		mOptionsWidgets.Add(OptionsSize);
 		UBorder* OptionsBody = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(AMAT_PanelPadding));
 		OptionsSize->AddChild(OptionsBody);
 
@@ -520,6 +523,13 @@ void UAMAutomationTab::LoadRules()
 		mOptions = Rules->Options;
 	}
 	bRulesLoaded = true;
+	for (UWidget* OptionsWidget : mOptionsWidgets)
+	{
+		if (OptionsWidget)
+		{
+			OptionsWidget->SetVisibility(AMRules::HasPassWrongItems(Machine) ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+		}
+	}
 	RefreshOptions();
 	RebuildRows();
 }
