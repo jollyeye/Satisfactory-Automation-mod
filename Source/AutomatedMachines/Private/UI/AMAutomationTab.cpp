@@ -415,7 +415,7 @@ void UAMAutomationTab::BuildLayout()
 
 	if (bOverviewMode)
 	{
-		// Automation Overview: one table, every alarm of the world.
+		// Alarms Overview: one table, every alarm of the world.
 		constexpr float CountWidth = 170.f;
 		UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		USizeBox* ColumnSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
@@ -425,9 +425,9 @@ void UAMAutomationTab::BuildLayout()
 		{
 			ColumnSlot->SetVerticalAlignment(VAlign_Fill);
 		}
-		AddTo(Column, MakeText(TEXT("Alarms"), 15, AMUI::White), 0.f);
+		// No panel title: the line on top already says what this is.
 		UBorder* Body = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(AMAT_PanelPadding));
-		AddTo(Column, Body, 8.f, true);
+		AddTo(Column, Body, 0.f, true);
 		UVerticalBox* Inside = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 		Body->AddChild(Inside);
 		UHorizontalBox* Header = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
@@ -449,10 +449,14 @@ void UAMAutomationTab::BuildLayout()
 				}
 			}
 		};
-		AddHeader(TEXT("Alarm Name"), 0.f, AMRowLayout::Gap - 2.f);
+		AddHeader(TEXT("Name"), 0.f, AMRowLayout::Gap - 2.f);
 		AddHeader(TEXT("Rung by"), CountWidth - 2.f, AMRowLayout::Gap);
 		AddHeader(TEXT("Listening"), CountWidth - 2.f, 0.f);
-		AddTo(Inside, Header, 0.f);
+		// Full width (not full height), so the name header stretches like the rows' names and the others line up.
+		if (UVerticalBoxSlot* HeaderSlot = Inside->AddChildToVerticalBox(Header))
+		{
+			HeaderSlot->SetHorizontalAlignment(HAlign_Fill);
+		}
 		UScrollBox* Scroll = WidgetTree->ConstructWidget<UScrollBox>(UScrollBox::StaticClass());
 		Scroll->SetScrollbarThickness(FVector2D(6.f, 6.f));
 		AddTo(Inside, Scroll, 6.f, true);
@@ -1888,7 +1892,7 @@ void UAMAutomationTab::ShowThisTab()
 
 const TCHAR* UAMAutomationTab::GetTabTitle() const
 {
-	return bOverviewMode ? TEXT("Automation Overview") : AMAT_TabTitle;
+	return bOverviewMode ? TEXT("Alarms Overview") : AMAT_TabTitle;
 }
 
 void UAMAutomationTab::RefreshTabIndex()

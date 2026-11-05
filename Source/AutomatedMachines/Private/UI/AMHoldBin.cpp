@@ -14,7 +14,7 @@
 
 namespace
 {
-	const TCHAR* const AMHB_TrashPath = TEXT("/AutomatedMachines/Icons/T_AM_Trash.T_AM_Trash");
+	const TCHAR* const AMHB_TrashPath = TEXT("/AutomatedMachines/Icons/T_AM_TrashLarge.T_AM_TrashLarge");
 	constexpr float AMHB_Size = 140.f;
 
 	UImage* AMHB_Bin(UWidgetTree* Tree, float Alpha)

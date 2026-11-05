@@ -1,4 +1,4 @@
-// The big bin in the middle of the screen while a bin button is held down (HUB Automation Overview):
+// The big bin in the middle of the screen while a bin button is held down (HUB Alarms Overview):
 // a faint bin that fills up from the bottom with solid white; when it is full, the removal happens.
 //
 //      .----.

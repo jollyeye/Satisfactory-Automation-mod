@@ -30,7 +30,7 @@ struct FAMPickerOption
 	UAMChoice* Handler = nullptr;
 };
 
-/** A row's buttons in the HUB's Automation Overview: the alarm's name, and its two bins. */
+/** A row's buttons in the HUB's Alarms Overview: the alarm's name, and its two bins. */
 UCLASS()
 class AUTOMATEDMACHINES_API UAMOverviewHandler : public UObject
 {
@@ -315,12 +315,12 @@ private:
 	bool bWorldMode = false;
 
 	/**
-	 * The HUB's second page, "Automation Overview" (this class, named AM_OverviewTab by its hook):
+	 * The HUB's second page, "Alarms Overview" (this class, named AM_OverviewTab by its hook):
 	 * a table of every alarm in the world with who rings it and who listens.
 	 */
 	bool bOverviewMode = false;
 
-	/** Our tab's title: "Automation" or "Automation Overview". */
+	/** Our tab's title: "Automation" or "Alarms Overview". */
 	const TCHAR* GetTabTitle() const;
 
 	/** Our tab's index in the window's tab list, by title (two pages of ours in one window can move it). */

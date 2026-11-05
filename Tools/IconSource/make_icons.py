@@ -3,6 +3,8 @@
 #   Tools/Icons/T_AM_MarkerIcon.png  256 x 256, the marker above automated machines
 #   Tools/Icons/T_AM_DropArrow.png   32 x 32, the arrow of our dropdowns
 #   Tools/Icons/T_AM_Trash.png       32 x 32, the remove button
+#   Tools/Icons/T_AM_TrashLarge.png  192 x 192, the same bin, big in the middle of the screen while
+#     a bin is held down (HUB Alarms Overview); its own file because UI textures have no mips
 #   Tools/Icons/T_AM_SwitchOff.png / T_AM_SwitchOn.png  64 x 32, the option switch (like the
 #     game's switches in the power switch window: off = white outline, see-through inside, white
 #     knob on the left; on = white with a dark knob on the right). Drawn in their own colours.
@@ -121,6 +123,7 @@ def main():
     marker.save(os.path.join(OUT_DIR, "T_AM_MarkerIcon.png"))
     drop_arrow(32).save(os.path.join(OUT_DIR, "T_AM_DropArrow.png"))
     trash(32).save(os.path.join(OUT_DIR, "T_AM_Trash.png"))
+    trash(192).save(os.path.join(OUT_DIR, "T_AM_TrashLarge.png"))
     switch(False).save(os.path.join(OUT_DIR, "T_AM_SwitchOff.png"))
     switch(True).save(os.path.join(OUT_DIR, "T_AM_SwitchOn.png"))
     switch(False, disabled=True).save(os.path.join(OUT_DIR, "T_AM_SwitchOffDisabled.png"))

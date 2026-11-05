@@ -66,11 +66,11 @@ Some actions have nothing to do with a machine: they only need to hear an alarm 
 - World actions: **Show message** (our notification: Wi-Fi icon, the alarm's name, your text or "Rung by <machine>"; stacked at the side with the game's notifications) and **Play sound** (one of 5 short game sounds: Blip, Ping, Warning, Alert, Success), for every player.
 - Show message moves there from the machines; machine rules with Show message from older saves are moved to the HUB on load.
 
-### Automation Overview: a second HUB tab (decided 5 Nov 2026)
+### Alarms Overview: a second HUB tab (decided 5 Nov 2026)
 
 A table of every alarm in the world, to find alarms that are only half made (someone listens but nobody rings it, or the other way round):
 
-| Alarm Name | Rung by | Listening |
+| Name | Rung by | Listening |
 |---|---|---|
 | PLATES BACKED UP | 3 [bin] | 2 [bin] |
 

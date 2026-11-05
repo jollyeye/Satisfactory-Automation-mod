@@ -19,7 +19,7 @@ Notes for the next session working on this mod. The design (what the mod does an
 | Copy / paste of automation (Ctrl+C / Ctrl+V, window buttons, container buttons), middle click sample | 5 Nov 2026 |
 | Biomass Burner: Automation tab (one-page window, hooked via the standby button's panel), its events and actions | 5 Nov 2026 |
 | Signs: design tabs (own tab row in the title bar), designs saved per alarm and shown when the alarm rings | 5 Nov 2026 |
-| HUB Automation Overview tab: every alarm with ringers / listeners, bins clear them (also sign designs) | 5 Nov 2026 |
+| HUB Alarms Overview tab: every alarm with ringers / listeners, bins clear them (also sign designs) | 5 Nov 2026 |
  Many lessons from Road Maker apply here too: see `docs/DEV-NOTES.md` in `jollyeye/Satisfactory-Road-Fence-Tool`.
 
 ## Setup on the developer's PC (Windows)
@@ -49,7 +49,7 @@ Same loop as Road Maker:
 
 Claude cannot compile; keep edits careful (count braces, check renames). Shadowing is an error (C4458): a local variable named like a member of a base class, e.g. `Padding` in a `UUserWidget`, fails the build. The same for a name hiding a global or namespace one (C4459), e.g. a parameter `Button` inside `AMUI`, which has the colour `AMUI::Button`. Game headers live in subfolders: check the path in `SML/Source/FactoryGame/Public` before including (e.g. `Buildables/FGCentralStorageContainer.h`, not `FGCentralStorageContainer.h`). Unity builds merge `.cpp` files, so helpers in anonymous namespaces get file-specific prefixes (e.g. `AMWD_` in `AMWidgetDump.cpp`).
 
-Before every push, run `python3 Tools/check_source.py` (strings broken across lines, non-ASCII characters). Edits made with a Python script must write `\\n` in a C++ text, not `\n`: in a normal Python string `\n` becomes a real line break and the build fails with C2001 "newline in constant" (happened 5 Nov 2026 with the Automation Overview).
+Before every push, run `python3 Tools/check_source.py` (strings broken across lines, non-ASCII characters). Edits made with a Python script must write `\\n` in a C++ text, not `\n`: in a normal Python string `\n` becomes a real line break and the build fails with C2001 "newline in constant" (happened 5 Nov 2026 with the Alarms Overview).
 
 ## Project layout
 
@@ -167,12 +167,13 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Play sound: the event is loaded by path and played with its own UFUNCTION `UAkAudioEvent::PostOnActor(Actor, delegate, CallbackMask, bStop)`, called by name (`AMSound`), so the mod does not depend on the Wwise plugin. The server calls `MulticastPlaySound(index)`; each game instance plays it on its local players' pawns. The sound's number is stored in the rule's `Value`.
 - Show message tested 4 Nov 2026: our notifications stack at the side of the screen with the game's.
 
-### Automation Overview tab (5 Nov 2026, tested: works, sign designs removed too)
+### Alarms Overview tab (5 Nov 2026, tested: works, sign designs removed too)
 
-- A second hook (`AM_HubOverviewTabHook`) adds another `UAMAutomationTab` to `HorizontalBox_25` with the widget name `AM_OverviewTab`; `NativeOnInitialized` sets `bOverviewMode` from `GetFName()`. `GetTabTitle()` gives "Automation" or "Automation Overview".
+- A second hook (`AM_HubOverviewTabHook`) adds another `UAMAutomationTab` to `HorizontalBox_25` with the widget name `AM_OverviewTab`; `NativeOnInitialized` sets `bOverviewMode` from `GetFName()`. `GetTabTitle()` gives "Automation" or "Alarms Overview".
 - Two pages of ours in one window: `AddTabEntry` inserts the tab entry at the page's child index (not always at the end), and `RefreshTabIndex()` finds our tab by title before it is used (button click, ShowThisTab, EnsureTabButtonExists), because the other page's entry may have been inserted before ours.
 - `RebuildOverview()` makes the rows from `GetAllEventNames()` + `CountEventUses()` (the HUB's world actions count as one listener) on construct and on every `OnRulesChanged`. Handlers are `UAMOverviewHandler` objects (name hover, bin click, bin hover).
-- Hold to remove (second version, not tested yet): the bins use `OnPressed` / `OnReleased`; `StartOverviewHold` shows `UAMHoldBin` in the viewport (Z 10000, not hit-testable) and a 60 Hz timer fills it (`SetProgress`: a clip box rising from the bottom of a canvas, the solid bin inside it kept in place, its opacity 0.45 -> 1; a faint 0.22 bin under it). At 2.5 s `RequestClearAlarm`. Let go, the window closing, or the left mouse button no longer down (checked every tick through `FSlateApplication::GetPressedMouseButtons`) stops it. Rows are not made again while a bin is held (`bOverviewDirty`). The tab title "Automation Overview" is longer than the button: the game scrolls it left and right by itself (its own behaviour for long titles), so nothing is done about it.
+- Hold to remove (second version, tested 5 Nov 2026: works): the bins use `OnPressed` / `OnReleased`; `StartOverviewHold` shows `UAMHoldBin` in the viewport (Z 10000, not hit-testable) and a 60 Hz timer fills it (`SetProgress`: a clip box rising from the bottom of a canvas, the solid bin inside it kept in place, its opacity 0.45 -> 1; a faint 0.22 bin under it). At 2.5 s `RequestClearAlarm`. Let go, the window closing, or the left mouse button no longer down (checked every tick through `FSlateApplication::GetPressedMouseButtons`) stops it. Rows are not made again while a bin is held (`bOverviewDirty`). The big bin is its own 192 x 192 texture (`T_AM_TrashLarge`): the 32 x 32 button bin looked blurry that big, and UI textures have no mips, so one big texture would look jagged on the small buttons. The tab title ("Automation Overview" at first, now "Alarms Overview") is longer than the button: the game scrolls it left and right by itself, its own behaviour for long titles.
+- Layout (third version): no "Alarms" panel title (the line on top says it); columns Name | Rung by | Listening; the header row is full width (slot `HAlign_Fill`, not fill height) so its fill cell lines up with the rows' names. A header row added with `HAlign_Left` shrinks to its content, and a fill cell in it has no room to fill.
 - `AAMAutomationSubsystem::ClearAlarm(Event, bRingers)`: ringers = fire rules with that alarm; listeners = reactions, sign designs (the sign shows its normal design again if none are left) and world actions. Then `RemoveInvalidEntries`, `ForceNetUpdate`, broadcast.
 
 ## Wrong input and "Pass wrong items through" (4-5 Nov 2026, works)
