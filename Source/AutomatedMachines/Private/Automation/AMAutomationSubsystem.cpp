@@ -31,6 +31,7 @@
 #include "Automation/AMClipboard.h"
 #include "FGBuildableSubsystem.h"
 #include "Automation/AMSign.h"
+#include "Automation/AMLight.h"
 #include "Buildables/FGBuildableWidgetSign.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
@@ -291,6 +292,82 @@ void AAMAutomationSubsystem::SetSignDesigns(AFGBuildableWidgetSign* Sign, const 
 	OnRulesChanged.Broadcast();
 }
 
+void AAMAutomationSubsystem::SetLightSettings(AFGBuildable* Light, const FAMLightSetting& Normal, const TArray<FAMLightSetting>& Settings)
+{
+	if (!HasAuthority() || !AMLight::IsLight(Light))
+	{
+		return;
+	}
+	int32 Index = mMachines.IndexOfByPredicate([Light](const FAMMachineRules& Entry) { return Entry.Machine == Light; });
+	if (Index == INDEX_NONE)
+	{
+		if (Settings.Num() == 0)
+		{
+			return;
+		}
+		FAMMachineRules& NewEntry = mMachines.AddDefaulted_GetRef();
+		NewEntry.Machine = Light;
+		Index = mMachines.Num() - 1;
+	}
+	FAMMachineRules& Entry = mMachines[Index];
+	Entry.LightNormal = Normal;
+	Entry.LightNormal.Event.Reset();
+	Entry.LightSettings.Reset();
+	for (const FAMLightSetting& Setting : Settings)
+	{
+		FAMLightSetting Clean = Setting;
+		Clean.Event = AMRules::NormalizeEventName(Setting.Event);
+		if (!Clean.Event.IsEmpty() && !Entry.LightSettings.ContainsByPredicate([&Clean](const FAMLightSetting& S) { return S.Event == Clean.Event; }))
+		{
+			Entry.LightSettings.Add(Clean);
+		}
+	}
+	if (!Entry.LightSettings.ContainsByPredicate([&Entry](const FAMLightSetting& S) { return S.Event == Entry.LightShowing; }))
+	{
+		Entry.LightShowing.Reset();
+	}
+	UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %d light settings, showing %s"), *AMAS_Describe(Light), Entry.LightSettings.Num(),
+		Entry.LightShowing.IsEmpty() ? TEXT("the normal settings") : *Entry.LightShowing);
+	if (Entry.LightSettings.Num() == 0)
+	{
+		AMLight::Apply(Light, Normal);
+		if (Entry.IsEmpty())
+		{
+			mMachines.RemoveAt(Index);
+		}
+	}
+	else
+	{
+		TWeakObjectPtr<AFGBuildable> WeakLight(Light);
+		FTimerHandle Later;
+		GetWorldTimerManager().SetTimer(Later, FTimerDelegate::CreateWeakLambda(this, [this, WeakLight]()
+		{
+			ShowCurrentLightSetting(WeakLight.Get());
+		}), 1.f, false);
+	}
+	ForceNetUpdate();
+	OnRulesChanged.Broadcast();
+}
+
+void AAMAutomationSubsystem::PreviewLight(AFGBuildable* Light, const FAMLightSetting& Setting)
+{
+	if (HasAuthority() && AMLight::IsLight(Light))
+	{
+		AMLight::Apply(Light, Setting);
+	}
+}
+
+void AAMAutomationSubsystem::ShowCurrentLightSetting(AFGBuildable* Light)
+{
+	const FAMMachineRules* Rules = FindRules(Light);
+	if (!Rules || Rules->LightSettings.Num() == 0)
+	{
+		return;
+	}
+	const FAMLightSetting* Setting = Rules->LightSettings.FindByPredicate([Rules](const FAMLightSetting& S) { return S.Event == Rules->LightShowing; });
+	AMLight::Apply(Light, Setting ? *Setting : Rules->LightNormal);
+}
+
 void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, const AActor* OnlyMachine, bool bOnlyHub, bool bMam)
 {
 	if (!HasAuthority() || Event.IsEmpty())
@@ -299,6 +376,7 @@ void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, con
 	}
 	int32 Removed = 0;
 	TArray<AFGBuildableWidgetSign*> SignsToRefresh;
+	TArray<AFGBuildable*> LightsToRefresh;
 	for (FAMMachineRules& Entry : mMachines)
 	{
 		if (bOnlyHub || (OnlyMachine && Entry.Machine.Get() != OnlyMachine))
@@ -336,6 +414,26 @@ void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, con
 					}
 				}
 			}
+			const int32 Lights = Entry.LightSettings.RemoveAll([&Event](const FAMLightSetting& Setting) { return Setting.Event == Event; });
+			if (Lights > 0)
+			{
+				Removed += Lights;
+				if (Entry.LightShowing == Event)
+				{
+					Entry.LightShowing.Reset();
+				}
+				if (Entry.Machine)
+				{
+					if (Entry.LightSettings.Num() == 0)
+					{
+						AMLight::Apply(Entry.Machine, Entry.LightNormal);
+					}
+					else
+					{
+						LightsToRefresh.Add(Entry.Machine);
+					}
+				}
+			}
 		}
 	}
 	if (bRingers && !OnlyMachine)
@@ -353,6 +451,10 @@ void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, con
 	for (AFGBuildableWidgetSign* Sign : SignsToRefresh)
 	{
 		ShowCurrentSignDesign(Sign);
+	}
+	for (AFGBuildable* Light : LightsToRefresh)
+	{
+		ShowCurrentLightSetting(Light);
 	}
 	RemoveInvalidEntries();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Alarm %s cleared (%s): %d rows removed"), *Event, bRingers ? TEXT("ringers") : TEXT("listeners"), Removed);
@@ -584,6 +686,10 @@ TArray<FString> AAMAutomationSubsystem::GetAllEventNames() const
 		{
 			Names.Add(Design.Event);
 		}
+		for (const FAMLightSetting& Setting : Entry.LightSettings)
+		{
+			Names.Add(Setting.Event);
+		}
 	}
 	TArray<FString> Result = Names.Array();
 	Result.Sort();
@@ -601,7 +707,8 @@ void AAMAutomationSubsystem::CountEventUses(const FString& Event, int32& OutRing
 			++OutRingers;
 		}
 		if (Entry.Reactions.ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; })
-			|| Entry.SignDesigns.ContainsByPredicate([&Event](const FAMSignDesign& Design) { return Design.Event == Event; }))
+			|| Entry.SignDesigns.ContainsByPredicate([&Event](const FAMSignDesign& Design) { return Design.Event == Event; })
+			|| Entry.LightSettings.ContainsByPredicate([&Event](const FAMLightSetting& Setting) { return Setting.Event == Event; }))
 		{
 			++OutActors;
 		}
@@ -627,7 +734,7 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 	return Machine && (Machine->IsA<AFGBuildableManufacturer>() || Machine->IsA<AFGBuildableResourceExtractor>()
 		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
 		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
-		|| Machine->IsA<AFGBuildableCircuitSwitch>());
+		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine));
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -782,6 +889,17 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringe
 				Entry.SignShowing = Event;
 				AMSign::Show(Sign, *Design);
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s shows its %s design"), *AMAS_Describe(Sign), *Event);
+			}
+			continue;
+		}
+		// Lights: this alarm's settings.
+		if (AMLight::IsLight(Entry.Machine))
+		{
+			if (const FAMLightSetting* Setting = Entry.LightSettings.FindByPredicate([&Event](const FAMLightSetting& S) { return S.Event == Event; }))
+			{
+				Entry.LightShowing = Event;
+				AMLight::Apply(Entry.Machine, *Setting);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s gets its %s settings"), *AMAS_Describe(Entry.Machine), *Event);
 			}
 			continue;
 		}

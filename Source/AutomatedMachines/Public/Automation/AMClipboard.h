@@ -27,6 +27,9 @@ namespace AMClipboard
 		/** Signs: the normal design and the alarm designs. */
 		FAMSignDesign SignNormal;
 		TArray<FAMSignDesign> SignDesigns;
+		/** Lights: the normal settings and the alarm settings. */
+		FAMLightSetting LightNormal;
+		TArray<FAMLightSetting> LightSettings;
 	};
 
 	/** Installs the hooks (once, at module startup, not in the editor). */

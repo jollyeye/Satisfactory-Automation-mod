@@ -13,6 +13,10 @@
 // The designs are sent to the server when they change and when the window closes; the server then
 // shows on the sign the design it should show (its last rung alarm's, or the normal one).
 //
+// Lights and light control panels (one game window, BPW_LightsControlPanel) get the same list: "Settings",
+// Default and one row per alarm. There the game's controls set the light itself while editing; each
+// row's settings are read from and loaded into the window (bLightMode).
+//
 // This widget is hooked into the Sign Designer's page: an empty, click-through layer over it (visible,
 // so it always has a size: the alarm picker floats on it, above "+ Auto Settings"). The list (made in
 // its widget tree) goes into the window's body row, next to the page.
@@ -118,6 +122,24 @@ private:
 	UObject* GetWindowFrame() const;
 	class AFGBuildableWidgetSign* GetSign() const;
 
+	/** The sign, or the light / light control panel, of the window. */
+	class AFGBuildable* GetTarget() const;
+
+	/** Lights: the settings shown in the window, and loading some into it (and onto the light). */
+	bool ReadLightEditor(FAMLightSetting& OutSetting, const FString& Event) const;
+	void LoadLightEditor(const FAMLightSetting& Setting);
+	FAMLightSetting& GetLightSlot(int32 Index);
+
+	/** The rows of the list, whichever kind (designs or light settings). */
+	int32 NumSlots() const;
+	FString SlotEvent(int32 SlotIndex) const;
+	bool HasSlot(const FString& Event) const;
+
+	/** The window is a light's: light settings, not sign designs. */
+	bool bLightMode = false;
+	FAMLightSetting mLightNormal;
+	TArray<FAMLightSetting> mLights;
+
 	/** The design being edited in the window, and loading one into it. */
 	bool ReadEditor(FAMSignDesign& OutDesign, const FString& Event) const;
 	void LoadEditor(const FAMSignDesign& Design);
@@ -149,7 +171,7 @@ private:
 	bool bSetUp = false;
 
 	/** The sign the tabs were set up for, and the tab buttons our clicks are bound to. */
-	TWeakObjectPtr<class AFGBuildableWidgetSign> mSetupSign;
+	TWeakObjectPtr<class AFGBuildable> mSetupTarget;
 	TArray<TWeakObjectPtr<UWidget>> mBoundButtons;
 	FTimerHandle mWatchTimer;
 	bool bHadDesigns = false;

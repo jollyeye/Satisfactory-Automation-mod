@@ -237,6 +237,35 @@ struct AUTOMATEDMACHINES_API FAMSignDesign
 	TSubclassOf<UObject> SignType;
 };
 
+/**
+ * A light's settings for an alarm (lights and light control panels, the game's light window): when
+ * the alarm rings, the light switches to them. Event empty: the light's normal settings.
+ */
+USTRUCT(BlueprintType)
+struct AUTOMATEDMACHINES_API FAMLightSetting
+{
+	GENERATED_BODY()
+
+	UPROPERTY(SaveGame)
+	FString Event;
+
+	/** Which of the game's light colour slots (0..6). */
+	UPROPERTY(SaveGame)
+	int32 ColorSlot = 0;
+
+	/** 0.1 .. 1, like the game's slider. */
+	UPROPERTY(SaveGame)
+	float Intensity = 1.f;
+
+	/** Night mode: lit only at night. */
+	UPROPERTY(SaveGame)
+	bool bNightMode = false;
+
+	/** On (not in standby). */
+	UPROPERTY(SaveGame)
+	bool bEnabled = true;
+};
+
 /** All rules of one machine. Machines without rules have no entry at all. */
 USTRUCT(BlueprintType)
 struct AUTOMATEDMACHINES_API FAMMachineRules
@@ -265,7 +294,17 @@ struct AUTOMATEDMACHINES_API FAMMachineRules
 	UPROPERTY(SaveGame)
 	FString SignShowing;
 
-	bool IsEmpty() const { return Fires.Num() == 0 && Reactions.Num() == 0 && Options.IsDefault() && SignDesigns.Num() == 0; }
+	/** Lights: settings per alarm, the normal settings, and the alarm whose settings show now (empty: normal). */
+	UPROPERTY(SaveGame)
+	TArray<FAMLightSetting> LightSettings;
+
+	UPROPERTY(SaveGame)
+	FAMLightSetting LightNormal;
+
+	UPROPERTY(SaveGame)
+	FString LightShowing;
+
+	bool IsEmpty() const { return Fires.Num() == 0 && Reactions.Num() == 0 && Options.IsDefault() && SignDesigns.Num() == 0 && LightSettings.Num() == 0; }
 };
 
 namespace AMRules

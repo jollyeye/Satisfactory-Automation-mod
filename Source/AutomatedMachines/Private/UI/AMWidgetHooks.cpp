@@ -66,6 +66,11 @@ namespace
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
 	const TCHAR* const AMWH_SignPageChild = TEXT("mSaveButton");
 
+	// Lights and light control panels: one window (dump 6 Nov 2026), a canvas page; the same side
+	// list as the signs (UAMSignTabs in light mode), hooked next to its Copy / Paste buttons.
+	const TCHAR* const AMWH_LightWindow = TEXT("/Game/FactoryGame/Buildable/Factory/LightsControlPanel/UI/BPW_LightsControlPanel.BPW_LightsControlPanel_C");
+	const TCHAR* const AMWH_LightPageChild = TEXT("mCopyPasteButtons");
+
 	// Power switches and priority power switches: one window with sliding pages, like the production
 	// window (dump 5 Nov 2026): the switch page and the priority list (its tab button is collapsed on
 	// a plain power switch) side by side in HorizontalBox_0.
@@ -133,6 +138,8 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_GeneratorWindow, AMWH_StandbyButton, TEXT("AM_GeneratorAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());
+		AMWH_HookPages(HookManager, AMWH_LightWindow, AMWH_LightPageChild, TEXT("AM_LightSettingsTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());
 	}
 }

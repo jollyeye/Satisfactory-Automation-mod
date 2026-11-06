@@ -3,6 +3,8 @@
 #include "UI/AMUIHelpers.h"
 #include "Automation/AMAutomationSubsystem.h"
 #include "Automation/AMSign.h"
+#include "Automation/AMLight.h"
+#include "Buildables/FGBuildableLightSource.h"
 #include "Net/AMRemoteCallObject.h"
 #include "Buildables/FGBuildableWidgetSign.h"
 #include "FGSignTypes.h"
@@ -203,7 +205,7 @@ void UAMSignTabs::NativeConstruct()
 void UAMSignTabs::Watch()
 {
 	UpdateListHeight();
-	if (bSetUp && GetSign() != mSetupSign.Get())
+	if (bSetUp && GetTarget() != mSetupTarget.Get())
 	{
 		// The window now edits another sign: its designs, not the last sign's.
 		UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: the window shows another sign, setting up again"));
@@ -235,10 +237,10 @@ void UAMSignTabs::NativeDestruct()
 		World->GetTimerManager().ClearTimer(mWatchTimer);
 	}
 	ClosePicker();
-	if (bSetUp && GetSign() == mSetupSign.Get())
+	if (bSetUp && GetTarget() == mSetupTarget.Get())
 	{
 		CaptureEditor();
-		if (mDesigns.Num() > 0 || bHadDesigns)
+		if (NumSlots() > 0 || bHadDesigns)
 		{
 			SendDesigns();
 		}
@@ -250,7 +252,7 @@ void UAMSignTabs::NativeDestruct()
 		mSidePanel->RemoveFromParent();
 	}
 	bSetUp = false;
-	mSetupSign = nullptr;
+	mSetupTarget = nullptr;
 	if (AMST_Open.Get() == this)
 	{
 		AMST_Open = nullptr;
@@ -261,7 +263,7 @@ void UAMSignTabs::NativeDestruct()
 bool UAMSignTabs::CopyOpenEditor(const AFGBuildableWidgetSign* Sign, UObject* ClipboardSettings)
 {
 	const UAMSignTabs* Open = AMST_Open.Get();
-	if (!Open || !Open->bSetUp || !Sign || Open->mSetupSign.Get() != Sign || !ClipboardSettings)
+	if (!Open || !Open->bSetUp || !Sign || Open->mSetupTarget.Get() != Sign || !ClipboardSettings)
 	{
 		return false;
 	}
@@ -365,7 +367,7 @@ void UAMSignTabs::OnGameClipboardPasted(UObject* Object, UObject* PlayerState)
 	// What the editor holds a moment later (the window loads the pasted design itself).
 	UAMSignTabs* Open = AMST_Open.Get();
 	UWorld* World = Open ? Open->GetWorld() : nullptr;
-	if (World && Open->mSetupSign.Get() == Sign)
+	if (World && Open->mSetupTarget.Get() == Sign)
 	{
 		TWeakObjectPtr<UAMSignTabs> WeakOpen = Open;
 		FTimerHandle Later;
@@ -418,6 +420,128 @@ AFGBuildableWidgetSign* UAMSignTabs::GetSign() const
 	return Cast<AFGBuildableWidgetSign>(AMST_GetObject(GetHostWindow(), AMST_SignProperty));
 }
 
+AFGBuildable* UAMSignTabs::GetTarget() const
+{
+	if (AFGBuildableWidgetSign* Sign = GetSign())
+	{
+		return Sign;
+	}
+	AFGBuildable* Light = Cast<AFGBuildable>(AMST_GetObject(GetHostWindow(), TEXT("mInteractObject")));
+	return AMLight::IsLight(Light) ? Light : nullptr;
+}
+
+int32 UAMSignTabs::NumSlots() const
+{
+	return bLightMode ? mLights.Num() : mDesigns.Num();
+}
+
+FString UAMSignTabs::SlotEvent(int32 SlotIndex) const
+{
+	if (bLightMode)
+	{
+		return mLights.IsValidIndex(SlotIndex) ? mLights[SlotIndex].Event : FString();
+	}
+	return mDesigns.IsValidIndex(SlotIndex) ? mDesigns[SlotIndex].Event : FString();
+}
+
+bool UAMSignTabs::HasSlot(const FString& Event) const
+{
+	return bLightMode
+		? mLights.ContainsByPredicate([&Event](const FAMLightSetting& S) { return S.Event == Event; })
+		: mDesigns.ContainsByPredicate([&Event](const FAMSignDesign& D) { return D.Event == Event; });
+}
+
+FAMLightSetting& UAMSignTabs::GetLightSlot(int32 Index)
+{
+	return mLights.IsValidIndex(Index - 1) ? mLights[Index - 1] : mLightNormal;
+}
+
+bool UAMSignTabs::ReadLightEditor(FAMLightSetting& OutSetting, const FString& Event) const
+{
+	// The window's own copy (what its controls show, also before the light has it back from the
+	// server); the light's when the window has none.
+	const UUserWidget* Host = GetHostWindow();
+	const FStructProperty* DataProperty = Host ? FindFProperty<FStructProperty>(Host->GetClass(), TEXT("mControlData")) : nullptr;
+	const AFGBuildable* Light = mSetupTarget.Get() ? mSetupTarget.Get() : GetTarget();
+	if (!Light)
+	{
+		return false;
+	}
+	OutSetting = AMLight::Read(Light, Event);
+	if (DataProperty && DataProperty->Struct == FLightSourceControlData::StaticStruct())
+	{
+		const FLightSourceControlData& Data = *DataProperty->ContainerPtrToValuePtr<FLightSourceControlData>(Host);
+		OutSetting.ColorSlot = Data.ColorSlotIndex;
+		OutSetting.Intensity = Data.Intensity;
+		OutSetting.bNightMode = Data.IsTimeOfDayAware;
+	}
+	// On / standby: the window's standby button.
+	const UObject* Standby = AMST_GetObject(Host, TEXT("mStandbyButton"));
+	if (const FBoolProperty* Paused = Standby ? FindFProperty<FBoolProperty>(Standby->GetClass(), TEXT("mIsProductionPaused")) : nullptr)
+	{
+		OutSetting.bEnabled = !Paused->GetPropertyValue_InContainer(Standby);
+	}
+	return true;
+}
+
+void UAMSignTabs::LoadLightEditor(const FAMLightSetting& Setting)
+{
+	UUserWidget* Host = GetHostWindow();
+	AFGBuildable* Light = mSetupTarget.Get();
+	if (!Host || !Light)
+	{
+		return;
+	}
+	FLightSourceControlData Data;
+	Data.ColorSlotIndex = Setting.ColorSlot;
+	Data.Intensity = Setting.Intensity;
+	Data.IsTimeOfDayAware = Setting.bNightMode;
+	// The window's own values, then its own functions: they set the light and redraw the controls.
+	if (const FStructProperty* DataProperty = FindFProperty<FStructProperty>(Host->GetClass(), TEXT("mControlData")))
+	{
+		if (DataProperty->Struct == FLightSourceControlData::StaticStruct())
+		{
+			*DataProperty->ContainerPtrToValuePtr<FLightSourceControlData>(Host) = Data;
+		}
+	}
+	if (const FIntProperty* SlotProperty = FindFProperty<FIntProperty>(Host->GetClass(), TEXT("mCurrentColorSlot")))
+	{
+		SlotProperty->SetPropertyValue_InContainer(Host, Data.ColorSlotIndex);
+	}
+	if (const FDoubleProperty* IntensityProperty = FindFProperty<FDoubleProperty>(Host->GetClass(), TEXT("mNormalizedIntensity")))
+	{
+		IntensityProperty->SetPropertyValue_InContainer(Host, Data.Intensity);
+	}
+	AMST_Call(Host, TEXT("SetControlData"), [&Data](UFunction* Function, uint8* Params)
+	{
+		for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			if (const FStructProperty* Param = CastField<FStructProperty>(*It))
+			{
+				if (Param->Struct == FLightSourceControlData::StaticStruct())
+				{
+					*Param->ContainerPtrToValuePtr<FLightSourceControlData>(Params) = Data;
+					break;
+				}
+			}
+		}
+	});
+	AMST_CallWith<FBoolProperty>(Host, TEXT("Set Light Enabled"), Setting.bEnabled);
+	if (UObject* Standby = AMST_GetObject(Host, TEXT("mStandbyButton")))
+	{
+		// (paused, update on server = false: the light is set by us and by the window.)
+		AMST_CallWith<FBoolProperty>(Standby, TEXT("SetIsProductionPaused"), !Setting.bEnabled);
+	}
+	AMST_CallNoParams(Host, TEXT("UpdateColorSelector"));
+	AMST_CallNoParams(Host, TEXT("UpdateIntensitySelector"));
+	AMST_CallNoParams(Host, TEXT("UpdateNightModeSelector"));
+	AMST_CallNoParams(Host, TEXT("UpdatePreviewMaterial"));
+	// And on the light itself (the server), whatever the window did.
+	UAMRemoteCallObject::RequestPreviewLight(GetOwningPlayer(), Light, Setting);
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Light settings: loaded %s (colour %d, intensity %.2f, night %d, on %d)"),
+		Setting.Event.IsEmpty() ? TEXT("Default") : *Setting.Event, Setting.ColorSlot, Setting.Intensity, Setting.bNightMode ? 1 : 0, Setting.bEnabled ? 1 : 0);
+}
+
 bool UAMSignTabs::ReadEditor(FAMSignDesign& OutDesign, const FString& Event) const
 {
 	const UUserWidget* Host = GetHostWindow();
@@ -464,6 +588,16 @@ FAMSignDesign& UAMSignTabs::GetSlot(int32 Index)
 
 void UAMSignTabs::CaptureEditor()
 {
+	if (bLightMode)
+	{
+		FAMLightSetting& CurrentLight = GetLightSlot(mSelected);
+		FAMLightSetting EditedLight;
+		if (ReadLightEditor(EditedLight, CurrentLight.Event))
+		{
+			CurrentLight = EditedLight;
+		}
+		return;
+	}
 	FAMSignDesign& Current = GetSlot(mSelected);
 	FAMSignDesign Edited;
 	if (ReadEditor(Edited, Current.Event))
@@ -474,7 +608,16 @@ void UAMSignTabs::CaptureEditor()
 
 void UAMSignTabs::SendDesigns()
 {
-	if (AFGBuildableWidgetSign* Sign = mSetupSign.Get())
+	if (bLightMode)
+	{
+		if (AFGBuildable* Light = mSetupTarget.Get())
+		{
+			UAMRemoteCallObject::RequestSetLightSettings(GetOwningPlayer(), Light, mLightNormal, mLights);
+			bHadDesigns = mLights.Num() > 0;
+		}
+		return;
+	}
+	if (AFGBuildableWidgetSign* Sign = Cast<AFGBuildableWidgetSign>(mSetupTarget.Get()))
 	{
 		UAMRemoteCallObject::RequestSetSignDesigns(GetOwningPlayer(), Sign, mNormal, mDesigns);
 		bHadDesigns = mDesigns.Num() > 0;
@@ -493,10 +636,10 @@ FSlateFontInfo UAMSignTabs::GetFont() const
 void UAMSignTabs::Setup()
 {
 	UObject* Frame = GetWindowFrame();
-	AFGBuildableWidgetSign* Sign = GetSign();
+	AFGBuildable* Target = GetTarget();
 	FArrayProperty* TabsProperty = Frame ? FindFProperty<FArrayProperty>(Frame->GetClass(), AMST_TabsProperty) : nullptr;
 	const bool bHasTabs = TabsProperty && FScriptArrayHelper(TabsProperty, TabsProperty->ContainerPtrToValuePtr<void>(Frame)).Num() > 0;
-	if (!Sign || !bHasTabs)
+	if (!Target || !bHasTabs)
 	{
 		// The window fills its tab list in its own construct: again next tick.
 		if (++mSetupTries < 20)
@@ -508,10 +651,39 @@ void UAMSignTabs::Setup()
 		}
 		else
 		{
-			UE_LOG(LogAutomatedMachines, Warning, TEXT("Sign designs: no sign or no tab list in the window"));
+			UE_LOG(LogAutomatedMachines, Warning, TEXT("Sign designs: no sign / light or no tab list in the window"));
 		}
 		return;
 	}
+	bLightMode = AMLight::IsLight(Target);
+	mSetupTarget = Target;
+	const AAMAutomationSubsystem* LightSubsystem = AAMAutomationSubsystem::Get(this);
+	const FAMMachineRules* LightRules = LightSubsystem ? LightSubsystem->FindRules(Target) : nullptr;
+	if (bLightMode)
+	{
+		// The settings: ours if the light has any, else what it has now is the normal one.
+		mLights.Reset();
+		mSelected = 0;
+		if (LightRules && LightRules->LightSettings.Num() > 0)
+		{
+			mLightNormal = LightRules->LightNormal;
+			mLights = LightRules->LightSettings;
+			const int32 Showing = mLights.IndexOfByPredicate([LightRules](const FAMLightSetting& S) { return S.Event == LightRules->LightShowing; });
+			mSelected = Showing == INDEX_NONE ? 0 : Showing + 1;
+			bHadDesigns = true;
+		}
+		else
+		{
+			ReadLightEditor(mLightNormal, FString());
+			bHadDesigns = false;
+		}
+		bSetUp = true;
+		AMST_Open = this;
+		RebuildTabs();
+		UE_LOG(LogAutomatedMachines, Log, TEXT("Light settings for %s: %d alarm settings, tab %d selected"), *Target->GetName(), mLights.Num(), mSelected);
+		return;
+	}
+	AFGBuildableWidgetSign* Sign = Cast<AFGBuildableWidgetSign>(Target);
 
 	// The designs: ours if the sign has any, else its current design is the normal one.
 	mDesigns.Reset();
@@ -533,7 +705,6 @@ void UAMSignTabs::Setup()
 		bHadDesigns = false;
 	}
 	bSetUp = true;
-	mSetupSign = Sign;
 	AMST_Open = this;
 	RebuildTabs();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs for %s: %d alarm designs, tab %d selected"), *Sign->GetName(), mDesigns.Num(), mSelected);
@@ -580,7 +751,7 @@ void UAMSignTabs::RebuildTabs()
 	mSidePanel->AddChild(Panel);
 	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
 	Panel->AddChild(Column);
-	if (UVerticalBoxSlot* TitleSlot = Column->AddChildToVerticalBox(AMUI::MakeText(WidgetTree, TEXT("Designs"), AMUI::SizedFont(Font, 15), AMUI::White)))
+	if (UVerticalBoxSlot* TitleSlot = Column->AddChildToVerticalBox(AMUI::MakeText(WidgetTree, bLightMode ? TEXT("Settings") : TEXT("Designs"), AMUI::SizedFont(Font, 15), AMUI::White)))
 	{
 		TitleSlot->SetPadding(FMargin(4.f, 2.f, 0.f, 8.f));
 	}
@@ -674,15 +845,15 @@ void UAMSignTabs::RebuildTabs()
 	};
 
 	AddRow(0, TEXT("Default"), false);
-	for (int32 Index = 0; Index < mDesigns.Num(); ++Index)
+	for (int32 Index = 0; Index < NumSlots(); ++Index)
 	{
-		AddRow(Index + 1, mDesigns[Index].Event, true);
+		AddRow(Index + 1, SlotEvent(Index), true);
 	}
 
 	// "+ Auto Settings" under the list (its handler's index is one past the designs: SelectTab opens the picker).
 	UAMSignTabHandler* AddHandler = NewObject<UAMSignTabHandler>(this);
 	AddHandler->Owner = this;
-	AddHandler->Index = mDesigns.Num() + 1;
+	AddHandler->Index = NumSlots() + 1;
 	mHandlers.Add(AddHandler);
 	mAddButton = AMUI::MakeButton(WidgetTree, AMST_AddTitle, Font, AMUI::Button, nullptr);
 	mAddButton->OnClicked.AddDynamic(AddHandler, &UAMSignTabHandler::OnTabClicked);
@@ -707,7 +878,7 @@ void UAMSignTabs::RebuildTabs()
 void UAMSignTabs::SelectTab(int32 Index)
 {
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: tab %d clicked"), Index);
-	if (Index == mDesigns.Num() + 1)
+	if (Index == NumSlots() + 1)
 	{
 		// "+ Auto Settings" opens the picker under it; pressed again ("Cancel"), closes it.
 		if (bPickerOpen)
@@ -720,7 +891,7 @@ void UAMSignTabs::SelectTab(int32 Index)
 		}
 		return;
 	}
-	if (Index < 0 || Index > mDesigns.Num())
+	if (Index < 0 || Index > NumSlots())
 	{
 		return;
 	}
@@ -728,7 +899,14 @@ void UAMSignTabs::SelectTab(int32 Index)
 	{
 		CaptureEditor();
 		mSelected = Index;
-		LoadEditor(GetSlot(Index));
+		if (bLightMode)
+		{
+			LoadLightEditor(GetLightSlot(Index));
+		}
+		else
+		{
+			LoadEditor(GetSlot(Index));
+		}
 		// The highlight (orange) moves: on the next tick, not inside the click.
 		if (UWorld* World = GetWorld())
 		{
@@ -747,18 +925,34 @@ void UAMSignTabs::AddDesign(const FString& Alarm)
 		return;
 	}
 	CaptureEditor();
-	const int32 Existing = mDesigns.IndexOfByPredicate([&Event](const FAMSignDesign& D) { return D.Event == Event; });
+	int32 Existing = INDEX_NONE;
+	for (int32 SlotIndex = 0; SlotIndex < NumSlots(); ++SlotIndex)
+	{
+		if (SlotEvent(SlotIndex) == Event)
+		{
+			Existing = SlotIndex;
+		}
+	}
 	if (Existing != INDEX_NONE)
 	{
 		SelectTab(Existing + 1);
 		RebuildTabs();
 		return;
 	}
-	// Starts as a copy of the design being edited.
-	FAMSignDesign Design = GetSlot(mSelected);
-	Design.Event = Event;
-	mDesigns.Add(Design);
-	mSelected = mDesigns.Num();
+	// Starts as a copy of the row being edited.
+	if (bLightMode)
+	{
+		FAMLightSetting Setting = GetLightSlot(mSelected);
+		Setting.Event = Event;
+		mLights.Add(Setting);
+	}
+	else
+	{
+		FAMSignDesign Design = GetSlot(mSelected);
+		Design.Event = Event;
+		mDesigns.Add(Design);
+	}
+	mSelected = NumSlots();
 	RebuildTabs();
 	SendDesigns();
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: added %s"), *Event);
@@ -766,17 +960,31 @@ void UAMSignTabs::AddDesign(const FString& Alarm)
 
 void UAMSignTabs::RemoveDesign(int32 Index)
 {
-	if (!mDesigns.IsValidIndex(Index - 1))
+	if (Index < 1 || Index > NumSlots())
 	{
 		return;
 	}
 	CaptureEditor();
 	const bool bWasSelected = Index == mSelected;
-	mDesigns.RemoveAt(Index - 1);
+	if (bLightMode)
+	{
+		mLights.RemoveAt(Index - 1);
+	}
+	else
+	{
+		mDesigns.RemoveAt(Index - 1);
+	}
 	if (bWasSelected)
 	{
 		mSelected = 0;
-		LoadEditor(mNormal);
+		if (bLightMode)
+		{
+			LoadLightEditor(mLightNormal);
+		}
+		else
+		{
+			LoadEditor(mNormal);
+		}
 	}
 	else if (mSelected > Index)
 	{
@@ -824,7 +1032,7 @@ void UAMSignTabs::OpenPicker()
 	{
 		for (const FString& Alarm : Subsystem->GetAllEventNames())
 		{
-			if (!Alarm.IsEmpty() && !mDesigns.ContainsByPredicate([&Alarm](const FAMSignDesign& D) { return D.Event == Alarm; }))
+			if (!Alarm.IsEmpty() && !HasSlot(Alarm))
 			{
 				mPickerAlarms.Add(Alarm);
 			}
@@ -861,7 +1069,7 @@ void UAMSignTabs::OpenPicker()
 	SearchSize->AddChild(SearchField);
 	mPickerSearch = WidgetTree->ConstructWidget<UEditableText>(UEditableText::StaticClass());
 	mPickerSearch->SetFont(Font);
-	mPickerSearch->SetHintText(FText::FromString(TEXT("design for which alarm?")));
+	mPickerSearch->SetHintText(FText::FromString(bLightMode ? TEXT("settings for which alarm?") : TEXT("design for which alarm?")));
 	mPickerSearch->OnTextChanged.AddDynamic(this, &UAMSignTabs::OnPickerSearchChanged);
 	mPickerSearch->OnTextCommitted.AddDynamic(this, &UAMSignTabs::OnPickerSearchCommitted);
 	SearchField->AddChild(mPickerSearch);
@@ -955,7 +1163,7 @@ void UAMSignTabs::FillPicker(const FString& Filter)
 		UBorder* Message = AMUI::MakeBox(WidgetTree, AMUI::Option, FMargin(12.f, 7.f));
 		Message->AddChild(AMUI::MakeText(WidgetTree, Typed.IsEmpty()
 			? FString(TEXT("No alarms yet: type a name and press Enter."))
-			: FString::Printf(TEXT("Enter: new design for %s"), *Typed), Font, AMUI::Grey));
+			: FString::Printf(bLightMode ? TEXT("Enter: new settings for %s") : TEXT("Enter: new design for %s"), *Typed), Font, AMUI::Grey));
 		mPickerList->AddChildToVerticalBox(Message);
 	}
 }

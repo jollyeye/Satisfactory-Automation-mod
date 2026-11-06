@@ -34,6 +34,18 @@ public:
 	/** Changes a sign's designs: directly on the server, through the server on a client. */
 	static void RequestSetSignDesigns(APlayerController* Player, AFGBuildable* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs);
 
+	UFUNCTION(Server, Reliable)
+	void ServerSetLightSettings(AFGBuildable* Light, const FAMLightSetting& Normal, const TArray<FAMLightSetting>& Settings);
+
+	/** A light's settings (lights, light control panels): on the server directly, else through the RCO. */
+	static void RequestSetLightSettings(APlayerController* Player, AFGBuildable* Light, const FAMLightSetting& Normal, const TArray<FAMLightSetting>& Settings);
+
+	UFUNCTION(Server, Reliable)
+	void ServerPreviewLight(AFGBuildable* Light, const FAMLightSetting& Setting);
+
+	/** Gives a light some settings now (its window shows another row of the list). */
+	static void RequestPreviewLight(APlayerController* Player, AFGBuildable* Light, const FAMLightSetting& Setting);
+
 	/** Every player gets this object (made on the server when the player controller starts). */
 	static void InstallRegistration();
 

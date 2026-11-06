@@ -13,6 +13,7 @@
 #include "UObject/ObjectKey.h"
 #include "Buildables/FGBuildableWidgetSign.h"
 #include "UI/AMSignTabs.h"
+#include "Automation/AMLight.h"
 
 namespace
 {
@@ -52,6 +53,10 @@ namespace
 
 	FString AMCB_Describe(const AMClipboard::FClip& Clip)
 	{
+		if (Clip.LightSettings.Num() > 0)
+		{
+			return FString::Printf(TEXT("%d alarm setting%s"), Clip.LightSettings.Num(), Clip.LightSettings.Num() == 1 ? TEXT("") : TEXT("s"));
+		}
 		if (Clip.SignDesigns.Num() > 0)
 		{
 			return FString::Printf(TEXT("%d alarm design%s"), Clip.SignDesigns.Num(), Clip.SignDesigns.Num() == 1 ? TEXT("") : TEXT("s"));
@@ -76,6 +81,8 @@ namespace
 		OutClip.Options = Rules->Options;
 		OutClip.SignNormal = Rules->SignNormal;
 		OutClip.SignDesigns = Rules->SignDesigns;
+		OutClip.LightNormal = Rules->LightNormal;
+		OutClip.LightSettings = Rules->LightSettings;
 		return true;
 	}
 }
@@ -135,6 +142,11 @@ bool AMClipboard::Paste(AFGPlayerState* Player, UObject* Object)
 		// The game pastes the design itself; the alarm designs come from us.
 		UAMRemoteCallObject::RequestSetSignDesigns(AMCB_Controller(Player), Machine, Clip->SignNormal, Clip->SignDesigns);
 	}
+	else if (AMLight::IsLight(Machine))
+	{
+		// The game pastes the light's own settings; the alarm settings come from us.
+		UAMRemoteCallObject::RequestSetLightSettings(AMCB_Controller(Player), Machine, Clip->LightNormal, Clip->LightSettings);
+	}
 	else
 	{
 		UAMRemoteCallObject::RequestSetRules(AMCB_Controller(Player), Machine, Clip->Fires, Clip->Reactions, Clip->Options);
@@ -155,6 +167,10 @@ void AMClipboard::OnBuildableConstructed(AAMAutomationSubsystem* Subsystem, AFGB
 	if (AFGBuildableWidgetSign* Sign = Cast<AFGBuildableWidgetSign>(Buildable))
 	{
 		Subsystem->SetSignDesigns(Sign, Sample->Clip.SignNormal, Sample->Clip.SignDesigns);
+	}
+	else if (AMLight::IsLight(Buildable))
+	{
+		Subsystem->SetLightSettings(Buildable, Sample->Clip.LightNormal, Sample->Clip.LightSettings);
 	}
 	else
 	{

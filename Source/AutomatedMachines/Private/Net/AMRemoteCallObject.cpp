@@ -123,6 +123,66 @@ void UAMRemoteCallObject::RequestSetSignDesigns(APlayerController* Player, AFGBu
 	}
 }
 
+void UAMRemoteCallObject::ServerSetLightSettings_Implementation(AFGBuildable* Light, const FAMLightSetting& Normal, const TArray<FAMLightSetting>& Settings)
+{
+	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Light))
+	{
+		Subsystem->SetLightSettings(Light, Normal, Settings);
+	}
+}
+
+void UAMRemoteCallObject::RequestSetLightSettings(APlayerController* Player, AFGBuildable* Light, const FAMLightSetting& Normal, const TArray<FAMLightSetting>& Settings)
+{
+	if (!Light)
+	{
+		return;
+	}
+	if (Light->HasAuthority())
+	{
+		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Light))
+		{
+			Subsystem->SetLightSettings(Light, Normal, Settings);
+		}
+		return;
+	}
+	AFGPlayerController* FGPlayer = Cast<AFGPlayerController>(Player);
+	UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr;
+	if (RCO)
+	{
+		RCO->ServerSetLightSettings(Light, Normal, Settings);
+	}
+}
+
+void UAMRemoteCallObject::ServerPreviewLight_Implementation(AFGBuildable* Light, const FAMLightSetting& Setting)
+{
+	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Light))
+	{
+		Subsystem->PreviewLight(Light, Setting);
+	}
+}
+
+void UAMRemoteCallObject::RequestPreviewLight(APlayerController* Player, AFGBuildable* Light, const FAMLightSetting& Setting)
+{
+	if (!Light)
+	{
+		return;
+	}
+	if (Light->HasAuthority())
+	{
+		if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(Light))
+		{
+			Subsystem->PreviewLight(Light, Setting);
+		}
+		return;
+	}
+	AFGPlayerController* FGPlayer = Cast<AFGPlayerController>(Player);
+	UAMRemoteCallObject* RCO = FGPlayer ? Cast<UAMRemoteCallObject>(FGPlayer->GetRemoteCallObjectOfClass(StaticClass())) : nullptr;
+	if (RCO)
+	{
+		RCO->ServerPreviewLight(Light, Setting);
+	}
+}
+
 void UAMRemoteCallObject::ServerClearAlarm_Implementation(const FString& Event, bool bRingers, AFGBuildable* OnlyMachine, bool bOnlyHub, bool bMam)
 {
 	if (AAMAutomationSubsystem* Subsystem = AAMAutomationSubsystem::Get(GetOuter()))

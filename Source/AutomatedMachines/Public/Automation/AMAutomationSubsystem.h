@@ -71,6 +71,16 @@ public:
 	void SetSignDesigns(class AFGBuildableWidgetSign* Sign, const FAMSignDesign& Normal, const TArray<FAMSignDesign>& Designs);
 
 	/**
+	 * The same for a light or light control panel (server only): its normal settings and one per
+	 * alarm. The light then gets the settings it should have (a second later, after the window's own
+	 * changes). No settings: the normal ones, and the entry goes.
+	 */
+	void SetLightSettings(AFGBuildable* Light, const FAMLightSetting& Normal, const TArray<FAMLightSetting>& Settings);
+
+	/** Gives a light some settings now (server only): the window shows another row of its list. */
+	void PreviewLight(AFGBuildable* Light, const FAMLightSetting& Setting);
+
+	/**
 	 * Removes an alarm (server only): bRingers = the machines' alarm rows with this name; else every
 	 * action with it (machines, the HUB) and every sign design for it. OnlyMachine: from that one
 	 * machine only; bOnlyHub: from the HUB's actions only (the overview's per-machine bins).
@@ -104,6 +114,9 @@ protected:
 private:
 	/** Shows on a sign the design it should show now (its alarm's, or the normal one). */
 	void ShowCurrentSignDesign(class AFGBuildableWidgetSign* Sign);
+
+	/** Gives a light the settings it should have now (its alarm's, or the normal ones). */
+	void ShowCurrentLightSetting(AFGBuildable* Light);
 
 	/** Removes entries of dismantled machines and entries without rules. Returns true if any were removed. */
 	bool RemoveInvalidEntries();
