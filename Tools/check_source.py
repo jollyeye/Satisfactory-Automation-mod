@@ -33,6 +33,10 @@ for path in sorted(glob.glob("Source/**/*.h", recursive=True) + glob.glob("Sourc
         if code.count('"') % 2 == 1:
             print(f"{path}:{number}: string not closed on its line")
             problems += 1
+        # UE checks Printf formats at compile time: the format must be a TEXT("...") literal.
+        if re.search(r"Printf\(\s*(?!TEXT\()[^\s)]", line):
+            print(f"{path}:{number}: Printf format is not a TEXT() literal")
+            problems += 1
 
 print("check_source: OK" if problems == 0 else f"check_source: {problems} problem(s)")
 sys.exit(1 if problems else 0)
