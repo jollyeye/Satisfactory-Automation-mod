@@ -15,6 +15,7 @@
 #include "Buildables/FGBuildablePriorityPowerSwitch.h"
 #include "Buildables/FGBuildablePipelinePump.h"
 #include "FGPipeSubsystem.h"
+#include "Buildables/FGBuildablePipeReservoir.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -738,7 +739,7 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
 		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
 		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine)
-		|| AMRules::IsValve(Machine));
+		|| AMRules::IsValve(Machine) || Machine->IsA<AFGBuildablePipeReservoir>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -1002,6 +1003,12 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 
 float AAMAutomationSubsystem::GetFillLevel(const AFGBuildableFactory* Factory)
 {
+	// Fluid buffers: their fluid / their capacity (it can go a little over: kept at 1).
+	if (const AFGBuildablePipeReservoir* Buffer = Cast<AFGBuildablePipeReservoir>(Factory))
+	{
+		const float Max = Buffer->GetFluidContentMax();
+		return Max > 0.f ? FMath::Clamp(Buffer->GetFluidContent() / Max, 0.f, 1.f) : 0.f;
+	}
 	// 0..1: each slot counts as (items / stack size); a container of 48 slots with 24 full stacks is 0.5.
 	AFGBuildableStorage* Storage = const_cast<AFGBuildableStorage*>(Cast<AFGBuildableStorage>(Factory));
 	const UFGInventoryComponent* Inventory = Storage ? Storage->GetStorageInventory() : nullptr;
@@ -1398,8 +1405,15 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			}
 		}
 		break;
+	case EAMAction::FlushBuffer:
+		if (AFGPipeSubsystem* Pipes = Factory->IsA<AFGBuildablePipeReservoir>() ? AFGPipeSubsystem::GetPipeSubsystem(Factory) : nullptr)
+		{
+			Pipes->FlushIntegrant(Factory);
+			UE_LOG(LogAutomatedMachines, Log, TEXT("%s: flushed"), *AMAS_Describe(Factory));
+		}
+		break;
 	case EAMAction::FlushNetwork:
-		if (AFGPipeSubsystem* Pipes = AMRules::IsValve(Factory) ? AFGPipeSubsystem::GetPipeSubsystem(Factory) : nullptr)
+		if (AFGPipeSubsystem* Pipes = (AMRules::IsValve(Factory) || Factory->IsA<AFGBuildablePipeReservoir>()) ? AFGPipeSubsystem::GetPipeSubsystem(Factory) : nullptr)
 		{
 			Pipes->FlushPipeNetworkFromIntegrant(Factory);
 			UE_LOG(LogAutomatedMachines, Log, TEXT("%s: pipe network flushed"), *AMAS_Describe(Factory));

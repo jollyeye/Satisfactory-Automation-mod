@@ -93,6 +93,8 @@ enum class EAMAction : uint8
 	SetFlowLimit   UMETA(DisplayName = "Set flow limit"),
 	// Valves: empties the whole pipe network it is part of (like the pipes' Flush button).
 	FlushNetwork   UMETA(DisplayName = "Flush pipe network"),
+	// Fluid buffers: empties the buffer only (its network keeps its fluid).
+	FlushBuffer    UMETA(DisplayName = "Flush buffer"),
 	Count          UMETA(Hidden)
 };
 

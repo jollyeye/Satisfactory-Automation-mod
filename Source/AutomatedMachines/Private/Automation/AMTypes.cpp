@@ -9,6 +9,7 @@
 #include "Buildables/FGBuildableCircuitSwitch.h"
 #include "Buildables/FGBuildablePriorityPowerSwitch.h"
 #include "Buildables/FGBuildablePipelinePump.h"
+#include "Buildables/FGBuildablePipeReservoir.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
 #include "GameFramework/Actor.h"
@@ -121,6 +122,7 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::SetPriority:   return AMTY_Text(TEXT("Set priority"));
 	case EAMAction::SetFlowLimit:  return AMTY_Text(TEXT("Set flow limit"));
 	case EAMAction::FlushNetwork:  return AMTY_Text(TEXT("Flush pipe network"));
+	case EAMAction::FlushBuffer:   return AMTY_Text(TEXT("Flush buffer"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -251,7 +253,9 @@ FText AMRules::GetActionDescription(EAMAction Action)
 	case EAMAction::SetFlowLimit:
 		return AMTY_Text(TEXT("Sets the flow limit, like the slider in its window (m3 per minute). 0 closes it: nothing flows through."));
 	case EAMAction::FlushNetwork:
-		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nA valve does not split a network: this empties every pipe, pump and buffer connected to it, on both sides."));
+		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nValves and buffers do not split a network: this empties every pipe, pump, valve and buffer connected to it."));
+	case EAMAction::FlushBuffer:
+		return AMTY_Text(TEXT("Empties this fluid buffer only, like its own Flush button: its fluid is destroyed. The pipes around it keep theirs."));
 	case EAMAction::SetPriority:
 		return AMTY_Text(TEXT("Sets the priority of the switch, like the priority in its window. During a power shortage the game turns off the switches with the highest number first; 0 means the game never turns this one off."));
 	default:
@@ -521,8 +525,13 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 	{
 		return !bStorageEvent && !bGeneratorEvent && !bSwitchEvent;
 	}
-	if (Machine->IsA<AFGBuildableStorage>())
+	if (Machine->IsA<AFGBuildableStorage>() || Machine->IsA<AFGBuildablePipeReservoir>())
 	{
+		// Fluid buffers: like containers (full, empty, filled above / below), without item counts.
+		if (Machine->IsA<AFGBuildablePipeReservoir>() && (Condition == EAMCondition::ItemCountAbove || Condition == EAMCondition::ItemCountBelow))
+		{
+			return false;
+		}
 		return bStorageEvent;
 	}
 	if (Machine->IsA<AFGBuildableGeneratorFuel>())
@@ -582,7 +591,11 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 		// Only what the valve's window has: the flow limit; and flushing its network.
 		return Action == EAMAction::SetFlowLimit || Action == EAMAction::FlushNetwork;
 	}
-	if (Action == EAMAction::SetFlowLimit || Action == EAMAction::FlushNetwork)
+	if (Machine->IsA<AFGBuildablePipeReservoir>())
+	{
+		return Action == EAMAction::FlushBuffer || Action == EAMAction::FlushNetwork;
+	}
+	if (Action == EAMAction::SetFlowLimit || Action == EAMAction::FlushNetwork || Action == EAMAction::FlushBuffer)
 	{
 		return false;
 	}
