@@ -38,7 +38,7 @@ namespace
 	const FName AMST_SignProperty(TEXT("mSign"));
 	const FName AMST_SignDataProperty(TEXT("mSignData"));
 	const FName AMST_SetSignDataFunction(TEXT("Set Sign Data"));
-	const TCHAR* const AMST_AddTitle = TEXT("+ AutoDesign");
+	const TCHAR* const AMST_AddTitle = TEXT("+ Auto Settings");
 	/** The sign designer open on this game instance (there is one window at a time). */
 	TWeakObjectPtr<UAMSignTabs> AMST_Open;
 
@@ -679,7 +679,7 @@ void UAMSignTabs::RebuildTabs()
 		AddRow(Index + 1, mDesigns[Index].Event, true);
 	}
 
-	// "+ AutoDesign" under the list (its handler's index is one past the designs: SelectTab opens the picker).
+	// "+ Auto Settings" under the list (its handler's index is one past the designs: SelectTab opens the picker).
 	UAMSignTabHandler* AddHandler = NewObject<UAMSignTabHandler>(this);
 	AddHandler->Owner = this;
 	AddHandler->Index = mDesigns.Num() + 1;
@@ -709,7 +709,7 @@ void UAMSignTabs::SelectTab(int32 Index)
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Sign designs: tab %d clicked"), Index);
 	if (Index == mDesigns.Num() + 1)
 	{
-		// "+ AutoDesign" opens the picker under it; pressed again ("Cancel"), closes it.
+		// "+ Auto Settings" opens the picker under it; pressed again ("Cancel"), closes it.
 		if (bPickerOpen)
 		{
 			ClosePicker();
@@ -880,7 +880,7 @@ void UAMSignTabs::OpenPicker()
 	}
 	FillPicker(FString());
 
-	// Floating over the page, its bottom right just left of and level with "+ AutoDesign" (the list
+	// Floating over the page, its bottom right just left of and level with "+ Auto Settings" (the list
 	// is on the page's right), growing upwards. This widget is never collapsed, so its geometry is
 	// known (from the frames already drawn).
 	FVector2D Position(8.0, 300.0);

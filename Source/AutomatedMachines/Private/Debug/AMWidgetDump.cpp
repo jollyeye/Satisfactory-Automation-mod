@@ -16,6 +16,8 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Modules/ModuleManager.h"
 #include "Buildables/FGBuildableCircuitSwitch.h"
+#include "Buildables/FGBuildableLightSource.h"
+#include "Buildables/FGBuildableLightsControlPanel.h"
 
 namespace
 {
@@ -233,12 +235,13 @@ namespace
 		UE_LOG(LogAutomatedMachines, Log, TEXT("[WidgetDump] ===== end reflection %s ====="), *WidgetClass->GetName());
 	}
 
-	/** The window is the window of a power switch / priority switch (its mInteractObject), 6 Nov 2026. */
+	/** The window of a power switch / priority switch, a light or a light control panel (its mInteractObject). */
 	bool AMWD_IsSwitchWindow(const UUserWidget* Widget)
 	{
 		const FObjectPropertyBase* Property = FindFProperty<FObjectPropertyBase>(Widget->GetClass(), TEXT("mInteractObject"));
 		const UObject* Object = Property ? Property->GetObjectPropertyValue_InContainer(Widget) : nullptr;
-		return Object && Object->IsA<AFGBuildableCircuitSwitch>();
+		return Object && (Object->IsA<AFGBuildableCircuitSwitch>() || Object->IsA<AFGBuildableLightSource>()
+			|| Object->IsA<AFGBuildableLightsControlPanel>());
 	}
 
 	void AMWD_CheckWorld(UWorld* World)

@@ -4,17 +4,17 @@
 //   | Default            |
 //   | PLATES BACKED UP x |
 //   | PLATES FLOWING x   |
-//   | + AutoDesign       |
+//   | + Auto Settings       |
 //
 // "Default" is the sign's normal design; each other row is the design the sign shows when its
 // alarm rings. The game's own designer next to it edits whichever row is selected: switching tabs keeps
-// the edited design and loads the next one into it ("Set Sign Data"). "+ AutoDesign" picks an alarm (or a
+// the edited design and loads the next one into it ("Set Sign Data"). "+ Auto Settings" picks an alarm (or a
 // new name) and makes a design for it, starting as a copy of the one being edited.
 // The designs are sent to the server when they change and when the window closes; the server then
 // shows on the sign the design it should show (its last rung alarm's, or the normal one).
 //
 // This widget is hooked into the Sign Designer's page: an empty, click-through layer over it (visible,
-// so it always has a size: the alarm picker floats on it, above "+ AutoDesign"). The list (made in
+// so it always has a size: the alarm picker floats on it, above "+ Auto Settings"). The list (made in
 // its widget tree) goes into the window's body row, next to the page.
 #pragma once
 
@@ -99,7 +99,7 @@ private:
 	void Setup();
 
 public:
-	/** Our list: Default + one per design + "+ AutoDesign" (made again on every change). */
+	/** Our list: Default + one per design + "+ Auto Settings" (made again on every change). */
 	void RebuildTabs();
 
 private:
@@ -161,7 +161,7 @@ private:
 	/**
 	 * Our list of designs on the left of the designer, in the window's body row (the parent of its
 	 * WindowBody, next to the page): "Designs", then Default and one row per alarm design (scrolling),
-	 * "+ AutoDesign" under them, and the alarm picker under that while it is open.
+	 * "+ Auto Settings" under them, and the alarm picker under that while it is open.
 	 */
 	UPROPERTY()
 	TObjectPtr<class USizeBox> mSidePanel;
@@ -171,7 +171,7 @@ private:
 	TObjectPtr<class UScrollBox> mTabScroll;
 	float mTabScrollOffset = 0.f;
 
-	/** The picker is open (floating over the page, above "+ AutoDesign"). */
+	/** The picker is open (floating over the page, above "+ Auto Settings"). */
 	bool bPickerOpen = false;
 
 	/** Caps the list's height at the designer page's (so it scrolls instead of stretching the window). */
