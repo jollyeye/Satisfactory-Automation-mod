@@ -21,10 +21,10 @@ No settings tab in the HUB. Nothing in the mod needs a world setting: every beha
 ## More machines (one at a time, like so far)
 
 - Generators: Coal (fuel + water), Fuel (fluid fuel), Nuclear (fuel rods, waste output), Geothermal (nothing to feed: power events only).
-- Extractors: Water Extractor, Oil Extractor, Resource Well Pressurizer.
+- Extractors: ~~Water Extractor, Oil Extractor~~ (done 6 Nov 2026), Resource Well Pressurizer.
 - Power: ~~power switches and priority switches~~ (done 5 Nov 2026), **power storage** (events: charge above / below N%, full, empty).
-- Logistics: programmable / smart splitters (action: change the filter), pipeline pumps / valves (action: set the flow limit), fluid buffers and industrial fluid buffers (fill level, like storage).
-- Lights and light control panels (actions On / Off, change colour).
+- Logistics: programmable / smart splitters (action: change the filter), ~~valves~~ (done 6 Nov 2026: Flow above / below, Set flow limit, Flush pipe network; pipeline pumps not automated), fluid buffers and industrial fluid buffers (fill level, like storage).
+- ~~Lights and light control panels~~ (done 6 Nov 2026: settings per alarm, like signs).
 - Trains: stations, freight platforms, railway signals; truck and drone stations.
 
 ## Useful optional features
