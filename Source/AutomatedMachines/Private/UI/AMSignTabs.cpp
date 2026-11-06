@@ -1163,7 +1163,7 @@ void UAMSignTabs::FillPicker(const FString& Filter)
 		UBorder* Message = AMUI::MakeBox(WidgetTree, AMUI::Option, FMargin(12.f, 7.f));
 		Message->AddChild(AMUI::MakeText(WidgetTree, Typed.IsEmpty()
 			? FString(TEXT("No alarms yet: type a name and press Enter."))
-			: FString::Printf(bLightMode ? TEXT("Enter: new settings for %s") : TEXT("Enter: new design for %s"), *Typed), Font, AMUI::Grey));
+			: FString::Printf(TEXT("Enter: new %s for %s"), bLightMode ? TEXT("settings") : TEXT("design"), *Typed), Font, AMUI::Grey));
 		mPickerList->AddChildToVerticalBox(Message);
 	}
 }
