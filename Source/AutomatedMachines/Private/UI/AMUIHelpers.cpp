@@ -13,6 +13,9 @@
 #include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
 #include "Styling/SlateBrush.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Fonts/FontMeasure.h"
+#include "Rendering/SlateRenderer.h"
 
 // FColor values are the game's sRGB greys; FLinearColor(FColor) converts them.
 const FLinearColor AMUI::Orange(FColor(250, 149, 73));
@@ -130,6 +133,32 @@ void AMUI::SetButtonColor(UButton* Target, const FLinearColor& Color)
 	{
 		Target->SetStyle(AMUIH_ButtonStyle(Color));
 	}
+}
+
+void AMUI::SetFittedText(UTextBlock* Target, const FString& Text, float MaxWidth)
+{
+	if (!Target)
+	{
+		return;
+	}
+	FString Shown = Text;
+	if (FSlateApplication::IsInitialized() && MaxWidth > 0.f)
+	{
+		const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		const FSlateFontInfo Font = Target->GetFont();
+		if (Measure->Measure(Text, Font).X > MaxWidth)
+		{
+			const FString Dots = TEXT("...");
+			int32 Length = Text.Len();
+			while (Length > 0 && Measure->Measure(Text.Left(Length).TrimEnd() + Dots, Font).X > MaxWidth)
+			{
+				--Length;
+			}
+			Shown = Text.Left(Length).TrimEnd() + Dots;
+		}
+	}
+	Target->SetText(FText::FromString(Shown));
+	Target->SetToolTipText(Shown != Text ? FText::FromString(Text) : FText::GetEmpty());
 }
 
 void AMUI::SetButtonSeeThrough(UButton* Target, const FLinearColor& Color)

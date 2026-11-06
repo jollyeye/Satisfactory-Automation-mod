@@ -51,6 +51,10 @@ namespace
 
 	constexpr float AMRR_CompactHeight = 34.f;
 
+	/** The recipe / sound dropdown of a one-line action row, and the room its text has (padding, arrow). */
+	constexpr float AMRR_CompactDropdown = AMRowLayout::Do + 20.f;
+	constexpr float AMRR_CompactDropdownText = AMRR_CompactDropdown - 10.f - 8.f - 11.f - 8.f;
+
 	/** A fixed-width cell. */
 	USizeBox* AMRR_Cell(UWidgetTree* Tree, float Width, UWidget* Content)
 	{
@@ -261,6 +265,17 @@ void UAMRuleRow::BuildCompact()
 	{
 		UTextBlock* ValueLabel = nullptr;
 		UButton* ValueButton = AMUI::MakeDropdown(Tree, Font, ValueLabel);
+		{
+			// As high as the row, its text in the middle (no top / bottom padding).
+			FButtonStyle Style = ValueButton->GetStyle();
+			Style.SetNormalPadding(FMargin(10.f, 0.f, 8.f, 0.f));
+			Style.SetPressedPadding(FMargin(10.f, 1.f, 8.f, 0.f));
+			ValueButton->SetStyle(Style);
+			if (UButtonSlot* ContentSlot = Cast<UButtonSlot>(ValueButton->GetChildAt(0) ? ValueButton->GetChildAt(0)->Slot : nullptr))
+			{
+				ContentSlot->SetVerticalAlignment(VAlign_Center);
+			}
+		}
 		if (AMRules::ActionNeedsRecipe(Action))
 		{
 			mRecipeButton = ValueButton;
@@ -273,7 +288,7 @@ void UAMRuleRow::BuildCompact()
 			mSoundLabel = ValueLabel;
 			ValueButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnSoundCellClicked);
 		}
-		AddValue(AMRR_Cell(Tree, AMRowLayout::Do + 20.f, ValueButton), 8.f, true);
+		AddValue(AMRR_Cell(Tree, AMRR_CompactDropdown, ValueButton), 8.f, true);
 	}
 	else if (AMRules::ActionNeedsMessage(Action))
 	{
@@ -318,12 +333,12 @@ void UAMRuleRow::UpdateCompact()
 	}
 	if (mRecipeLabel)
 	{
-		mRecipeLabel->SetText(Rule->Recipe ? UFGRecipe::GetRecipeName(Rule->Recipe) : FText::FromString(TEXT("choose a recipe")));
+		AMUI::SetFittedText(mRecipeLabel, Rule->Recipe ? UFGRecipe::GetRecipeName(Rule->Recipe).ToString() : FString(TEXT("choose a recipe")), AMRR_CompactDropdownText);
 		mRecipeLabel->SetColorAndOpacity(FSlateColor(Rule->Recipe ? AMUI::White : AMUI::Grey));
 	}
 	if (mSoundLabel)
 	{
-		mSoundLabel->SetText(FText::FromString(AMRules::GetSounds()[AMRules::GetSoundIndex(Rule->Value)].Label));
+		AMUI::SetFittedText(mSoundLabel, AMRules::GetSounds()[AMRules::GetSoundIndex(Rule->Value)].Label, AMRR_CompactDropdownText);
 	}
 	if (mMessageText)
 	{

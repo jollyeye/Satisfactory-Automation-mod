@@ -41,6 +41,12 @@ namespace AMUI
 
 	UTextBlock* MakeText(UWidgetTree* Tree, const FString& Text, const FSlateFontInfo& Font, const FLinearColor& Color);
 
+	/**
+	 * Sets a text that fits in MaxWidth (layout units): too long, it is cut and ends in "..." (the
+	 * full text as the tooltip). The text block's own ellipsis did not work inside our dropdowns.
+	 */
+	void SetFittedText(UTextBlock* Target, const FString& Text, float MaxWidth);
+
 	/** A flat button with a centred text label. OutLabel (optional) gets the label, to change it later. */
 	UButton* MakeButton(UWidgetTree* Tree, const FString& Label, const FSlateFontInfo& Font, const FLinearColor& Color, UTextBlock** OutLabel = nullptr);
 
