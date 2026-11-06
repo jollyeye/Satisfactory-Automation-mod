@@ -75,6 +75,10 @@ namespace
 	const TCHAR* const AMWH_BufferWindow = TEXT("/Game/FactoryGame/Buildable/Factory/StorageTank/Widget_PipeStorageTank.Widget_PipeStorageTank_C");
 	const TCHAR* const AMWH_BufferPageChild = TEXT("BPW_PipeModule");
 
+	// AWESOME Sink: BPW_ResourceSink (dump 6 Nov 2026), one page (CanvasPanel_0 in SizeBox_0) holding the
+	// standby button: hooked like the generators.
+	const TCHAR* const AMWH_SinkWindow = TEXT("/Game/FactoryGame/Buildable/Factory/ResourceSink/UI/BPW_ResourceSink.BPW_ResourceSink_C");
+
 	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
 	// the page panel holding its Revert Settings button (mSaveButton).
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
@@ -156,6 +160,8 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_ValveWindow, AMWH_ValvePageChild, TEXT("AM_ValveAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_BufferWindow, AMWH_BufferPageChild, TEXT("AM_BufferAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_SinkWindow, AMWH_StandbyButton, TEXT("AM_SinkAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());

@@ -165,6 +165,11 @@ show our page at least `AMAT_MinSinglePageHeight` (560) high. Pipeline pumps (`W
 (to confirm): Kind B, the page is an **overlay** (`Overlay_0` in `WindowBody`: background + `BPW_PipeModule` with
 the tank and the flush handle). Hooked as Indirect_Child of `BPW_PipeModule`.
 
+### AWESOME Sink window (6 Nov 2026)
+
+`BPW_ResourceSink` (`.../Factory/ResourceSink/UI/`): Kind B, one page (`CanvasPanel_0` in `SizeBox_0`) with the
+standby button: hooked like the generators (Indirect_Child of `Widget_StandbyButton`).
+
 ### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
 
 For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /
