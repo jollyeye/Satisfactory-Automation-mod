@@ -146,6 +146,12 @@ and the storage containers (`Widget_Storage_C`, hook parent `mInventoryVertBox`,
 slot setup, see 8; its frame variable is `WidgetWindowDarkMode`), and the fuel generators
 (`Widget_Generator_C`, Indirect_Child on `Widget_StandbyButton`).
 
+### Water Extractor window (6 Nov 2026)
+
+`BPW_ExtractorPump` (`/Game/FactoryGame/Buildable/Factory/WaterPump/UI/`), not the miners' window: Kind B
+(one canvas page `CanvasPanel_43` in `WindowBody`: fluid tank, flow gauge, overclock, standby). Hooked like
+the generators: Indirect_Child of `Widget_StandbyButton`.
+
 ### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
 
 For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /

@@ -61,6 +61,10 @@ namespace
 	const TCHAR* const AMWH_GeneratorWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Generator.Widget_Generator_C");
 	const TCHAR* const AMWH_StandbyButton = TEXT("Widget_StandbyButton");
 
+	// Water Extractor (BPW_ExtractorPump, dump 6 Nov 2026; maybe also the Oil Extractor): a one-page
+	// window like the generators', hooked the same way (next to its standby button).
+	const TCHAR* const AMWH_PumpWindow = TEXT("/Game/FactoryGame/Buildable/Factory/WaterPump/UI/BPW_ExtractorPump.BPW_ExtractorPump_C");
+
 	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
 	// the page panel holding its Revert Settings button (mSaveButton).
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
@@ -136,6 +140,8 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_ExtractorWindow, AMWH_ExtractorPage, TEXT("AM_ExtractorAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_StorageWindow, AMWH_StoragePage, TEXT("AM_StorageAutomationTabHook"), false);
 		AMWH_HookPages(HookManager, AMWH_GeneratorWindow, AMWH_StandbyButton, TEXT("AM_GeneratorAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_PumpWindow, AMWH_StandbyButton, TEXT("AM_PumpAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());
