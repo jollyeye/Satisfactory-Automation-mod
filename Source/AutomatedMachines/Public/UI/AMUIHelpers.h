@@ -59,6 +59,9 @@ namespace AMUI
 	/** Gives a button of MakeButton another colour. */
 	void SetButtonColor(UButton* Target, const FLinearColor& Color);
 
+	/** No background (see-through), but the hover / pressed box of Color stays; paddings kept. */
+	void SetButtonSeeThrough(UButton* Target, const FLinearColor& Color);
+
 	/** A dropdown-looking button: label on the left, arrow on the right. */
 	UButton* MakeDropdown(UWidgetTree* Tree, const FSlateFontInfo& Font, UTextBlock*& OutLabel);
 

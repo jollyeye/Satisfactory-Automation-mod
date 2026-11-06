@@ -12,6 +12,7 @@
 #include "Components/TextBlock.h"
 #include "Engine/Texture2D.h"
 #include "Styling/SlateTypes.h"
+#include "Styling/SlateBrush.h"
 
 // FColor values are the game's sRGB greys; FLinearColor(FColor) converts them.
 const FLinearColor AMUI::Orange(FColor(250, 149, 73));
@@ -129,6 +130,19 @@ void AMUI::SetButtonColor(UButton* Target, const FLinearColor& Color)
 	{
 		Target->SetStyle(AMUIH_ButtonStyle(Color));
 	}
+}
+
+void AMUI::SetButtonSeeThrough(UButton* Target, const FLinearColor& Color)
+{
+	if (!Target)
+	{
+		return;
+	}
+	FButtonStyle Style = Target->GetStyle();
+	Style.SetNormal(FSlateNoResource());
+	Style.SetHovered(FSlateColorBrush(AMUIH_Shade(Color, 1.6f)));
+	Style.SetPressed(FSlateColorBrush(AMUIH_Shade(Color, 0.7f)));
+	Target->SetStyle(Style);
 }
 
 UButton* AMUI::MakeDropdown(UWidgetTree* Tree, const FSlateFontInfo& Font, UTextBlock*& OutLabel)

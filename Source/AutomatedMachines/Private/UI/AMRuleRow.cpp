@@ -152,6 +152,7 @@ void UAMRuleRow::BuildGroupHeader(UAMAutomationTab* InTab, const FString& InEven
 		LabelSlot->SetHorizontalAlignment(HAlign_Left);
 	}
 	AddButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnGroupAddClicked);
+	AMUI::SetButtonSeeThrough(AddButton, AMUI::Button);
 	mGroupAddButton = AddButton;
 	USizeBox* AddSize = AMRR_Cell(Tree, AMRowLayout::Do, AddButton);
 	UHorizontalBox* FooterLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
@@ -181,17 +182,31 @@ void UAMRuleRow::BuildCompact()
 	{
 		OuterSlot->SetPadding(FMargin(AMRowLayout::GroupIndent, 0.f, 0.f, 0.f));
 	}
-	// [ name ........ value ] [X]: the name and value in one box, the bin next to it.
+	// [ name ........ value ] [X]: the name and value in one see-through box (its highlight shows
+	// when pointed at, and explains the action), the bin next to it.
 	const float BoxWidth = AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm - AMRowLayout::GroupIndent;
-	UBorder* Box = AMUI::MakeBox(Tree, AMUI::Button, FMargin(12.f, 0.f, 6.f, 0.f));
-	Box->SetVerticalAlignment(VAlign_Center);
+	UButton* Box = Tree->ConstructWidget<UButton>(UButton::StaticClass());
+	{
+		AMUI::SetButtonColor(Box, AMUI::Button);
+		FButtonStyle Style = Box->GetStyle();
+		Style.SetNormalPadding(FMargin(12.f, 0.f, 0.f, 0.f));
+		Style.SetPressedPadding(FMargin(12.f, 0.f, 0.f, 0.f));
+		Box->SetStyle(Style);
+		AMUI::SetButtonSeeThrough(Box, AMUI::Button);
+	}
+	Box->OnHovered.AddDynamic(this, &UAMRuleRow::OnCompactHovered);
 	USizeBox* BoxSize = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	BoxSize->SetWidthOverride(BoxWidth);
 	BoxSize->SetHeightOverride(AMRR_CompactHeight);
 	BoxSize->AddChild(Box);
 	Outer->AddChildToHorizontalBox(BoxSize);
 	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	Box->AddChild(Line);
+	if (UButtonSlot* LineSlot = Cast<UButtonSlot>(Box->AddChild(Line)))
+	{
+		LineSlot->SetHorizontalAlignment(HAlign_Fill);
+		LineSlot->SetVerticalAlignment(VAlign_Fill);
+		LineSlot->SetPadding(FMargin(0.f));
+	}
 
 	UTextBlock* Name = AMUI::MakeText(Tree, AMRR_CompactName(Action), Font, AMUI::White);
 	if (UHorizontalBoxSlot* NameSlot = Line->AddChildToHorizontalBox(Name))
@@ -199,12 +214,13 @@ void UAMRuleRow::BuildCompact()
 		NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		NameSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	auto AddValue = [Line](UWidget* Widget, float LeftPadding)
+	auto AddValue = [Line](UWidget* Widget, float LeftPadding, bool bFullHeight = false)
 	{
 		if (UHorizontalBoxSlot* ValueSlot = Line->AddChildToHorizontalBox(Widget))
 		{
-			ValueSlot->SetPadding(FMargin(LeftPadding, 3.f, 0.f, 3.f));
-			ValueSlot->SetVerticalAlignment(VAlign_Center);
+			// A dropdown is exactly as high as the row (no margin); fields sit in the middle.
+			ValueSlot->SetPadding(bFullHeight ? FMargin(LeftPadding, 0.f, 0.f, 0.f) : FMargin(LeftPadding, 3.f, 6.f, 3.f));
+			ValueSlot->SetVerticalAlignment(bFullHeight ? VAlign_Fill : VAlign_Center);
 		}
 	};
 
@@ -256,7 +272,7 @@ void UAMRuleRow::BuildCompact()
 			mSoundLabel = ValueLabel;
 			ValueButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnSoundCellClicked);
 		}
-		AddValue(AMRR_Cell(Tree, AMRowLayout::Do + 20.f, ValueButton), 8.f);
+		AddValue(AMRR_Cell(Tree, AMRowLayout::Do + 20.f, ValueButton), 8.f, true);
 	}
 	else if (AMRules::ActionNeedsMessage(Action))
 	{
@@ -272,6 +288,7 @@ void UAMRuleRow::BuildCompact()
 	}
 
 	UButton* RemoveButton = AMUI::MakeRemoveButton(Tree, Font);
+	AMUI::SetButtonSeeThrough(RemoveButton, AMUI::Field);
 	RemoveButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnRemoveClicked);
 	USizeBox* RemoveSize = AMRR_Cell(Tree, AMRowLayout::Remove, RemoveButton);
 	RemoveSize->SetHeightOverride(AMRR_CompactHeight);
@@ -311,6 +328,11 @@ void UAMRuleRow::UpdateCompact()
 	{
 		mMessageText->ShowText(Rule->Message);
 	}
+}
+
+void UAMRuleRow::OnCompactHovered()
+{
+	ExplainCurrent();
 }
 
 void UAMRuleRow::OnStateClicked()
@@ -1148,7 +1170,7 @@ void UAMRuleRow::ExplainCurrent()
 	}
 	else if (const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 	{
-		mTab->ShowInfo(AMRules::GetActionText(Rule->Action), AMRules::GetActionDescription(Rule->Action));
+		mTab->ShowInfo(bCompact ? FText::FromString(AMRR_CompactName(Rule->Action)) : AMRules::GetActionText(Rule->Action), AMRules::GetActionDescription(Rule->Action));
 	}
 }
 

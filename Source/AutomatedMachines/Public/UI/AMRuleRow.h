@@ -115,6 +115,10 @@ public:
 	UFUNCTION()
 	void OnStateClicked();
 
+	/** One-line action rows: pointing at the row explains its action. */
+	UFUNCTION()
+	void OnCompactHovered();
+
 	UWidget* GetRootWidget() const;
 
 	/** A choice was clicked / pointed at in the list under the row. */
