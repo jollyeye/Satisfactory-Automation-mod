@@ -18,14 +18,36 @@ Done and tested so far: see the table in `DEV-NOTES.md` ("What works").
 
 No settings tab in the HUB. Nothing in the mod needs a world setting: every behaviour is per machine, in its Automation tab. The only candidates are personal display preferences (underglow on / off / only with the build gun, brightness; notification sound on / off). If players ask for them, they go in SML's own mod configuration (main menu > Mods > Automated Machines), per player, not in the save or the HUB.
 
-## More machines (one at a time, like so far)
+## More machines (list of 6 Nov 2026)
 
-- Generators: Coal (fuel + water), Fuel (fluid fuel), Nuclear (fuel rods, waste output), Geothermal (nothing to feed: power events only).
-- Extractors: ~~Water Extractor, Oil Extractor~~ (done 6 Nov 2026), Resource Well Pressurizer.
-- Power: ~~power switches and priority switches~~ (done 5 Nov 2026), **power storage** (events: charge above / below N%, full, empty).
-- Logistics: programmable / smart splitters (action: change the filter), ~~valves~~ (done 6 Nov 2026: Flow above / below, Set flow limit, Flush pipe network; pipeline pumps not automated), fluid buffers and industrial fluid buffers (fill level, like storage).
-- ~~Lights and light control panels~~ (done 6 Nov 2026: settings per alarm, like signs).
-- Trains: stations, freight platforms, railway signals; truck and drone stations.
+Done and tested: production machines (production window), miners, Water / Oil Extractor, storage containers, Biomass Burner, power switches and priority switches, signs, lights and light control panels, valves, fluid buffers, AWESOME Sink, HUB, MAM. Not automated (decided): pipeline pumps.
+
+**Should already work, to check** (same class or window as something done):
+- Coal Generator, Fuel Generator, Nuclear Power Plant (fuel generators like the Biomass Burner; the Coal one also takes water, the Nuclear one has a waste output).
+- Assembler, Foundry, Manufacturer, Refinery, Blender, Packager, Particle Accelerator, Converter, Quantum Encoder (production window; fluid outputs and variable power not tried yet).
+- Industrial Fluid Buffer (same window as the Fluid Buffer).
+
+**Power:**
+- Power Storage: charge above / below N%, full, empty, charging / discharging.
+- Geothermal Generator: power events only (nothing to feed).
+- Alien Power Augmenter: fuel (somersloops / ...), power events.
+
+**Extraction:**
+- Resource Well Pressurizer (and its extractors): like the extractors, plus on / off.
+
+**Logistics:**
+- Programmable / Smart Splitter: action: change an output's filter.
+- Dimensional Depot uplink: upload events (maybe).
+
+**Transport:**
+- Train Station, Freight Platform, Fluid Freight Platform: train arrives / leaves, loading / unloading done; action: change load / unload mode.
+- Railway signals: (maybe) blocked / free.
+- Truck Station, Drone Port: vehicle arrives / leaves, fuel low, input / output full.
+
+**Other buildings:**
+- Doors: open / closed / locked (actions: lock, unlock).
+- Personnel Elevator: arrives at a floor (action: call to a floor).
+- Space Elevator: phase completed, parts delivered (world events, like the MAM).
 
 ## Useful optional features
 
