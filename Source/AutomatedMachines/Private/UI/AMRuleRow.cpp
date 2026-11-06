@@ -555,6 +555,10 @@ void UAMRuleRow::OnValueCommitted(const FText& Text, ETextCommit::Type CommitMet
 
 void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, const FString& EmptyMessage)
 {
+	if (!mChoices)
+	{
+		return;
+	}
 	mChoices->ClearChildren();
 	mChoiceHandlers.Reset();
 	UWidgetTree* Tree = mTab->GetTree();
@@ -667,9 +671,16 @@ void UAMRuleRow::ShowChoices(EAMChoiceKind Kind, const TArray<FString>& Alarms, 
 
 void UAMRuleRow::HideChoices()
 {
-	mChoices->ClearChildren();
+	// Alarm group headers have no suggestion list (it is made only for alarm / action rows).
+	if (mChoices)
+	{
+		mChoices->ClearChildren();
+	}
 	mChoiceHandlers.Reset();
-	mTab->HideFloatingList(mChoicesFloat);
+	if (mChoicesFloat)
+	{
+		mTab->HideFloatingList(mChoicesFloat);
+	}
 	bChoicesOpen = false;
 }
 
