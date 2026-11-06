@@ -543,36 +543,49 @@ void UAMAutomationTab::BuildLayout()
 		UBorder* OptionsBody = AMUI::MakeBox(WidgetTree, AMUI::PanelBody, FMargin(AMAT_PanelPadding));
 		OptionsSize->AddChild(OptionsBody);
 
-		mPassWrongButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("AMOptionPassWrong"));
-		AMUI::SetButtonColor(mPassWrongButton, AMUI::Button);
+		// One row per option, under each other.
+		UVerticalBox* OptionsList = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("AMOptionsList"));
+		OptionsBody->AddChild(OptionsList);
+		auto MakeOption = [this, OptionsList](const FName WidgetName, const FString& Name, TObjectPtr<UImage>& OutSwitch) -> UButton*
+		{
+			UButton* Button = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), WidgetName);
+			AMUI::SetButtonColor(Button, AMUI::Button);
+			if (UVerticalBoxSlot* ListSlot = OptionsList->AddChildToVerticalBox(Button))
+			{
+				ListSlot->SetPadding(FMargin(0.f, OptionsList->GetChildrenCount() > 1 ? 6.f : 0.f, 0.f, 0.f));
+			}
+			UHorizontalBox* OptionRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+			if (UButtonSlot* RowSlot = Cast<UButtonSlot>(Button->AddChild(OptionRow)))
+			{
+				RowSlot->SetHorizontalAlignment(HAlign_Fill);
+				RowSlot->SetVerticalAlignment(VAlign_Center);
+			}
+			UTextBlock* OptionName = MakeText(Name, 14, AMUI::White);
+			mAddLabels.Add(OptionName);
+			if (UHorizontalBoxSlot* NameSlot = OptionRow->AddChildToHorizontalBox(OptionName))
+			{
+				NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+				NameSlot->SetVerticalAlignment(VAlign_Center);
+			}
+			// 2:1 like the textures; the size box keeps it from being squeezed.
+			OutSwitch = AMUI::MakeImage(WidgetTree, AMUI::SwitchOffPath, FVector2D(44.f, 22.f));
+			USizeBox* SwitchSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+			SwitchSize->SetWidthOverride(44.f);
+			SwitchSize->SetHeightOverride(22.f);
+			SwitchSize->AddChild(OutSwitch);
+			if (UHorizontalBoxSlot* SwitchSlot = OptionRow->AddChildToHorizontalBox(SwitchSize))
+			{
+				SwitchSlot->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
+				SwitchSlot->SetVerticalAlignment(VAlign_Center);
+			}
+			return Button;
+		};
+		mPassWrongButton = MakeOption(TEXT("AMOptionPassWrong"), TEXT("Pass wrong items through"), mPassWrongSwitch);
 		mPassWrongButton->OnClicked.AddDynamic(this, &UAMAutomationTab::OnPassWrongClicked);
 		mPassWrongButton->OnHovered.AddDynamic(this, &UAMAutomationTab::OnPassWrongHovered);
-		OptionsBody->AddChild(mPassWrongButton);
-
-		UHorizontalBox* OptionRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-		if (UButtonSlot* RowSlot = Cast<UButtonSlot>(mPassWrongButton->AddChild(OptionRow)))
-		{
-			RowSlot->SetHorizontalAlignment(HAlign_Fill);
-			RowSlot->SetVerticalAlignment(VAlign_Center);
-		}
-		UTextBlock* OptionName = MakeText(TEXT("Pass wrong items through"), 14, AMUI::White);
-		mAddLabels.Add(OptionName);
-		if (UHorizontalBoxSlot* NameSlot = OptionRow->AddChildToHorizontalBox(OptionName))
-		{
-			NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-			NameSlot->SetVerticalAlignment(VAlign_Center);
-		}
-		// 2:1 like the textures; the size box keeps it from being squeezed.
-		mPassWrongSwitch = AMUI::MakeImage(WidgetTree, AMUI::SwitchOffPath, FVector2D(44.f, 22.f));
-		USizeBox* SwitchSize = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
-		SwitchSize->SetWidthOverride(44.f);
-		SwitchSize->SetHeightOverride(22.f);
-		SwitchSize->AddChild(mPassWrongSwitch);
-		if (UHorizontalBoxSlot* SwitchSlot = OptionRow->AddChildToHorizontalBox(SwitchSize))
-		{
-			SwitchSlot->SetPadding(FMargin(10.f, 0.f, 0.f, 0.f));
-			SwitchSlot->SetVerticalAlignment(VAlign_Center);
-		}
+		mPassExtraButton = MakeOption(TEXT("AMOptionPassExtra"), TEXT("Pass extra items through"), mPassExtraSwitch);
+		mPassExtraButton->OnClicked.AddDynamic(this, &UAMAutomationTab::OnPassExtraClicked);
+		mPassExtraButton->OnHovered.AddDynamic(this, &UAMAutomationTab::OnPassExtraHovered);
 		RefreshOptions();
 	}
 
@@ -1269,7 +1282,7 @@ void UAMAutomationTab::OnWorldRulesChanged()
 	const TArray<FAMFireRule>& Fires = Rules ? Rules->Fires : NoFires;
 	const TArray<FAMReactionRule>& Reactions = Rules ? Rules->Reactions : NoReactions;
 	bool bSame = Fires.Num() == mFires.Num() && Reactions.Num() == mReactions.Num()
-		&& (Rules ? Rules->Options.bPassWrongItems : false) == mOptions.bPassWrongItems;
+		&& (Rules ? Rules->Options : FAMMachineOptions()) == mOptions;
 	for (int32 Index = 0; bSame && Index < Fires.Num(); ++Index)
 	{
 		bSame = Fires[Index].Event == mFires[Index].Event && Fires[Index].Condition == mFires[Index].Condition
@@ -1312,6 +1325,32 @@ void UAMAutomationTab::OnWorldRulesChanged()
 void UAMAutomationTab::RefreshOptions()
 {
 	AMUI::SetImage(mPassWrongSwitch, mOptions.bPassWrongItems ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
+	AMUI::SetImage(mPassExtraSwitch, mOptions.bPassExtraItems ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
+}
+
+void UAMAutomationTab::ShowPassExtraInfo()
+{
+	ShowInfo(FText::FromString(TEXT("Pass extra items through")), FText::FromString(
+		TEXT("When an input slot is full and its belt brings more of that ingredient, the machine takes the extra item off the belt and puts it straight on its output belt, so the input belt keeps moving.\n\n")
+		TEXT("Use it to chain machines on one belt: what one machine cannot take goes on to the next machine.\n\n")
+		TEXT("The machine's own products go first: the extra item goes out when the output has nothing to give. The machine needs an output belt.")));
+}
+
+void UAMAutomationTab::OnPassExtraClicked()
+{
+	if (!bRulesLoaded)
+	{
+		return;
+	}
+	mOptions.bPassExtraItems = !mOptions.bPassExtraItems;
+	RefreshOptions();
+	ShowPassExtraInfo();
+	OnRulesEdited();
+}
+
+void UAMAutomationTab::OnPassExtraHovered()
+{
+	ShowPassExtraInfo();
 }
 
 void UAMAutomationTab::ShowPassWrongInfo()

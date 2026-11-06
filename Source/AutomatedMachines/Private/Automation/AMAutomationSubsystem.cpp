@@ -408,6 +408,7 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 		NewRules.SignShowing = Existing->SignShowing;
 	}
 	NewRules.Options.bPassWrongItems = Options.bPassWrongItems && AMRules::HasPassWrongItems(Machine);
+	NewRules.Options.bPassExtraItems = Options.bPassExtraItems && AMRules::HasPassWrongItems(Machine);
 	for (const FAMFireRule& Rule : Fires)
 	{
 		FAMFireRule Clean = Rule;
@@ -465,8 +466,9 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 		mLastConditionValues.Remove(TWeakObjectPtr<AFGBuildable>(Machine));
 	}
 
-	UE_LOG(LogAutomatedMachines, Log, TEXT("Rules of %s: %d fire rules, %d reactions, pass wrong items %s"),
-		*AMAS_Describe(Machine), NewRules.Fires.Num(), NewRules.Reactions.Num(), Options.bPassWrongItems ? TEXT("on") : TEXT("off"));
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Rules of %s: %d fire rules, %d reactions, pass wrong items %s, extra items %s"),
+		*AMAS_Describe(Machine), NewRules.Fires.Num(), NewRules.Reactions.Num(), NewRules.Options.bPassWrongItems ? TEXT("on") : TEXT("off"),
+		NewRules.Options.bPassExtraItems ? TEXT("on") : TEXT("off"));
 
 	ForceNetUpdate();
 	OnRulesChanged.Broadcast();
@@ -676,12 +678,15 @@ void AAMAutomationSubsystem::Tick(float DeltaSeconds)
 	// Options.
 	for (const FAMMachineRules& Entry : mMachines)
 	{
-		if (Entry.Options.bPassWrongItems)
+		AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Entry.Machine);
+		if (Factory && Entry.Options.bPassWrongItems)
 		{
-			if (AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Entry.Machine))
-			{
-				TakeWrongItem(Factory);
-			}
+			TakeWrongItem(Factory);
+		}
+		// Both share the one waiting item per machine: a wrong item, if any, goes first.
+		if (Factory && Entry.Options.bPassExtraItems)
+		{
+			TakeExtraItem(Factory);
 		}
 	}
 	// Waiting items of dismantled machines are gone with them.
@@ -1055,6 +1060,73 @@ void AAMAutomationSubsystem::TakeWrongItem(AFGBuildableFactory* Factory)
 	{
 		AMAS_Hold(Factory, Grabbed);
 		UE_LOG(LogAutomatedMachines, Verbose, TEXT("%s took %s off its input belt"), *AMAS_Describe(Factory), *GetNameSafe(Grabbed.GetItemClass().Get()));
+	}
+}
+
+bool AAMAutomationSubsystem::FindExtraInput(const AFGBuildableFactory* Factory, UFGFactoryConnectionComponent** OutBelt, FInventoryItem* OutItem)
+{
+	const AFGBuildableManufacturer* Manufacturer = Cast<AFGBuildableManufacturer>(Factory);
+	const UFGInventoryComponent* Input = Manufacturer ? Manufacturer->GetInputInventory() : nullptr;
+	if (!Manufacturer || !Manufacturer->GetCurrentRecipe() || !Input)
+	{
+		return false;
+	}
+	TArray<const UClass*> Ingredients;
+	for (const FItemAmount& Ingredient : UFGRecipe::GetIngredients(Manufacturer, Manufacturer->GetCurrentRecipe()))
+	{
+		Ingredients.Add(Ingredient.ItemClass.Get());
+	}
+	for (UFGFactoryConnectionComponent* Connection : Manufacturer->GetConnectionComponents())
+	{
+		if (!Connection || Connection->GetDirection() != EFactoryConnectionDirection::FCD_INPUT || !Connection->IsConnected())
+		{
+			continue;
+		}
+		UFGFactoryConnectionComponent* BeltEnd = Connection->GetConnection();
+		TArray<FInventoryItem> Waiting;
+		if (!BeltEnd || !BeltEnd->Factory_PeekOutput(Waiting) || Waiting.Num() == 0)
+		{
+			continue;
+		}
+		const TSubclassOf<UFGItemDescriptor> ItemClass = Waiting[0].GetItemClass();
+		// A right item whose slot has no room for one more (wrong items are the other option's).
+		if (Ingredients.Contains(ItemClass.Get()) && !Input->HasEnoughSpaceForStack(FInventoryStack(1, ItemClass)))
+		{
+			if (OutBelt)
+			{
+				*OutBelt = BeltEnd;
+			}
+			if (OutItem)
+			{
+				*OutItem = Waiting[0];
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+void AAMAutomationSubsystem::TakeExtraItem(AFGBuildableFactory* Factory)
+{
+	{
+		FScopeLock HeldScope(&AMAS_HeldLock);
+		if (AMAS_Held.Contains(Factory))
+		{
+			return;
+		}
+	}
+	UFGFactoryConnectionComponent* BeltEnd = nullptr;
+	FInventoryItem Extra;
+	if (!FindExtraInput(Factory, &BeltEnd, &Extra) || !BeltEnd || !AMAS_HasOutputBelt(Factory))
+	{
+		return;
+	}
+	FInventoryItem Grabbed;
+	float OffsetBeyond = 0.f;
+	if (BeltEnd->Factory_GrabOutput(Grabbed, OffsetBeyond, Extra.GetItemClass()))
+	{
+		AMAS_Hold(Factory, Grabbed);
+		UE_LOG(LogAutomatedMachines, Verbose, TEXT("%s passes on %s (its slot is full)"), *AMAS_Describe(Factory), *GetNameSafe(Grabbed.GetItemClass().Get()));
 	}
 }
 

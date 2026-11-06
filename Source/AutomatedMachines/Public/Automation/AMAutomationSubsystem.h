@@ -150,6 +150,15 @@ private:
 	 */
 	static void TakeWrongItem(AFGBuildableFactory* Factory);
 
+	/**
+	 * A right item (an ingredient) at the end of an input belt while its input slot is full: it waits
+	 * on the belt (OutBelt: that belt's end, OutItem: the item). Manufacturers only.
+	 */
+	static bool FindExtraInput(const AFGBuildableFactory* Factory, class UFGFactoryConnectionComponent** OutBelt, struct FInventoryItem* OutItem);
+
+	/** "Pass extra items through": like TakeWrongItem, for an item that does not fit in its full slot. */
+	static void TakeExtraItem(AFGBuildableFactory* Factory);
+
 	/** Lets output belts take a machine's waiting wrong item (hooks on the game's belt connections). */
 	static void InstallOutputHooks();
 

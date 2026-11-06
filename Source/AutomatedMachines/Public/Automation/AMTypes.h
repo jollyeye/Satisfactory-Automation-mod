@@ -161,7 +161,15 @@ struct AUTOMATEDMACHINES_API FAMMachineOptions
 	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
 	bool bPassWrongItems = false;
 
-	bool IsDefault() const { return !bPassWrongItems; }
+	/**
+	 * A right item (an ingredient) blocking an input belt because its input slot is full is taken off
+	 * the belt and put on the output belt the same way: the input belt keeps moving.
+	 */
+	UPROPERTY(SaveGame, BlueprintReadWrite, Category = "Automation")
+	bool bPassExtraItems = false;
+
+	bool IsDefault() const { return !bPassWrongItems && !bPassExtraItems; }
+	bool operator==(const FAMMachineOptions& Other) const { return bPassWrongItems == Other.bPassWrongItems && bPassExtraItems == Other.bPassExtraItems; }
 };
 
 /** One text or icon of a sign design (maps cannot be replicated or sent in RPCs, so key / value pairs). */
