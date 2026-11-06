@@ -230,6 +230,12 @@ Not offered: production boost (Somersloops are items, not a setting).
 - Tab: Copy / Paste automation settings buttons at the bottom of every machine's page. The tab now listens to `OnRulesChanged` and reloads its rows when the world's rules of its machine differ from its own (e.g. pasted with the game's button on the other tab), unless it has rows without an alarm name yet.
 - Recipe dropdown: icon of the recipe's first product.
 
+## Lights and light control panels (6 Nov 2026, untested)
+
+- Window: `BPW_LightsControlPanel` (`/Game/FactoryGame/Buildable/Factory/LightsControlPanel/UI/`), the same for lights (`AFGBuildableLightSource`) and panels (`AFGBuildableLightsControlPanel`); the building is `mInteractObject`. Canvas page; `UAMSignTabs` hooked as Indirect_Child of `mCopyPasteButtons`, light mode (`bLightMode`, rows in `mLights`).
+- Settings: `FLightSourceControlData` (ColorSlotIndex, Intensity 0.1..1, IsTimeOfDayAware) + `IsLightEnabled`. Saved as `FAMLightSetting` in `FAMMachineRules::LightSettings / LightNormal / LightShowing`.
+- Read from the window: `mControlData`, standby button `mIsProductionPaused`. Load into it: set `mControlData`, `mCurrentColorSlot`, `mNormalizedIntensity`, call `SetControlData`, `Set Light Enabled`, standby `SetIsProductionPaused`, `UpdateColorSelector / IntensitySelector / NightModeSelector / PreviewMaterial`, and `RequestPreviewLight` (server `AMLight::Apply`: `SetLightControlData`, a panel also `SetLightDataOnControlledLights`, `SetLightEnabled`).
+
 ## Power switches (5 Nov 2026, tab and events work)
 
 - Classes: `AFGBuildableCircuitSwitch` (Power Switch), `AFGBuildablePriorityPowerSwitch` (its subclass). Not factories: `EvaluateFireRules` / `FireEvent` take them through `IsSwitchConditionTrue` / `ApplySwitchAction`.

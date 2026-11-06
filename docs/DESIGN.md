@@ -203,6 +203,20 @@ Signs only react (no machine events). The Sign Designer gets a list of designs o
 - Copy: Ctrl+C / Ctrl+V and middle click copy the design and the alarm designs; the window's Copy / Paste Settings buttons only the design open in the editor (any row).
 - Uninstall-safe: without the mod the sign keeps the design it was showing.
 
+### Power switches (done 5 Nov 2026)
+
+- Automation tab in the switch window (Power Switch and Priority Power Switch share it).
+- Alarms: Switched on / off; A usage > / < B usage; A power > / < B power (power = the generators' capacity on that side; each side counts its own buildings, also while the switch joins them).
+- Actions: Turn on, Turn off, Turn on or off; Set priority 0-8 (priority switches only).
+- An orange warning in the tab while a cable elsewhere joins grid A and B into one grid.
+
+### Lights and light control panels: settings per alarm (started 6 Nov 2026)
+
+- Like signs: a side list in the light window (Street Light, other lights and the Light Control Panel share one window): `Settings: Default / ALARM [bin] / ... / + Auto Settings`.
+- A row's settings are the window's own controls: colour slot, intensity, night mode, on / standby. Selecting a row loads its settings into the window (and onto the light); the game's controls edit them.
+- When an alarm rings, the light (a panel: all its lights) takes that alarm's settings; Default before any alarm rang. Closing the window puts back the settings it should have.
+- No underglow on lights (like signs). Copy / paste and middle-click sampling carry the alarm settings.
+
 ### Wrong items on a belt (decided 4 Nov 2026)
 
 A machine refuses an item that is not an ingredient of its recipe, so the belt stops behind it. Deleting that item was rejected: it would be a cheat. Instead:
