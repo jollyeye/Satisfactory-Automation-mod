@@ -8,7 +8,7 @@
 // "+ action":
 //   | [icon] PLATES BACKED UP v          | [X]   <- header (BuildGroupHeader): changes / removes them all
 //   |   Set clock speed      [100] %     | [X]   <- one line per action (BuildCompact): only its value
-//   |   Standby                 [on/off] | [X]      changes (number, switch, recipe, sound, text)
+//   |   Running                 [on/off] | [X]      changes (number, switch, recipe, sound, text)
 //   |   + action                                <- the header's footer: picks the action to add
 // Nothing is saved differently: the rows are the same actions, each with its alarm.
 #pragma once
@@ -111,7 +111,7 @@ public:
 	UFUNCTION()
 	void OnGroupBinClicked();
 
-	/** One-line action rows: the on / off switch (Standby: Pause / Resume; Power: Turn on / off). */
+	/** One-line action rows: the on / off switch (Running: on = Resume, off = Pause; Power: Turn on / off). */
 	UFUNCTION()
 	void OnStateClicked();
 

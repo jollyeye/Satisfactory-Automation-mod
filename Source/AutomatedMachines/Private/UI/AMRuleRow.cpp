@@ -30,13 +30,16 @@ namespace
 	constexpr int32 AMRR_MaxSuggestions = 6;
 
 
-	/** The name of an action on a one-line row: Pause / Resume are one "Standby" with a switch, Turn on / off one "Power". */
+	/**
+	 * The name of an action on a one-line row: Pause / Resume are one "Running" with a switch (on = runs,
+	 * off = standby, like the game's standby lever: 1 runs, 0 stands by), Turn on / off one "Power".
+	 */
 	FString AMRR_CompactName(EAMAction Action)
 	{
 		switch (Action)
 		{
 		case EAMAction::Pause:
-		case EAMAction::Resume:    return TEXT("Standby");
+		case EAMAction::Resume:    return TEXT("Running");
 		case EAMAction::SwitchOn:
 		case EAMAction::SwitchOff: return TEXT("Power");
 		default:                   return AMRules::GetActionText(Action).ToString();
@@ -314,7 +317,7 @@ void UAMRuleRow::UpdateCompact()
 	}
 	if (mStateImage)
 	{
-		const bool bOn = Rule->Action == EAMAction::Pause || Rule->Action == EAMAction::SwitchOn;
+		const bool bOn = Rule->Action == EAMAction::Resume || Rule->Action == EAMAction::SwitchOn;
 		AMUI::SetImage(mStateImage, bOn ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
 	}
 	if (mValueText)
@@ -359,9 +362,9 @@ void UAMRuleRow::OnStateClicked()
 	mTab->OnRulesEdited();
 	UpdateCompact();
 	const bool bStandby = Rule->Action == EAMAction::Pause || Rule->Action == EAMAction::Resume;
-	const bool bOn = Rule->Action == EAMAction::Pause || Rule->Action == EAMAction::SwitchOn;
+	const bool bOn = Rule->Action == EAMAction::Resume || Rule->Action == EAMAction::SwitchOn;
 	mTab->ShowInfo(FText::FromString(AMRR_CompactName(Rule->Action)), FText::FromString(bStandby
-		? (bOn ? TEXT("On: when the alarm rings, the machine goes on standby (paused).") : TEXT("Off: when the alarm rings, the machine leaves standby (runs again)."))
+		? (bOn ? TEXT("On: when the alarm rings, the machine runs (leaves standby).") : TEXT("Off: when the alarm rings, the machine goes on standby."))
 		: (bOn ? TEXT("On: when the alarm rings, the switch is turned on.") : TEXT("Off: when the alarm rings, the switch is turned off."))));
 }
 
