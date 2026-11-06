@@ -32,6 +32,7 @@
 #include "FGBuildableSubsystem.h"
 #include "Automation/AMSign.h"
 #include "Automation/AMLight.h"
+#include "Buildables/FGBuildableLightsControlPanel.h"
 #include "Buildables/FGBuildableWidgetSign.h"
 #include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
@@ -892,15 +893,9 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringe
 			}
 			continue;
 		}
-		// Lights: this alarm's settings.
+		// Lights: after this loop (panels first, then single lights).
 		if (AMLight::IsLight(Entry.Machine))
 		{
-			if (const FAMLightSetting* Setting = Entry.LightSettings.FindByPredicate([&Event](const FAMLightSetting& S) { return S.Event == Event; }))
-			{
-				Entry.LightShowing = Event;
-				AMLight::Apply(Entry.Machine, *Setting);
-				UE_LOG(LogAutomatedMachines, Log, TEXT("%s gets its %s settings"), *AMAS_Describe(Entry.Machine), *Event);
-			}
 			continue;
 		}
 		// Power switches.
@@ -925,6 +920,25 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringe
 			if (Rule.Event == Event)
 			{
 				ApplyAction(Factory, Rule);
+			}
+		}
+	}
+
+	// Lights: control panels first, then single lights, so a light's own settings for an alarm win
+	// over its panel's (the panel passes its settings on to all its lights).
+	for (const bool bPanels : { true, false })
+	{
+		for (FAMMachineRules& Entry : mMachines)
+		{
+			if (!AMLight::IsLight(Entry.Machine) || Entry.Machine->IsA<AFGBuildableLightsControlPanel>() != bPanels)
+			{
+				continue;
+			}
+			if (const FAMLightSetting* Setting = Entry.LightSettings.FindByPredicate([&Event](const FAMLightSetting& S) { return S.Event == Event; }))
+			{
+				Entry.LightShowing = Event;
+				AMLight::Apply(Entry.Machine, *Setting);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s gets its %s settings"), *AMAS_Describe(Entry.Machine), *Event);
 			}
 		}
 	}

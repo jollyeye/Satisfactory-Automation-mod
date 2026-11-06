@@ -215,6 +215,7 @@ Signs only react (no machine events). The Sign Designer gets a list of designs o
 - Like signs: a side list in the light window (Street Light, other lights and the Light Control Panel share one window): `Settings: Default / ALARM [bin] / ... / + Auto Settings`.
 - A row's settings are the window's own controls: colour slot, intensity, night mode, on / standby. Selecting a row loads its settings into the window (and onto the light); the game's controls edit them.
 - When an alarm rings, the light (a panel: all its lights) takes that alarm's settings; Default before any alarm rang. Closing the window puts back the settings it should have.
+- A light with its own settings for an alarm wins over its control panel's settings for the same alarm (panels are applied first, then single lights; tested 6 Nov 2026: the street light won, and obeyed the panel again once its own alarm row was gone).
 - No underglow on lights (like signs). Copy / paste and middle-click sampling carry the alarm settings.
 
 ### Wrong items on a belt (decided 4 Nov 2026)
