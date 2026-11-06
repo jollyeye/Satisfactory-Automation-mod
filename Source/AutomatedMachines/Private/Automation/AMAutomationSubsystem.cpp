@@ -877,6 +877,21 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringe
 	{
 		return;
 	}
+	// Who listens (in the log: an alarm that rings and changes nothing is easy to spot).
+	int32 Listeners = 0;
+	FString ListenerText;
+	for (const FAMMachineRules& Entry : mMachines)
+	{
+		for (const FAMReactionRule& Rule : Entry.Reactions)
+		{
+			if (Rule.Event == Event)
+			{
+				++Listeners;
+				ListenerText += FString::Printf(TEXT(" %s:%s"), *GetNameSafe(Entry.Machine), *AMRules::GetActionText(Rule.Action).ToString());
+			}
+		}
+	}
+	UE_LOG(LogAutomatedMachines, Log, TEXT("Alarm %s rings: %d machine action(s)%s"), *Event, Listeners, *ListenerText);
 	for (const FAMReactionRule& Rule : mWorldActions)
 	{
 		if (Rule.Event == Event)
