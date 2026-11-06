@@ -23,10 +23,33 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Styling/SlateBrush.h"
 
 namespace
 {
 	constexpr int32 AMRR_MaxSuggestions = 6;
+
+
+	/** The name of an action on a one-line row: Pause / Resume are one "Standby" with a switch, Turn on / off one "Power". */
+	FString AMRR_CompactName(EAMAction Action)
+	{
+		switch (Action)
+		{
+		case EAMAction::Pause:
+		case EAMAction::Resume:    return TEXT("Standby");
+		case EAMAction::SwitchOn:
+		case EAMAction::SwitchOff: return TEXT("Power");
+		default:                   return AMRules::GetActionText(Action).ToString();
+		}
+	}
+
+	/** The action a one-line row's switch is about (on = the first one). */
+	bool AMRR_HasSwitch(EAMAction Action)
+	{
+		return Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::SwitchOn || Action == EAMAction::SwitchOff;
+	}
+
+	constexpr float AMRR_CompactHeight = 34.f;
 
 	/** A fixed-width cell. */
 	USizeBox* AMRR_Cell(UWidgetTree* Tree, float Width, UWidget* Content)
@@ -129,6 +152,7 @@ void UAMRuleRow::BuildGroupHeader(UAMAutomationTab* InTab, const FString& InEven
 		LabelSlot->SetHorizontalAlignment(HAlign_Left);
 	}
 	AddButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnGroupAddClicked);
+	mGroupAddButton = AddButton;
 	USizeBox* AddSize = AMRR_Cell(Tree, AMRowLayout::Do, AddButton);
 	UHorizontalBox* FooterLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	if (UHorizontalBoxSlot* AddSlot = FooterLine->AddChildToHorizontalBox(AddSize))
@@ -140,7 +164,177 @@ void UAMRuleRow::BuildGroupHeader(UAMAutomationTab* InTab, const FString& InEven
 
 void UAMRuleRow::OnGroupAddClicked()
 {
-	mTab->AddActionToGroup(mGroupEvent);
+	// Which action: the list of those this alarm can still have.
+	OpenPicker(EAMChoiceKind::Action, mGroupAddButton);
+}
+
+void UAMRuleRow::BuildCompact()
+{
+	UWidgetTree* Tree = mTab->GetTree();
+	const FSlateFontInfo Font = mTab->GetRowFont();
+	const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+	const EAMAction Action = Rule ? Rule->Action : EAMAction::Pause;
+
+	mRoot = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	UHorizontalBox* Outer = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	if (UVerticalBoxSlot* OuterSlot = mRoot->AddChildToVerticalBox(Outer))
+	{
+		OuterSlot->SetPadding(FMargin(AMRowLayout::GroupIndent, 0.f, 0.f, 0.f));
+	}
+	// [ name ........ value ] [X]: the name and value in one box, the bin next to it.
+	const float BoxWidth = AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm - AMRowLayout::GroupIndent;
+	UBorder* Box = AMUI::MakeBox(Tree, AMUI::Button, FMargin(12.f, 0.f, 6.f, 0.f));
+	Box->SetVerticalAlignment(VAlign_Center);
+	USizeBox* BoxSize = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+	BoxSize->SetWidthOverride(BoxWidth);
+	BoxSize->SetHeightOverride(AMRR_CompactHeight);
+	BoxSize->AddChild(Box);
+	Outer->AddChildToHorizontalBox(BoxSize);
+	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	Box->AddChild(Line);
+
+	UTextBlock* Name = AMUI::MakeText(Tree, AMRR_CompactName(Action), Font, AMUI::White);
+	if (UHorizontalBoxSlot* NameSlot = Line->AddChildToHorizontalBox(Name))
+	{
+		NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		NameSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	auto AddValue = [Line](UWidget* Widget, float LeftPadding)
+	{
+		if (UHorizontalBoxSlot* ValueSlot = Line->AddChildToHorizontalBox(Widget))
+		{
+			ValueSlot->SetPadding(FMargin(LeftPadding, 3.f, 0.f, 3.f));
+			ValueSlot->SetVerticalAlignment(VAlign_Center);
+		}
+	};
+
+	const AMRules::FValueInfo Info = AMRules::GetActionValueInfo(Action);
+	if (AMRR_HasSwitch(Action))
+	{
+		// The options' switch: on = Standby / Power on.
+		UButton* StateButton = Tree->ConstructWidget<UButton>(UButton::StaticClass());
+		FButtonStyle Clear;
+		Clear.SetNormal(FSlateNoResource());
+		Clear.SetHovered(FSlateNoResource());
+		Clear.SetPressed(FSlateNoResource());
+		Clear.SetNormalPadding(FMargin(0.f));
+		Clear.SetPressedPadding(FMargin(0.f));
+		StateButton->SetStyle(Clear);
+		mStateImage = AMUI::MakeImage(Tree, AMUI::SwitchOffPath, FVector2D(44.f, 22.f));
+		StateButton->AddChild(mStateImage);
+		StateButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnStateClicked);
+		AddValue(AMRR_Cell(Tree, 44.f, StateButton), 8.f);
+	}
+	else if (Info.bNeeded)
+	{
+		// [100] %
+		UBorder* ValueField = AMUI::MakeBox(Tree, AMUI::Field, FMargin(8.f, 2.f));
+		ValueField->SetVerticalAlignment(VAlign_Center);
+		mValueText = Tree->ConstructWidget<UAMUppercaseText>(UAMUppercaseText::StaticClass());
+		mValueText->SetFont(Font);
+		mValueText->SetJustification(ETextJustify::Right);
+		mValueText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnValueCommitted);
+		ValueField->AddChild(mValueText);
+		AMUI::MarkAsInputBox(ValueField);
+		AddValue(AMRR_Cell(Tree, AMRowLayout::ValueField, ValueField), 8.f);
+		mValueUnit = AMUI::MakeText(Tree, Info.Unit, Font, AMUI::Grey);
+		AddValue(AMRR_Cell(Tree, 16.f, mValueUnit), 6.f);
+	}
+	else if (AMRules::ActionNeedsRecipe(Action) || AMRules::ActionNeedsSound(Action))
+	{
+		UTextBlock* ValueLabel = nullptr;
+		UButton* ValueButton = AMUI::MakeDropdown(Tree, Font, ValueLabel);
+		if (AMRules::ActionNeedsRecipe(Action))
+		{
+			mRecipeButton = ValueButton;
+			mRecipeLabel = ValueLabel;
+			ValueButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnRecipeCellClicked);
+		}
+		else
+		{
+			mSoundButton = ValueButton;
+			mSoundLabel = ValueLabel;
+			ValueButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnSoundCellClicked);
+		}
+		AddValue(AMRR_Cell(Tree, AMRowLayout::Do + 20.f, ValueButton), 8.f);
+	}
+	else if (AMRules::ActionNeedsMessage(Action))
+	{
+		UBorder* MessageField = AMUI::MakeBox(Tree, AMUI::Field, FMargin(8.f, 2.f));
+		MessageField->SetVerticalAlignment(VAlign_Center);
+		mMessageText = Tree->ConstructWidget<UAMUppercaseText>(UAMUppercaseText::StaticClass());
+		mMessageText->SetFont(Font);
+		mMessageText->SetHintText(FText::FromString(TEXT("empty: which machine rang")));
+		mMessageText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnMessageCommitted);
+		MessageField->AddChild(mMessageText);
+		AMUI::MarkAsInputBox(MessageField);
+		AddValue(AMRR_Cell(Tree, BoxWidth - 150.f, MessageField), 8.f);
+	}
+
+	UButton* RemoveButton = AMUI::MakeRemoveButton(Tree, Font);
+	RemoveButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnRemoveClicked);
+	USizeBox* RemoveSize = AMRR_Cell(Tree, AMRowLayout::Remove, RemoveButton);
+	RemoveSize->SetHeightOverride(AMRR_CompactHeight);
+	if (UHorizontalBoxSlot* RemoveSlot = Outer->AddChildToHorizontalBox(RemoveSize))
+	{
+		RemoveSlot->SetPadding(FMargin(AMRowLayout::Gap, 0.f, 0.f, 0.f));
+	}
+	UpdateCompact();
+}
+
+void UAMRuleRow::UpdateCompact()
+{
+	const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+	if (!Rule)
+	{
+		return;
+	}
+	if (mStateImage)
+	{
+		const bool bOn = Rule->Action == EAMAction::Pause || Rule->Action == EAMAction::SwitchOn;
+		AMUI::SetImage(mStateImage, bOn ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
+	}
+	if (mValueText)
+	{
+		mValueText->ShowText(FString::Printf(TEXT("%.0f"), Rule->Value));
+	}
+	if (mRecipeLabel)
+	{
+		mRecipeLabel->SetText(Rule->Recipe ? UFGRecipe::GetRecipeName(Rule->Recipe) : FText::FromString(TEXT("choose a recipe")));
+		mRecipeLabel->SetColorAndOpacity(FSlateColor(Rule->Recipe ? AMUI::White : AMUI::Grey));
+	}
+	if (mSoundLabel)
+	{
+		mSoundLabel->SetText(FText::FromString(AMRules::GetSounds()[AMRules::GetSoundIndex(Rule->Value)].Label));
+	}
+	if (mMessageText)
+	{
+		mMessageText->ShowText(Rule->Message);
+	}
+}
+
+void UAMRuleRow::OnStateClicked()
+{
+	FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+	if (!Rule)
+	{
+		return;
+	}
+	switch (Rule->Action)
+	{
+	case EAMAction::Pause:     Rule->Action = EAMAction::Resume; break;
+	case EAMAction::Resume:    Rule->Action = EAMAction::Pause; break;
+	case EAMAction::SwitchOn:  Rule->Action = EAMAction::SwitchOff; break;
+	case EAMAction::SwitchOff: Rule->Action = EAMAction::SwitchOn; break;
+	default: return;
+	}
+	mTab->OnRulesEdited();
+	UpdateCompact();
+	const bool bStandby = Rule->Action == EAMAction::Pause || Rule->Action == EAMAction::Resume;
+	const bool bOn = Rule->Action == EAMAction::Pause || Rule->Action == EAMAction::SwitchOn;
+	mTab->ShowInfo(FText::FromString(AMRR_CompactName(Rule->Action)), FText::FromString(bStandby
+		? (bOn ? TEXT("On: when the alarm rings, the machine goes on standby (paused).") : TEXT("Off: when the alarm rings, the machine leaves standby (runs again)."))
+		: (bOn ? TEXT("On: when the alarm rings, the switch is turned on.") : TEXT("Off: when the alarm rings, the switch is turned off."))));
 }
 
 void UAMRuleRow::OnGroupBinPressed()
@@ -173,6 +367,12 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex, 
 	mTab = InTab;
 	bIsAlarm = bInIsAlarm;
 	mIndex = InIndex;
+	if (!bIsAlarm && bInGrouped)
+	{
+		bCompact = true;
+		BuildCompact();
+		return;
+	}
 
 	UWidgetTree* Tree = mTab->GetTree();
 	const FSlateFontInfo Font = mTab->GetRowFont();
@@ -382,6 +582,11 @@ void UAMRuleRow::UpdateLabels()
 {
 	if (bGroupHeader)
 	{
+		return;
+	}
+	if (bCompact)
+	{
+		UpdateCompact();
 		return;
 	}
 	if (bIsAlarm)
@@ -855,6 +1060,14 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 		}
 		break;
 	case EAMChoiceKind::Action:
+		if (bGroupHeader)
+		{
+			// "+ action": this action, added under the alarm.
+			HideChoices();
+			mTab->ClosePicker(true);
+			mTab->AddActionToGroup(mGroupEvent, static_cast<EAMAction>(Choice.Value));
+			return;
+		}
 		if (FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 		{
 			const EAMAction Action = static_cast<EAMAction>(Choice.Value);
@@ -976,6 +1189,25 @@ void UAMRuleRow::OpenPicker(EAMChoiceKind Kind, UWidget* Anchor)
 	}
 	case EAMChoiceKind::Action:
 	{
+		if (bGroupHeader)
+		{
+			// "+ action": the actions this alarm can still have, Pause / Resume as one "Standby"
+			// and Turn on / off as one "Power" (their switch says which).
+			for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
+			{
+				const EAMAction Action = static_cast<EAMAction>(Value);
+				if (Action == EAMAction::Resume || Action == EAMAction::SwitchOff)
+				{
+					continue;
+				}
+				if (mTab->IsActionAvailableHere(Action) && !mTab->ActionClashesWithAlarm(mGroupEvent, Action))
+				{
+					Add(AMRR_CompactName(Action), Value, false);
+				}
+			}
+			EmptyMessage = TEXT("Every action is already used for this alarm.");
+			break;
+		}
 		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
 		for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
 		{

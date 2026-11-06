@@ -1454,23 +1454,31 @@ bool UAMAutomationTab::ActionClashesInGroup(int32 Index, EAMAction Action) const
 	return false;
 }
 
-void UAMAutomationTab::AddActionToGroup(const FString& Event)
+bool UAMAutomationTab::ActionClashesWithAlarm(const FString& Event, EAMAction Action) const
 {
-	// The first action of this machine (or the HUB) that clashes with none of the alarm's actions.
+	return mReactions.ContainsByPredicate([&Event, Action](const FAMReactionRule& Rule)
+	{
+		return Rule.Event == Event && AMRules::ActionsConflict(Rule.Action, Action);
+	});
+}
+
+bool UAMAutomationTab::IsActionAvailableHere(EAMAction Action) const
+{
+	return bWorldMode ? AMRules::IsWorldAction(Action) : (!AMRules::IsWorldAction(Action) && AMRules::IsActionAvailable(Action, GetMachine()));
+}
+
+void UAMAutomationTab::AddActionToGroup(const FString& Event, EAMAction Chosen)
+{
+	// The chosen action, or the first of this machine (or the HUB) that clashes with none of the alarm's.
 	for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
 	{
-		const EAMAction Action = static_cast<EAMAction>(Value);
-		const bool bHere = bWorldMode ? AMRules::IsWorldAction(Action) : (!AMRules::IsWorldAction(Action) && AMRules::IsActionAvailable(Action, GetMachine()));
-		if (!bHere)
+		const EAMAction Action = Chosen != EAMAction::Count ? Chosen : static_cast<EAMAction>(Value);
+		if (!IsActionAvailableHere(Action) || ActionClashesWithAlarm(Event, Action))
 		{
-			continue;
-		}
-		const bool bClashes = mReactions.ContainsByPredicate([&Event, Action](const FAMReactionRule& Rule)
-		{
-			return Rule.Event == Event && AMRules::ActionsConflict(Rule.Action, Action);
-		});
-		if (bClashes)
-		{
+			if (Chosen != EAMAction::Count)
+			{
+				break;
+			}
 			continue;
 		}
 		FAMReactionRule& NewRule = mReactions.AddDefaulted_GetRef();

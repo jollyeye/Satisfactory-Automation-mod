@@ -118,13 +118,19 @@ public:
 	 * Actions grouped by alarm: one more action for the alarm (the first one that does not clash
 	 * with the alarm's others), all of an alarm's actions moved to another alarm, or removed.
 	 */
-	void AddActionToGroup(const FString& Event);
+	void AddActionToGroup(const FString& Event, EAMAction Action = EAMAction::Count);
 	void RenameActionGroup(const FString& OldEvent, const FString& NewEvent);
 	void RemoveActionGroup(const FString& Event);
 	bool HasActionGroup(const FString& Event) const;
 
 	/** Would this action clash with another action of the same alarm as action Index (AMRules::ActionsConflict)? */
 	bool ActionClashesInGroup(int32 Index, EAMAction Action) const;
+
+	/** The same for a new action of the alarm Event (none of its actions excluded). */
+	bool ActionClashesWithAlarm(const FString& Event, EAMAction Action) const;
+
+	/** Can this page have this action (machines: machine actions; the HUB: world actions)? */
+	bool IsActionAvailableHere(EAMAction Action) const;
 
 	/** The bin of an alarm with several actions is held down (like the overview's bins). */
 	void StartGroupHold(const FString& Event, int32 Count);

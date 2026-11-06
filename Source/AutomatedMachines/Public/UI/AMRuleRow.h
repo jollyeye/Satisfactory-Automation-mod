@@ -7,8 +7,9 @@
 // Actions are grouped by alarm (6 Nov 2026): a header row per alarm, its actions under it, then
 // "+ action":
 //   | [icon] PLATES BACKED UP v          | [X]   <- header (BuildGroupHeader): changes / removes them all
-//   |     DO [Pause]                     | [X]   <- grouped action row (Build with bInGrouped)
-//   |     + action                              <- the header's footer
+//   |   Set clock speed      [100] %     | [X]   <- one line per action (BuildCompact): only its value
+//   |   Standby                 [on/off] | [X]      changes (number, switch, recipe, sound, text)
+//   |   + action                                <- the header's footer: picks the action to add
 // Nothing is saved differently: the rows are the same actions, each with its alarm.
 #pragma once
 
@@ -110,6 +111,10 @@ public:
 	UFUNCTION()
 	void OnGroupBinClicked();
 
+	/** One-line action rows: the on / off switch (Standby: Pause / Resume; Power: Turn on / off). */
+	UFUNCTION()
+	void OnStateClicked();
+
 	UWidget* GetRootWidget() const;
 
 	/** A choice was clicked / pointed at in the list under the row. */
@@ -182,6 +187,18 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UWidget> mFooter;
+
+	/** The footer's "+ action" (the action picker opens there). */
+	UPROPERTY()
+	TObjectPtr<class UButton> mGroupAddButton;
+
+	/** A one-line action row (its action fixed: only its value changes). */
+	bool bCompact = false;
+	void BuildCompact();
+	void UpdateCompact();
+
+	UPROPERTY()
+	TObjectPtr<class UImage> mStateImage;
 
 	/** True while we set the field's text ourselves (not the player typing). */
 	bool bSettingText = false;
