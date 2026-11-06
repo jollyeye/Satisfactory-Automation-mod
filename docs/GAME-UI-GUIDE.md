@@ -146,6 +146,23 @@ and the storage containers (`Widget_Storage_C`, hook parent `mInventoryVertBox`,
 slot setup, see 8; its frame variable is `WidgetWindowDarkMode`), and the fuel generators
 (`Widget_Generator_C`, Indirect_Child on `Widget_StandbyButton`).
 
+### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
+
+For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /
+night mode / standby), the mod adds no Automation page: a side list on the left of the window
+(`UAMSignTabs`) holds `Default`, one row per alarm (with a bin) and `+ Auto Settings` (the alarm
+picker floats over the page, above it). The list goes into the frame's `WindowHBox` (the parent of
+`WindowBody`), first; its height is capped at the page's (it scrolls). Selecting a row stores what
+the window shows into the row being left and loads the new row into the window's own controls.
+
+| Building | Window | Hook (Indirect_Child of) | Read / load |
+|---|---|---|---|
+| Signs | `BPW_SignInteractWidget` | `mSaveButton` | `mSignData`, `Set Sign Data` |
+| Lights and Light Control Panel (one window) | `BPW_LightsControlPanel` (`/Game/FactoryGame/Buildable/Factory/LightsControlPanel/UI/`) | `mCopyPasteButtons` | `mControlData` (`FLightSourceControlData`), standby `mIsProductionPaused`; load: `SetControlData`, `Set Light Enabled`, `SetIsProductionPaused`, `Update...Selector`, `UpdatePreviewMaterial` |
+
+The light window is one canvas page; the building is `mInteractObject` (street light or panel).
+Signs and lights get no underglow.
+
 Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabButtonLook`,
 `BindSingleTabButtons`, `SelectSingleTab`, `ShowSinglePage` in `UI/AMAutomationTab.cpp`.
 
@@ -217,6 +234,9 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
 - **`ClipToBounds` on a text block cuts its letters** (the text's box is shorter than the font's glyphs): clip a size box around it instead.
 - **A collapsed widget has no geometry**: placing something from `GetCachedGeometry()` of a widget that was collapsed (or just made) gives size 0 and wrong positions. Show it first (render opacity 0), place it on the next tick, then make it visible.
 - The window frame is null in `NativeOnInitialized`; do window work in `NativeConstruct` or later.
+- **C2664 on `FString::Printf`**: UE checks the format at compile time, so it must be a `TEXT("...")`
+  literal, never `bFlag ? TEXT("a %s") : TEXT("b %s")` (6 Nov 2026). Put the choice in an argument:
+  `Printf(TEXT("new %s for %s"), bFlag ? TEXT("settings") : TEXT("design"), ...)`. `check_source.py` catches it.
 - **C2001 "newline in constant"**: a C++ text written by a Python edit script with `\n` in a normal
   Python string got a real line break. Use raw strings (`r"..."`) in edit scripts, and run
   `python3 Tools/check_source.py` before pushing.
