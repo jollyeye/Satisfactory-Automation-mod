@@ -490,7 +490,8 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 	if (Machine->IsA<AFGBuildablePipelinePump>())
 	{
 		// Flow; a pump (it has power) also power and standby.
-		const bool bPowered = Machine->FindComponentByClass<UFGPowerConnectionComponent>() != nullptr;
+		const AActor* PumpActor = Cast<AActor>(Machine);
+		const bool bPowered = PumpActor && PumpActor->FindComponentByClass<UFGPowerConnectionComponent>() != nullptr;
 		switch (Condition)
 		{
 		case EAMCondition::FlowAbove:
@@ -571,7 +572,8 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	}
 	if (Machine->IsA<AFGBuildablePipelinePump>())
 	{
-		const bool bPowered = Machine->FindComponentByClass<UFGPowerConnectionComponent>() != nullptr;
+		const AActor* PumpActor = Cast<AActor>(Machine);
+		const bool bPowered = PumpActor && PumpActor->FindComponentByClass<UFGPowerConnectionComponent>() != nullptr;
 		return Action == EAMAction::SetFlowLimit
 			|| (bPowered && (Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::TogglePause));
 	}
