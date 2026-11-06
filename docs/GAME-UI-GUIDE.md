@@ -152,6 +152,12 @@ slot setup, see 8; its frame variable is `WidgetWindowDarkMode`), and the fuel g
 (one canvas page `CanvasPanel_43` in `WindowBody`: fluid tank, flow gauge, overclock, standby). Hooked like
 the generators: Indirect_Child of `Widget_StandbyButton`.
 
+### Valve and pipeline pump windows (6 Nov 2026)
+
+`BPW_PipeValve` (`.../Factory/PipeValve/UI/`) and `Widget_PipelinePump` (`.../Factory/PipePump/UI/`, Mk1 and Mk2): Kind B,
+one canvas page, **no standby button**. Hooked as Indirect_Child of a widget in the page: the valve's `mSlider`
+(page `CanvasPanel_2` in `SizeBox_0`), the pump's `mFlowRateGauge` (page `CanvasPanel_78`).
+
 ### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
 
 For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /

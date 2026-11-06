@@ -489,7 +489,7 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 	}
 	if (Machine->IsA<AFGBuildablePipelinePump>())
 	{
-		// Flow; a pump (it has power) also power and standby.
+		// Flow; a pump (it has power) also power. No standby: their windows have no standby button.
 		const AActor* PumpActor = Cast<AActor>(Machine);
 		const bool bPowered = PumpActor && PumpActor->FindComponentByClass<UFGPowerConnectionComponent>() != nullptr;
 		switch (Condition)
@@ -499,8 +499,6 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 			return true;
 		case EAMCondition::LosesPower:
 		case EAMCondition::GetsPower:
-		case EAMCondition::Paused:
-		case EAMCondition::Resumed:
 			return bPowered;
 		default:
 			return false;
@@ -572,10 +570,8 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	}
 	if (Machine->IsA<AFGBuildablePipelinePump>())
 	{
-		const AActor* PumpActor = Cast<AActor>(Machine);
-		const bool bPowered = PumpActor && PumpActor->FindComponentByClass<UFGPowerConnectionComponent>() != nullptr;
-		return Action == EAMAction::SetFlowLimit
-			|| (bPowered && (Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::TogglePause));
+		// Only what their windows have: the flow limit (no standby button there).
+		return Action == EAMAction::SetFlowLimit;
 	}
 	if (Action == EAMAction::SetFlowLimit)
 	{

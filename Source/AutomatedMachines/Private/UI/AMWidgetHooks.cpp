@@ -65,6 +65,13 @@ namespace
 	// window like the generators', hooked the same way (next to its standby button).
 	const TCHAR* const AMWH_PumpWindow = TEXT("/Game/FactoryGame/Buildable/Factory/WaterPump/UI/BPW_ExtractorPump.BPW_ExtractorPump_C");
 
+	// Valves and pipeline pumps (Mk1, Mk2): one-page windows without a standby button (dump 6 Nov 2026).
+	// Hooked into their page canvas through a widget in it: the valve's slider, the pump's flow gauge.
+	const TCHAR* const AMWH_ValveWindow = TEXT("/Game/FactoryGame/Buildable/Factory/PipeValve/UI/BPW_PipeValve.BPW_PipeValve_C");
+	const TCHAR* const AMWH_ValvePageChild = TEXT("mSlider");
+	const TCHAR* const AMWH_PipePumpWindow = TEXT("/Game/FactoryGame/Buildable/Factory/PipePump/UI/Widget_PipelinePump.Widget_PipelinePump_C");
+	const TCHAR* const AMWH_PipePumpPageChild = TEXT("mFlowRateGauge");
+
 	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
 	// the page panel holding its Revert Settings button (mSaveButton).
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
@@ -142,6 +149,10 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_GeneratorWindow, AMWH_StandbyButton, TEXT("AM_GeneratorAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_PumpWindow, AMWH_StandbyButton, TEXT("AM_PumpAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_ValveWindow, AMWH_ValvePageChild, TEXT("AM_ValveAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_PipePumpWindow, AMWH_PipePumpPageChild, TEXT("AM_PipePumpAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());
