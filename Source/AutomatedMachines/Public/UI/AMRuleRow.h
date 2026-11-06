@@ -3,6 +3,13 @@
 //   action:  | DO [Pause]                    | ON ALARM [PLATES BACKED UP]  | [X]
 // Clicking a cell's button opens a list of choices under the row; pointing at a choice explains it in
 // the tab's info panel. While typing an alarm name, the list suggests existing alarms.
+//
+// Actions are grouped by alarm (6 Nov 2026): a header row per alarm, its actions under it, then
+// "+ action":
+//   | [icon] PLATES BACKED UP v          | [X]   <- header (BuildGroupHeader): changes / removes them all
+//   |     DO [Pause]                     | [X]   <- grouped action row (Build with bInGrouped)
+//   |     + action                              <- the header's footer
+// Nothing is saved differently: the rows are the same actions, each with its alarm.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -27,6 +34,8 @@ namespace AMRowLayout
 	constexpr float ValueField = 64.f;
 	constexpr float Remove = 36.f;
 	constexpr float Gap = 6.f;
+	/** Grouped action rows are moved right by this, under their alarm's header. */
+	constexpr float GroupIndent = 18.f;
 	/** Used only if the tab buttons' font cannot be read. */
 	constexpr int32 FallbackFontSize = 12;
 }
@@ -81,7 +90,25 @@ class AUTOMATEDMACHINES_API UAMRuleRow : public UObject
 
 public:
 	/** Makes the row's widgets for rule Index of the tab (an alarm or an action). */
-	void Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex);
+	void Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex, bool bInGrouped = false);
+
+	/** The header of the actions of one alarm (Event empty: the alarm is not chosen yet); Count = its actions. */
+	void BuildGroupHeader(UAMAutomationTab* InTab, const FString& InEvent, int32 InCount);
+
+	/** Header rows: the "+ action" line that goes after the group's actions. */
+	UWidget* GetFooterWidget() const { return mFooter; }
+
+	UFUNCTION()
+	void OnGroupAddClicked();
+
+	UFUNCTION()
+	void OnGroupBinPressed();
+
+	UFUNCTION()
+	void OnGroupBinReleased();
+
+	UFUNCTION()
+	void OnGroupBinClicked();
 
 	UWidget* GetRootWidget() const;
 
@@ -147,6 +174,14 @@ private:
 
 	bool bIsAlarm = true;
 	int32 mIndex = INDEX_NONE;
+
+	/** A header of grouped actions: its alarm, and how many actions it has. */
+	bool bGroupHeader = false;
+	FString mGroupEvent;
+	int32 mGroupCount = 0;
+
+	UPROPERTY()
+	TObjectPtr<UWidget> mFooter;
 
 	/** True while we set the field's text ourselves (not the player typing). */
 	bool bSettingText = false;

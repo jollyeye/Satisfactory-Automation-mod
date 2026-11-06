@@ -58,6 +58,14 @@ Do                     when event
 - No "all of these at once" combinations for now.
 - A machine can have **any number** of rows. No limit for now; if many automated machines cause lag, we add a limit or optimise later.
 
+### Actions grouped by alarm (decided 6 Nov 2026, option A)
+
+- The Actions panel shows one block per alarm: a header with the alarm (a dropdown: changing it moves all the block's actions) and a bin, the alarm's actions under it (moved right, no alarm column), and "+ action" under them. The panel's button is "+ Listen to an alarm" (a new block, its alarm chosen in its header). Same in the HUB.
+- The bin of a block with several actions must be held down (the big bin, 2.5 s); with one action a click removes it.
+- One alarm cannot have the same action twice (two messages) or two of a kind (Pause / Resume / Pause or resume; Turn on / Turn off / Turn on or off): the Do list hides them, "+ action" picks the first free one.
+- Saved as before (each action with its alarm): only the drawing changed. A header cannot take an alarm that already has its own block here.
+- The Alarms panel stays as it is.
+
 ### World actions: the Automation tab of the HUB terminal (decided 4 Nov 2026)
 
 Some actions have nothing to do with a machine: they only need to hear an alarm (Show message; later maybe a sound, ringing another alarm, "A and B rang"). They live in an **Automation tab of the HUB terminal**, next to Milestones.

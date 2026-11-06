@@ -346,6 +346,12 @@ namespace AMRules
 
 	/** Events / actions of power switches (Switched on / off; Turn on / off, Set priority). */
 	AUTOMATEDMACHINES_API bool IsSwitchCondition(EAMCondition Condition);
+
+	/**
+	 * Two actions that make no sense together under one alarm: the same action twice (two messages),
+	 * or two of a kind (Pause / Resume / Pause or resume; Turn on / Turn off / Turn on or off).
+	 */
+	AUTOMATEDMACHINES_API bool ActionsConflict(EAMAction A, EAMAction B);
 	AUTOMATEDMACHINES_API bool IsSwitchAction(EAMAction Action);
 
 	/** True if the machine has the Options section's "Pass wrong items through" (it has input belts). */

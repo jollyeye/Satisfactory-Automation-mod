@@ -348,6 +348,24 @@ bool AMRules::IsSwitchCondition(EAMCondition Condition)
 		|| (Condition >= EAMCondition::GridAUsesMore && Condition <= EAMCondition::GridBMakesMore);
 }
 
+bool AMRules::ActionsConflict(EAMAction A, EAMAction B)
+{
+	auto Family = [](EAMAction Action) -> int32
+	{
+		switch (Action)
+		{
+		case EAMAction::Pause:
+		case EAMAction::Resume:
+		case EAMAction::TogglePause:  return 1;
+		case EAMAction::SwitchOn:
+		case EAMAction::SwitchOff:
+		case EAMAction::ToggleSwitch: return 2;
+		default:                      return 100 + static_cast<int32>(Action);
+		}
+	};
+	return Family(A) == Family(B);
+}
+
 bool AMRules::IsSwitchAction(EAMAction Action)
 {
 	return Action == EAMAction::SwitchOn || Action == EAMAction::SwitchOff || Action == EAMAction::ToggleSwitch || Action == EAMAction::SetPriority;

@@ -519,8 +519,8 @@ void UAMAutomationTab::BuildLayout()
 	}
 	if (!bOverviewMode && !bMamMode)
 	{
-		MakePanel(TEXT("Actions"), TEXT("Do"), AMRowLayout::Do, TEXT("On Alarm"), AMRowLayout::OnAlarm,
-			TEXT("+ Add action"), mReactionRowsBox, AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
+		MakePanel(TEXT("Actions"), TEXT("On Alarm / Do"), AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm, TEXT(""), AMRowLayout::Remove,
+			TEXT("+ Listen to an alarm"), mReactionRowsBox, AMAT_PanelGap, AMAT_ActionsWidth)->OnClicked.AddDynamic(this, &UAMAutomationTab::OnAddReactionClicked);
 	}
 	else if (bMamMode)
 	{
@@ -1175,12 +1175,44 @@ void UAMAutomationTab::RebuildRows()
 		}
 	}
 
-	for (int32 Index = 0; Index < mReactions.Num(); ++Index)
+	// Actions grouped by alarm, in the order the alarms first appear: a header, the alarm's
+	// actions, "+ action".
+	TArray<FString> GroupEvents;
+	for (const FAMReactionRule& Rule : mReactions)
 	{
-		UAMRuleRow* Row = NewObject<UAMRuleRow>(this);
-		Row->Build(this, false, Index);
-		mRows.Add(Row);
-		AddRowWidget(mReactionRowsBox, Row->GetRootWidget());
+		GroupEvents.AddUnique(Rule.Event);
+	}
+	for (int32 Group = 0; Group < GroupEvents.Num(); ++Group)
+	{
+		const FString& Event = GroupEvents[Group];
+		int32 Count = 0;
+		for (const FAMReactionRule& Rule : mReactions)
+		{
+			Count += Rule.Event == Event ? 1 : 0;
+		}
+		UAMRuleRow* Header = NewObject<UAMRuleRow>(this);
+		Header->BuildGroupHeader(this, Event, Count);
+		mRows.Add(Header);
+		AddRowWidget(mReactionRowsBox, Header->GetRootWidget());
+		if (Group > 0)
+		{
+			if (UVerticalBoxSlot* HeaderSlot = Cast<UVerticalBoxSlot>(Header->GetRootWidget()->Slot))
+			{
+				HeaderSlot->SetPadding(FMargin(0.f, 14.f, 0.f, 0.f));
+			}
+		}
+		for (int32 Index = 0; Index < mReactions.Num(); ++Index)
+		{
+			if (mReactions[Index].Event != Event)
+			{
+				continue;
+			}
+			UAMRuleRow* Row = NewObject<UAMRuleRow>(this);
+			Row->Build(this, false, Index, true);
+			mRows.Add(Row);
+			AddRowWidget(mReactionRowsBox, Row->GetRootWidget());
+		}
+		AddRowWidget(mReactionRowsBox, Header->GetFooterWidget());
 	}
 	if (mReactions.Num() == 0)
 	{
@@ -1400,6 +1432,108 @@ void UAMAutomationTab::RemoveRule(bool bFire, int32 Index)
 	}
 }
 
+bool UAMAutomationTab::HasActionGroup(const FString& Event) const
+{
+	return mReactions.ContainsByPredicate([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
+}
+
+bool UAMAutomationTab::ActionClashesInGroup(int32 Index, EAMAction Action) const
+{
+	if (!mReactions.IsValidIndex(Index))
+	{
+		return false;
+	}
+	const FString& Event = mReactions[Index].Event;
+	for (int32 Other = 0; Other < mReactions.Num(); ++Other)
+	{
+		if (Other != Index && mReactions[Other].Event == Event && AMRules::ActionsConflict(mReactions[Other].Action, Action))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void UAMAutomationTab::AddActionToGroup(const FString& Event)
+{
+	// The first action of this machine (or the HUB) that clashes with none of the alarm's actions.
+	for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
+	{
+		const EAMAction Action = static_cast<EAMAction>(Value);
+		const bool bHere = bWorldMode ? AMRules::IsWorldAction(Action) : (!AMRules::IsWorldAction(Action) && AMRules::IsActionAvailable(Action, GetMachine()));
+		if (!bHere)
+		{
+			continue;
+		}
+		const bool bClashes = mReactions.ContainsByPredicate([&Event, Action](const FAMReactionRule& Rule)
+		{
+			return Rule.Event == Event && AMRules::ActionsConflict(Rule.Action, Action);
+		});
+		if (bClashes)
+		{
+			continue;
+		}
+		FAMReactionRule& NewRule = mReactions.AddDefaulted_GetRef();
+		NewRule.Event = Event;
+		NewRule.Action = Action;
+		NewRule.Value = AMRules::GetActionValueInfo(Action).Default;
+		OnRulesEdited();
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::RebuildRows));
+		}
+		return;
+	}
+	ShowInfo(FText::FromString(Event.IsEmpty() ? TEXT("Actions") : Event),
+		FText::FromString(TEXT("Every action of this machine is already used for this alarm (actions of one kind, like Pause and Resume, cannot go together).")));
+}
+
+void UAMAutomationTab::RenameActionGroup(const FString& OldEvent, const FString& NewEvent)
+{
+	if (OldEvent == NewEvent || NewEvent.IsEmpty())
+	{
+		return;
+	}
+	for (FAMReactionRule& Rule : mReactions)
+	{
+		if (Rule.Event == OldEvent)
+		{
+			Rule.Event = NewEvent;
+		}
+	}
+	OnRulesEdited();
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::RebuildRows));
+	}
+	ShowAlarmInfo(NewEvent);
+}
+
+void UAMAutomationTab::RemoveActionGroup(const FString& Event)
+{
+	const int32 Removed = mReactions.RemoveAll([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
+	if (Removed == 0)
+	{
+		return;
+	}
+	OnRulesEdited();
+	// Not now: we may be inside the click of a button that the rebuild removes.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UAMAutomationTab::RebuildRows));
+	}
+}
+
+void UAMAutomationTab::StartGroupHold(const FString& Event, int32 Count)
+{
+	StartOverviewHold(Event, false);
+	bHoldGroup = true;
+	if (mHoldBin)
+	{
+		mHoldBin->SetLabel(FString::Printf(TEXT("Hold to remove the %d actions of %s"), Count, Event.IsEmpty() ? TEXT("this alarm") : *Event));
+	}
+}
+
 void UAMAutomationTab::ScrollToEndLater(UWidget* Rows)
 {
 	// The rows' list scrolls to its end once the new row has been laid out (next tick).
@@ -1444,6 +1578,13 @@ void UAMAutomationTab::OnAddFireClicked()
 
 void UAMAutomationTab::OnAddReactionClicked()
 {
+	// A new alarm group (its alarm chosen in its header). One without an alarm already: that one.
+	if (HasActionGroup(FString()))
+	{
+		ScrollToEndLater(mReactionRowsBox);
+		ShowInfo(FText::FromString(TEXT("Choose an alarm")), FText::FromString(TEXT("Choose the alarm of the actions without one first (click \"choose an alarm\").")));
+		return;
+	}
 	FAMReactionRule& NewRule = mReactions.AddDefaulted_GetRef();
 	if (bWorldMode)
 	{
@@ -2795,6 +2936,20 @@ void UAMAutomationTab::StopOverviewHold(bool bDone)
 	}
 	if (!bWasHolding)
 	{
+		return;
+	}
+	if (bHoldGroup)
+	{
+		// An alarm's actions on this page only.
+		bHoldGroup = false;
+		if (bDone)
+		{
+			RemoveActionGroup(mHoldEvent);
+		}
+		else
+		{
+			ShowInfo(FText::FromString(TEXT("Not removed")), FText::FromString(TEXT("Hold the bin down until the big bin is full (2.5 seconds) to remove all the actions of this alarm.")));
+		}
 		return;
 	}
 	if (bDone && bHoldOne)

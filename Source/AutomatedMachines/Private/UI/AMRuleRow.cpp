@@ -75,7 +75,100 @@ UWidget* UAMRuleRow::GetRootWidget() const
 	return mRoot;
 }
 
-void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
+void UAMRuleRow::BuildGroupHeader(UAMAutomationTab* InTab, const FString& InEvent, int32 InCount)
+{
+	mTab = InTab;
+	bIsAlarm = false;
+	bGroupHeader = true;
+	mGroupEvent = InEvent;
+	mGroupCount = InCount;
+	mIndex = INDEX_NONE;
+
+	UWidgetTree* Tree = mTab->GetTree();
+	const FSlateFontInfo Font = mTab->GetRowFont();
+	mRoot = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	mRoot->AddChildToVerticalBox(Line);
+
+	// [icon ALARM v]: the alarm of all the actions under it.
+	UTextBlock* AlarmLabel = nullptr;
+	UButton* AlarmButton = AMUI::MakeDropdown(Tree, Font, AlarmLabel);
+	mAlarmLabel = AlarmLabel;
+	mAlarmButton = AlarmButton;
+	AlarmButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnAlarmCellClicked);
+	if (UHorizontalBox* Content = Cast<UHorizontalBox>(AlarmButton->GetChildAt(0)))
+	{
+		UImage* Icon = AMUI::MakeImage(Tree, TEXT("/AutomatedMachines/Icons/T_AM_TabIcon.T_AM_TabIcon"), FVector2D(18.f, 18.f));
+		if (UHorizontalBoxSlot* IconSlot = Cast<UHorizontalBoxSlot>(Content->InsertChildAt(0, Icon)))
+		{
+			IconSlot->SetVerticalAlignment(VAlign_Center);
+			IconSlot->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		}
+	}
+	if (UHorizontalBoxSlot* AlarmSlot = Line->AddChildToHorizontalBox(AMRR_Cell(Tree, AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm, AlarmButton)))
+	{
+		AlarmSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+	UButton* RemoveButton = AMUI::MakeRemoveButton(Tree, Font);
+	RemoveButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnGroupBinClicked);
+	RemoveButton->OnPressed.AddDynamic(this, &UAMRuleRow::OnGroupBinPressed);
+	RemoveButton->OnReleased.AddDynamic(this, &UAMRuleRow::OnGroupBinReleased);
+	if (UHorizontalBoxSlot* RemoveSlot = Line->AddChildToHorizontalBox(AMRR_Cell(Tree, AMRowLayout::Remove, RemoveButton)))
+	{
+		RemoveSlot->SetPadding(FMargin(AMRowLayout::Gap, 0.f, 0.f, 0.f));
+		RemoveSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+	mAlarmLabel->SetText(FText::FromString(mGroupEvent.IsEmpty() ? TEXT("choose an alarm") : mGroupEvent));
+	mAlarmLabel->SetColorAndOpacity(FSlateColor(mGroupEvent.IsEmpty() ? AMUI::Grey : AMUI::White));
+
+	// "+ action" under the group's actions (a small text button, indented like them).
+	UTextBlock* AddLabel = nullptr;
+	UButton* AddButton = AMUI::MakeButton(Tree, TEXT("+ action"), Font, AMUI::Button, &AddLabel);
+	if (UButtonSlot* LabelSlot = AddLabel ? Cast<UButtonSlot>(AddLabel->Slot) : nullptr)
+	{
+		LabelSlot->SetHorizontalAlignment(HAlign_Left);
+	}
+	AddButton->OnClicked.AddDynamic(this, &UAMRuleRow::OnGroupAddClicked);
+	USizeBox* AddSize = AMRR_Cell(Tree, AMRowLayout::Do, AddButton);
+	UHorizontalBox* FooterLine = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+	if (UHorizontalBoxSlot* AddSlot = FooterLine->AddChildToHorizontalBox(AddSize))
+	{
+		AddSlot->SetPadding(FMargin(AMRowLayout::GroupIndent, 0.f, 0.f, 0.f));
+	}
+	mFooter = FooterLine;
+}
+
+void UAMRuleRow::OnGroupAddClicked()
+{
+	mTab->AddActionToGroup(mGroupEvent);
+}
+
+void UAMRuleRow::OnGroupBinPressed()
+{
+	// More than one action: hold the bin down (they all go). One: a click is enough.
+	if (mGroupCount > 1)
+	{
+		mTab->StartGroupHold(mGroupEvent, mGroupCount);
+	}
+}
+
+void UAMRuleRow::OnGroupBinReleased()
+{
+	if (mGroupCount > 1)
+	{
+		mTab->StopOverviewHold(false);
+	}
+}
+
+void UAMRuleRow::OnGroupBinClicked()
+{
+	if (mGroupCount <= 1)
+	{
+		mTab->RemoveActionGroup(mGroupEvent);
+	}
+}
+
+void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex, bool bInGrouped)
 {
 	mTab = InTab;
 	bIsAlarm = bInIsAlarm;
@@ -118,6 +211,11 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		mAlarmNameField = Field;
 		Add(AMRR_Cell(Tree, AMRowLayout::AlarmName, Field), 0.f);
 		Add(AMRR_Cell(Tree, AMRowLayout::MachineEvent, SecondButton), AMRowLayout::Gap);
+	}
+	else if (bInGrouped)
+	{
+		// Under its alarm's header: | DO | (the header names the alarm), moved right.
+		Add(AMRR_Cell(Tree, AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm - AMRowLayout::GroupIndent, SecondButton), AMRowLayout::GroupIndent);
 	}
 	else
 	{
@@ -192,7 +290,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		ValueLine->SetVisibility(ESlateVisibility::Collapsed);
 		if (UVerticalBoxSlot* ValueSlot = mRoot->AddChildToVerticalBox(ValueLine))
 		{
-			ValueSlot->SetPadding(FMargin(bIsAlarm ? AMRowLayout::AlarmName + AMRowLayout::Gap : 0.f, 4.f, 0.f, 0.f));
+			ValueSlot->SetPadding(FMargin(bIsAlarm ? AMRowLayout::AlarmName + AMRowLayout::Gap : (bInGrouped ? AMRowLayout::GroupIndent : 0.f), 4.f, 0.f, 0.f));
 		}
 	}
 
@@ -218,7 +316,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		RecipeLine->SetVisibility(ESlateVisibility::Collapsed);
 		if (UVerticalBoxSlot* RecipeSlot = mRoot->AddChildToVerticalBox(RecipeLine))
 		{
-			RecipeSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			RecipeSlot->SetPadding(FMargin(bInGrouped ? AMRowLayout::GroupIndent : 0.f, 4.f, 0.f, 0.f));
 		}
 
 		// "Message [ your text ]" for Show message (normal letters, not capitals).
@@ -243,7 +341,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		MessageLine->SetVisibility(ESlateVisibility::Collapsed);
 		if (UVerticalBoxSlot* MessageSlot = mRoot->AddChildToVerticalBox(MessageLine))
 		{
-			MessageSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			MessageSlot->SetPadding(FMargin(bInGrouped ? AMRowLayout::GroupIndent : 0.f, 4.f, 0.f, 0.f));
 		}
 
 		// "Sound [Blip v]" for Play sound.
@@ -265,7 +363,7 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 		SoundLine->SetVisibility(ESlateVisibility::Collapsed);
 		if (UVerticalBoxSlot* SoundSlot = mRoot->AddChildToVerticalBox(SoundLine))
 		{
-			SoundSlot->SetPadding(FMargin(0.f, 4.f, 0.f, 0.f));
+			SoundSlot->SetPadding(FMargin(bInGrouped ? AMRowLayout::GroupIndent : 0.f, 4.f, 0.f, 0.f));
 		}
 	}
 
@@ -282,6 +380,10 @@ void UAMRuleRow::Build(UAMAutomationTab* InTab, bool bInIsAlarm, int32 InIndex)
 
 void UAMRuleRow::UpdateLabels()
 {
+	if (bGroupHeader)
+	{
+		return;
+	}
 	if (bIsAlarm)
 	{
 		if (const FAMFireRule* Rule = mTab->GetFireRule(mIndex))
@@ -674,6 +776,14 @@ void UAMRuleRow::Choose(const UAMChoice& Choice)
 		{
 			CommitAlarmName(Choice.Alarm);
 		}
+		else if (bGroupHeader)
+		{
+			// All the group's actions move to the chosen alarm (rows made again on the next tick).
+			mTab->RenameActionGroup(mGroupEvent, Choice.Alarm);
+			HideChoices();
+			mTab->ClosePicker(true);
+			return;
+		}
 		else if (FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 		{
 			if (Rule->Event != Choice.Alarm)
@@ -860,7 +970,12 @@ void UAMRuleRow::OpenPicker(EAMChoiceKind Kind, UWidget* Anchor)
 		{
 			const EAMAction Action = static_cast<EAMAction>(Value);
 			const bool bCurrent = Rule && Rule->Action == Action;
-			// Machines: machine actions. HUB: world actions.
+			// Machines: machine actions. HUB: world actions. Not one that clashes with another action
+			// of the same alarm (two messages, Pause next to Resume).
+			if (!bCurrent && mTab->ActionClashesInGroup(mIndex, Action))
+			{
+				continue;
+			}
 			if (AMRules::IsWorldAction(Action) == mTab->IsWorldMode() && (AMRules::IsActionAvailable(Action, mTab->GetMachineObject()) || bCurrent))
 			{
 				Add(AMRules::GetActionText(Action).ToString(), Value, bCurrent);
@@ -871,9 +986,15 @@ void UAMRuleRow::OpenPicker(EAMChoiceKind Kind, UWidget* Anchor)
 	case EAMChoiceKind::Alarm:
 	{
 		const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex);
+		const FString Current = bGroupHeader ? mGroupEvent : (Rule ? Rule->Event : FString());
 		for (const FString& Alarm : mTab->GetEventNames())
 		{
-			Add(Alarm, 0, Rule && Rule->Event == Alarm)->Alarm = Alarm;
+			// A header: not an alarm that already has its own group here (they would mix).
+			if (bGroupHeader && Alarm != Current && mTab->HasActionGroup(Alarm))
+			{
+				continue;
+			}
+			Add(Alarm, 0, Alarm == Current)->Alarm = Alarm;
 		}
 		EmptyMessage = TEXT("No alarms yet: give a machine an alarm first.");
 		MinWidth = 260.f;
@@ -938,7 +1059,14 @@ void UAMRuleRow::OnSecondCellClicked()
 
 void UAMRuleRow::OnAlarmCellClicked()
 {
-	if (const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
+	if (bGroupHeader)
+	{
+		if (!mGroupEvent.IsEmpty())
+		{
+			mTab->ShowAlarmInfo(mGroupEvent);
+		}
+	}
+	else if (const FAMReactionRule* Rule = mTab->GetReactionRule(mIndex))
 	{
 		mTab->ShowAlarmInfo(Rule->Event);
 	}

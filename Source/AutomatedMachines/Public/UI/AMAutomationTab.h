@@ -114,6 +114,21 @@ public:
 	/** Removes a rule, saves, and rebuilds the rows (on the next frame). */
 	void RemoveRule(bool bFire, int32 Index);
 
+	/**
+	 * Actions grouped by alarm: one more action for the alarm (the first one that does not clash
+	 * with the alarm's others), all of an alarm's actions moved to another alarm, or removed.
+	 */
+	void AddActionToGroup(const FString& Event);
+	void RenameActionGroup(const FString& OldEvent, const FString& NewEvent);
+	void RemoveActionGroup(const FString& Event);
+	bool HasActionGroup(const FString& Event) const;
+
+	/** Would this action clash with another action of the same alarm as action Index (AMRules::ActionsConflict)? */
+	bool ActionClashesInGroup(int32 Index, EAMAction Action) const;
+
+	/** The bin of an alarm with several actions is held down (like the overview's bins). */
+	void StartGroupHold(const FString& Event, int32 Count);
+
 	/** The info panel on the right of the page. */
 	void ShowInfo(const FText& Title, const FText& Body);
 
@@ -430,6 +445,9 @@ private:
 
 	/** Rules changed while a bin was held: the rows are made again when it is let go. */
 	bool bOverviewDirty = false;
+
+	/** The bin held is an alarm's group of actions on this page (removed here, not in the world). */
+	bool bHoldGroup = false;
 
 	/** The bin held is a machine row's: only that machine (or the HUB). */
 	TWeakObjectPtr<AFGBuildable> mHoldMachine;
