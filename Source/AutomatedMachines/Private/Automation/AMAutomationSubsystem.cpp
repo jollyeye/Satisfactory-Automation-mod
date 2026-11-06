@@ -16,6 +16,8 @@
 #include "Buildables/FGBuildablePipelinePump.h"
 #include "FGPipeSubsystem.h"
 #include "Buildables/FGBuildablePipeReservoir.h"
+#include "Buildables/FGBuildableResourceSink.h"
+#include "FGResourceSinkSubsystem.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -739,7 +741,7 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
 		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
 		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine)
-		|| AMRules::IsValve(Machine) || Machine->IsA<AFGBuildablePipeReservoir>());
+		|| AMRules::IsValve(Machine) || Machine->IsA<AFGBuildablePipeReservoir>() || Machine->IsA<AFGBuildableResourceSink>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -978,6 +980,14 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::Paused:            return Factory->IsProductionPaused();
 	case EAMCondition::Resumed:           return !Factory->IsProductionPaused();
 	case EAMCondition::ProductivityBelow: return Factory->GetProductivity() * 100.f < Rule.Value;
+	case EAMCondition::CouponsAbove:
+	case EAMCondition::CouponsBelow:
+		if (const AFGResourceSinkSubsystem* Sinks = AFGResourceSinkSubsystem::Get(const_cast<AFGBuildableFactory*>(Factory)))
+		{
+			const float Coupons = static_cast<float>(Sinks->GetNumCoupons());
+			return Rule.Condition == EAMCondition::CouponsAbove ? Coupons > Rule.Value : Coupons < Rule.Value;
+		}
+		return false;
 	case EAMCondition::FlowAbove:
 	case EAMCondition::FlowBelow:
 		if (const AFGBuildablePipelinePump* Pump = Cast<AFGBuildablePipelinePump>(Factory))

@@ -10,6 +10,7 @@
 #include "Buildables/FGBuildablePriorityPowerSwitch.h"
 #include "Buildables/FGBuildablePipelinePump.h"
 #include "Buildables/FGBuildablePipeReservoir.h"
+#include "Buildables/FGBuildableResourceSink.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
 #include "GameFramework/Actor.h"
@@ -98,6 +99,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::GridBMakesMore:    return AMTY_Text(TEXT("A power < B power"));
 	case EAMCondition::FlowAbove:         return AMTY_Text(TEXT("Flow above"));
 	case EAMCondition::FlowBelow:         return AMTY_Text(TEXT("Flow below"));
+	case EAMCondition::CouponsAbove:      return AMTY_Text(TEXT("Coupons above"));
+	case EAMCondition::CouponsBelow:      return AMTY_Text(TEXT("Coupons below"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -211,6 +214,10 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make more power than those of Power Grid B: their capacity (the top line of the graph), which counts only generators that have fuel.\n\nPair it with \"A power < B power\", which rings when it turns the other way."));
 	case EAMCondition::GridBMakesMore:
 		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make less power than those of Power Grid B (their capacity, generators with fuel only)."));
+	case EAMCondition::CouponsAbove:
+		return AMTY_Text(TEXT("Rings when there are more coupons than this to print (the coupons the AWESOME Sinks have earned and nobody has printed yet; the same number at every sink).\n\nUse it to get a message when it is time to go shopping."));
+	case EAMCondition::CouponsBelow:
+		return AMTY_Text(TEXT("Rings when there are fewer coupons than this to print (for example after printing them)."));
 	case EAMCondition::FlowAbove:
 		return AMTY_Text(TEXT("Rings when more fluid than this flows through it (m3 per minute, like its window's flow)."));
 	case EAMCondition::FlowBelow:
@@ -298,6 +305,15 @@ AMRules::FValueInfo AMRules::GetConditionValueInfo(EAMCondition Condition)
 		Info.Max = 600.f;
 		Info.Default = Condition == EAMCondition::FlowAbove ? 300.f : 1.f;
 		Info.Unit = TEXT("m3/min");
+	}
+	else if (Condition == EAMCondition::CouponsAbove || Condition == EAMCondition::CouponsBelow)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Coupons");
+		Info.Min = 0.f;
+		Info.Max = 999999.f;
+		Info.Default = Condition == EAMCondition::CouponsAbove ? 10.f : 1.f;
+		Info.Unit = TEXT("");
 	}
 	else if (Condition == EAMCondition::FuelBelow)
 	{
@@ -517,7 +533,13 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 			return false;
 		}
 	}
-	if (Condition == EAMCondition::FlowAbove || Condition == EAMCondition::FlowBelow)
+	if (Machine->IsA<AFGBuildableResourceSink>())
+	{
+		// Only the coupons (a world number), like the MAM's alarms.
+		return Condition == EAMCondition::CouponsAbove || Condition == EAMCondition::CouponsBelow;
+	}
+	if (Condition == EAMCondition::FlowAbove || Condition == EAMCondition::FlowBelow
+		|| Condition == EAMCondition::CouponsAbove || Condition == EAMCondition::CouponsBelow)
 	{
 		return false;
 	}
@@ -594,6 +616,11 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	if (Machine->IsA<AFGBuildablePipeReservoir>())
 	{
 		return Action == EAMAction::FlushBuffer || Action == EAMAction::FlushNetwork;
+	}
+	if (Machine->IsA<AFGBuildableResourceSink>())
+	{
+		// Its only switch: on / standby.
+		return Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::TogglePause;
 	}
 	if (Action == EAMAction::SetFlowLimit || Action == EAMAction::FlushNetwork || Action == EAMAction::FlushBuffer)
 	{

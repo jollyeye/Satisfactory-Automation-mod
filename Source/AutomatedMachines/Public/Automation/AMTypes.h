@@ -67,6 +67,9 @@ enum class EAMCondition : uint8
 	// Pipeline pumps and valves: the fluid flowing through them (m3/min).
 	FlowAbove          UMETA(DisplayName = "Flow above"),
 	FlowBelow          UMETA(DisplayName = "Flow below"),
+	// AWESOME Sinks: the coupons waiting to be printed (the same for every sink: a world number).
+	CouponsAbove       UMETA(DisplayName = "Coupons above"),
+	CouponsBelow       UMETA(DisplayName = "Coupons below"),
 	Count              UMETA(Hidden)
 };
 

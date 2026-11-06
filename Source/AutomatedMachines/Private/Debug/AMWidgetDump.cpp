@@ -21,6 +21,7 @@
 #include "Buildables/FGBuildableResourceExtractor.h"
 #include "Buildables/FGBuildablePipelinePump.h"
 #include "Buildables/FGBuildablePipeReservoir.h"
+#include "Buildables/FGBuildableResourceSink.h"
 
 namespace
 {
@@ -245,7 +246,8 @@ namespace
 		const UObject* Object = Property ? Property->GetObjectPropertyValue_InContainer(Widget) : nullptr;
 		return Object && (Object->IsA<AFGBuildableCircuitSwitch>() || Object->IsA<AFGBuildableLightSource>()
 			|| Object->IsA<AFGBuildableLightsControlPanel>() || Object->IsA<AFGBuildableResourceExtractor>()
-			|| Object->IsA<AFGBuildablePipelinePump>() || Object->IsA<AFGBuildablePipeReservoir>());
+			|| Object->IsA<AFGBuildablePipelinePump>() || Object->IsA<AFGBuildablePipeReservoir>()
+			|| Object->IsA<AFGBuildableResourceSink>());
 	}
 
 	void AMWD_CheckWorld(UWorld* World)
