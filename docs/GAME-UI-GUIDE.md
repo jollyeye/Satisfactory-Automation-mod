@@ -235,6 +235,8 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
 - **`ClipToBounds` on a text block cuts its letters** (the text's box is shorter than the font's glyphs): clip a size box around it instead.
 - **A collapsed widget has no geometry**: placing something from `GetCachedGeometry()` of a widget that was collapsed (or just made) gives size 0 and wrong positions. Show it first (render opacity 0), place it on the next tick, then make it visible.
 - The window frame is null in `NativeOnInitialized`; do window work in `NativeConstruct` or later.
+- **Kind A pages slide by the widths measured when the tabs were set up** (offsets in the log: `offsets 0=0 1=-1310 ...`). A page whose width changes later (a long auto-wrapping text first asking for its one-line width) shifts every page after it: the HUB's Alarms Overview showed cut off on the left (6 Nov 2026, the HUB description widened the Automation page to 1366). Keep page widths fixed: long texts `SetWrapTextAt`.
+- **Long labels in fixed-width cells** (a recipe name in a dropdown): `SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis)` ends them in "..." instead of running over the arrow and the bin.
 - **C2664 on `FString::Printf`**: UE checks the format at compile time, so it must be a `TEXT("...")`
   literal, never `bFlag ? TEXT("a %s") : TEXT("b %s")` (6 Nov 2026). Put the choice in an argument:
   `Printf(TEXT("new %s for %s"), bFlag ? TEXT("settings") : TEXT("design"), ...)`. `check_source.py` catches it.
