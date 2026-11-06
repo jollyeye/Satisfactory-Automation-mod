@@ -209,6 +209,7 @@ void UAMRuleRow::BuildCompact()
 	}
 
 	UTextBlock* Name = AMUI::MakeText(Tree, AMRR_CompactName(Action), Font, AMUI::White);
+	Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
 	if (UHorizontalBoxSlot* NameSlot = Line->AddChildToHorizontalBox(Name))
 	{
 		NameSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));

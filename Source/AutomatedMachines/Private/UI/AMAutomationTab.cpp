@@ -366,7 +366,7 @@ void UAMAutomationTab::BuildLayout()
 	AddTo(mContentBox, mGridWarningText, 6.f);
 	// A wrapping text still asks for its whole one-line width, which widens the window: these two
 	// wrap at the panels' width instead (the alarms and actions panels side by side).
-	for (UTextBlock* LongText : { mNoticeText.Get(), mGridWarningText.Get() })
+	for (UTextBlock* LongText : { mMachineText.Get(), mNoticeText.Get(), mGridWarningText.Get() })
 	{
 		LongText->SetAutoWrapText(false);
 		LongText->SetWrapTextAt(AMAT_AlarmsWidth + AMAT_PanelGap + AMAT_ActionsWidth);

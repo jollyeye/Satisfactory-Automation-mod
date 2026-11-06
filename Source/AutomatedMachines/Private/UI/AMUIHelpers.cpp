@@ -152,6 +152,8 @@ UButton* AMUI::MakeDropdown(UWidgetTree* Tree, const FSlateFontInfo& Font, UText
 
 	UHorizontalBox* Content = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
 	OutLabel = MakeText(Tree, TEXT(""), Font, White);
+	// A long choice ends in "..." before the arrow instead of running over it.
+	OutLabel->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
 	if (UHorizontalBoxSlot* LabelSlot = Content->AddChildToHorizontalBox(OutLabel))
 	{
 		LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
