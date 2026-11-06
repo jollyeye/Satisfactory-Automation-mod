@@ -91,6 +91,8 @@ enum class EAMAction : uint8
 	SetPriority    UMETA(DisplayName = "Set priority"),
 	// Pipeline pumps and valves: the flow limit of their window (m3/min).
 	SetFlowLimit   UMETA(DisplayName = "Set flow limit"),
+	// Valves: empties the whole pipe network it is part of (like the pipes' Flush button).
+	FlushNetwork   UMETA(DisplayName = "Flush pipe network"),
 	Count          UMETA(Hidden)
 };
 
@@ -351,6 +353,9 @@ namespace AMRules
 
 	/** Events / actions of power switches (Switched on / off; Turn on / off, Set priority). */
 	AUTOMATEDMACHINES_API bool IsSwitchCondition(EAMCondition Condition);
+
+	/** A valve: a pipeline pump without power (pumps themselves are not automated). */
+	AUTOMATEDMACHINES_API bool IsValve(const UObject* Machine);
 
 	/**
 	 * Two actions that make no sense together under one alarm: the same action twice (two messages),

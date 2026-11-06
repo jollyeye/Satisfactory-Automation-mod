@@ -78,6 +78,8 @@ namespace
 	/** Our page: about the Production page plus the inventory panel it replaces. */
 	constexpr float AMAT_PagePadding = 16.f;
 	constexpr float AMAT_PanelGap = 12.f;
+	/** One-page windows: our page is at least this high (a valve's own page is much smaller). */
+	constexpr float AMAT_MinSinglePageHeight = 560.f;
 	constexpr float AMAT_PanelPadding = 8.f;
 	/** Room for the scroll bar at the right of the rows (without it, the rows' last cell got squeezed). */
 	constexpr float AMAT_ScrollbarRoom = 14.f;
@@ -2243,7 +2245,8 @@ void UAMAutomationTab::ShowSinglePage(bool bAutomation)
 		{
 			if (mMachinePageHeight > 0.f)
 			{
-				Root->SetHeightOverride(mMachinePageHeight);
+				// Small windows (a valve's) grow to our page's smallest height.
+				Root->SetHeightOverride(FMath::Max(mMachinePageHeight, AMAT_MinSinglePageHeight));
 			}
 		}
 	}

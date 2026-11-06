@@ -120,6 +120,7 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::ToggleSwitch:  return AMTY_Text(TEXT("Turn on or off"));
 	case EAMAction::SetPriority:   return AMTY_Text(TEXT("Set priority"));
 	case EAMAction::SetFlowLimit:  return AMTY_Text(TEXT("Set flow limit"));
+	case EAMAction::FlushNetwork:  return AMTY_Text(TEXT("Flush pipe network"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -249,6 +250,8 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Turns the switch off if it is on, on if it is off. Handy for one alarm that switches something on and off."));
 	case EAMAction::SetFlowLimit:
 		return AMTY_Text(TEXT("Sets the flow limit, like the slider in its window (m3 per minute). 0 closes it: nothing flows through."));
+	case EAMAction::FlushNetwork:
+		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nA valve does not split a network: this empties every pipe, pump and buffer connected to it, on both sides."));
 	case EAMAction::SetPriority:
 		return AMTY_Text(TEXT("Sets the priority of the switch, like the priority in its window. During a power shortage the game turns off the switches with the highest number first; 0 means the game never turns this one off."));
 	default:
@@ -393,6 +396,12 @@ bool AMRules::ActionsConflict(EAMAction A, EAMAction B)
 		}
 	};
 	return Family(A) == Family(B);
+}
+
+bool AMRules::IsValve(const UObject* Machine)
+{
+	const AActor* Actor = Cast<AActor>(Machine);
+	return Actor && Actor->IsA<AFGBuildablePipelinePump>() && !Actor->FindComponentByClass<UFGPowerConnectionComponent>();
 }
 
 bool AMRules::IsSwitchAction(EAMAction Action)
@@ -570,10 +579,10 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	}
 	if (Machine->IsA<AFGBuildablePipelinePump>())
 	{
-		// Only what their windows have: the flow limit (no standby button there).
-		return Action == EAMAction::SetFlowLimit;
+		// Only what the valve's window has: the flow limit; and flushing its network.
+		return Action == EAMAction::SetFlowLimit || Action == EAMAction::FlushNetwork;
 	}
-	if (Action == EAMAction::SetFlowLimit)
+	if (Action == EAMAction::SetFlowLimit || Action == EAMAction::FlushNetwork)
 	{
 		return false;
 	}

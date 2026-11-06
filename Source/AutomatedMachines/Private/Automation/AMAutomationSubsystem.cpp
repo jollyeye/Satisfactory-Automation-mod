@@ -14,6 +14,7 @@
 #include "Buildables/FGBuildableCircuitSwitch.h"
 #include "Buildables/FGBuildablePriorityPowerSwitch.h"
 #include "Buildables/FGBuildablePipelinePump.h"
+#include "FGPipeSubsystem.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -737,7 +738,7 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
 		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
 		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine)
-		|| Machine->IsA<AFGBuildablePipelinePump>());
+		|| AMRules::IsValve(Machine));
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -1395,6 +1396,13 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 				Pump->SetUserFlowLimit(Limit);
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s flow limit %.1f m3/min"), *AMAS_Describe(Factory), Rule.Value);
 			}
+		}
+		break;
+	case EAMAction::FlushNetwork:
+		if (AFGPipeSubsystem* Pipes = AMRules::IsValve(Factory) ? AFGPipeSubsystem::GetPipeSubsystem(Factory) : nullptr)
+		{
+			Pipes->FlushPipeNetworkFromIntegrant(Factory);
+			UE_LOG(LogAutomatedMachines, Log, TEXT("%s: pipe network flushed"), *AMAS_Describe(Factory));
 		}
 		break;
 	case EAMAction::DeleteOutput:
