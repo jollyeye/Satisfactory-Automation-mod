@@ -159,6 +159,12 @@ Indirect_Child of its `mSlider` (page `CanvasPanel_2` in `SizeBox_0`). Its page 
 show our page at least `AMAT_MinSinglePageHeight` (560) high. Pipeline pumps (`Widget_PipelinePump`, page
 `CanvasPanel_78`, `mFlowRateGauge`) are **not** automated (decided 6 Nov 2026: little to do, small window).
 
+### Fluid buffer window (6 Nov 2026)
+
+`Widget_PipeStorageTank` (`/Game/FactoryGame/Buildable/Factory/StorageTank/`), the same for the industrial buffer
+(to confirm): Kind B, the page is an **overlay** (`Overlay_0` in `WindowBody`: background + `BPW_PipeModule` with
+the tank and the flush handle). Hooked as Indirect_Child of `BPW_PipeModule`.
+
 ### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
 
 For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /

@@ -70,6 +70,11 @@ namespace
 	const TCHAR* const AMWH_ValveWindow = TEXT("/Game/FactoryGame/Buildable/Factory/PipeValve/UI/BPW_PipeValve.BPW_PipeValve_C");
 	const TCHAR* const AMWH_ValvePageChild = TEXT("mSlider");
 
+	// Fluid buffers (also the industrial one): Widget_PipeStorageTank (dump 6 Nov 2026), one page: an
+	// overlay holding the background and BPW_PipeModule (tank, flush handle). Hooked into that overlay.
+	const TCHAR* const AMWH_BufferWindow = TEXT("/Game/FactoryGame/Buildable/Factory/StorageTank/Widget_PipeStorageTank.Widget_PipeStorageTank_C");
+	const TCHAR* const AMWH_BufferPageChild = TEXT("BPW_PipeModule");
+
 	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
 	// the page panel holding its Revert Settings button (mSaveButton).
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
@@ -149,6 +154,8 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_PumpWindow, AMWH_StandbyButton, TEXT("AM_PumpAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_ValveWindow, AMWH_ValvePageChild, TEXT("AM_ValveAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_BufferWindow, AMWH_BufferPageChild, TEXT("AM_BufferAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());
