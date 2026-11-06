@@ -186,31 +186,21 @@ void UAMRuleRow::BuildCompact()
 	{
 		OuterSlot->SetPadding(FMargin(AMRowLayout::GroupIndent, 0.f, 0.f, 0.f));
 	}
-	// [ name ........ value ] [X]: the name and value in one see-through box (its highlight shows
-	// when pointed at, and explains the action), the bin next to it.
+	// [ name ........ value ] [X]: the name and value in one plain box (no background, no hover:
+	// only the value, the bin and "+ action" react to the mouse), the bin next to it.
 	const float BoxWidth = AMRowLayout::Do + AMRowLayout::Gap + AMRowLayout::OnAlarm - AMRowLayout::GroupIndent;
-	UButton* Box = Tree->ConstructWidget<UButton>(UButton::StaticClass());
-	{
-		AMUI::SetButtonColor(Box, AMUI::Button);
-		FButtonStyle Style = Box->GetStyle();
-		Style.SetNormalPadding(FMargin(12.f, 0.f, 0.f, 0.f));
-		Style.SetPressedPadding(FMargin(12.f, 0.f, 0.f, 0.f));
-		Box->SetStyle(Style);
-		AMUI::SetButtonSeeThrough(Box, AMUI::Button);
-	}
-	Box->OnHovered.AddDynamic(this, &UAMRuleRow::OnCompactHovered);
+	UBorder* Box = Tree->ConstructWidget<UBorder>(UBorder::StaticClass());
+	Box->SetBrush(FSlateNoResource());
+	Box->SetPadding(FMargin(12.f, 0.f, 0.f, 0.f));
+	Box->SetHorizontalAlignment(HAlign_Fill);
+	Box->SetVerticalAlignment(VAlign_Fill);
 	USizeBox* BoxSize = Tree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
 	BoxSize->SetWidthOverride(BoxWidth);
 	BoxSize->SetHeightOverride(AMRR_CompactHeight);
 	BoxSize->AddChild(Box);
 	Outer->AddChildToHorizontalBox(BoxSize);
 	UHorizontalBox* Line = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
-	if (UButtonSlot* LineSlot = Cast<UButtonSlot>(Box->AddChild(Line)))
-	{
-		LineSlot->SetHorizontalAlignment(HAlign_Fill);
-		LineSlot->SetVerticalAlignment(VAlign_Fill);
-		LineSlot->SetPadding(FMargin(0.f));
-	}
+	Box->AddChild(Line);
 
 	UTextBlock* Name = AMUI::MakeText(Tree, AMRR_CompactName(Action), Font, AMUI::White);
 	Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);

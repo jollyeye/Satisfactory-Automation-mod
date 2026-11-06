@@ -177,7 +177,7 @@ Code: `UAMAutomationTab::SetupSinglePage`, `RegenerateTabButtons`, `SetOurTabBut
   `SetText` in the commit event is ignored until the window is reopened.
 - Typing in our fields does not close the window with E (tested).
 
-- **Action rows (6 Nov 2026):** one line per action, see-through: no background on the row, its bin or "+ action", only the hover / pressed box (`AMUI::SetButtonSeeThrough`). The row is a button (pointing at it explains the action); a dropdown in it is exactly as high as the row (slot padding 0, `VAlign_Fill`).
+- **Action rows (6 Nov 2026):** one line per action, no background. Only interactive things react to the mouse: the bin and "+ action" are see-through buttons with their hover / pressed box (`AMUI::SetButtonSeeThrough`); the row itself is a plain border (a button row stayed highlighted after a click). A dropdown in it is exactly as high as the row (slot padding 0, `VAlign_Fill`).
 - **Our look rule: a text input's box is much darker while typing in it** (darker than the side panel, not black) (`AMUI::MarkAsInputBox` on every input's border; UMG text fields have no focus events, so a ticker checks `HasFocusedDescendants()`).
 - A long `AutoWrapText` text still asks for its whole one-line width, and the game window grows to
   it (5 Nov 2026, the joined-grids warning). Give long texts `SetWrapTextAt(width)` (and no auto wrap).
