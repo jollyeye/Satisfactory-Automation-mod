@@ -13,6 +13,7 @@
 #include "Buildables/FGBuildableGeneratorFuel.h"
 #include "Buildables/FGBuildableCircuitSwitch.h"
 #include "Buildables/FGBuildablePriorityPowerSwitch.h"
+#include "Buildables/FGBuildablePipelinePump.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -735,7 +736,8 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 	return Machine && (Machine->IsA<AFGBuildableManufacturer>() || Machine->IsA<AFGBuildableResourceExtractor>()
 		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
 		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
-		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine));
+		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine)
+		|| Machine->IsA<AFGBuildablePipelinePump>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -959,6 +961,15 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::Paused:            return Factory->IsProductionPaused();
 	case EAMCondition::Resumed:           return !Factory->IsProductionPaused();
 	case EAMCondition::ProductivityBelow: return Factory->GetProductivity() * 100.f < Rule.Value;
+	case EAMCondition::FlowAbove:
+	case EAMCondition::FlowBelow:
+		if (const AFGBuildablePipelinePump* Pump = Cast<AFGBuildablePipelinePump>(Factory))
+		{
+			// m3/s in the game, m3/min in its window and in our alarms.
+			const float Flow = FMath::Abs(Pump->GetIndicatorFlow()) * 60.f;
+			return Rule.Condition == EAMCondition::FlowAbove ? Flow > Rule.Value : Flow < Rule.Value;
+		}
+		return false;
 	case EAMCondition::ProductivityAbove: return Factory->GetProductivity() * 100.f > Rule.Value;
 	case EAMCondition::RecipeChanged:     return bRecipeChanged;
 	case EAMCondition::InputFull:         return IsInputFull(Factory);
@@ -1372,6 +1383,17 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			{
 				Factory->SetPendingPotential(Target);
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s clock speed %.1f%%"), *AMAS_Describe(Factory), Target * 100.f);
+			}
+		}
+		break;
+	case EAMAction::SetFlowLimit:
+		if (AFGBuildablePipelinePump* Pump = Cast<AFGBuildablePipelinePump>(Factory))
+		{
+			const float Limit = FMath::Max(0.f, Rule.Value) / 60.f;
+			if (!FMath::IsNearlyEqual(Pump->GetUserFlowLimit(), Limit, 0.0001f))
+			{
+				Pump->SetUserFlowLimit(Limit);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s flow limit %.1f m3/min"), *AMAS_Describe(Factory), Rule.Value);
 			}
 		}
 		break;

@@ -8,6 +8,8 @@
 #include "Buildables/FGBuildableGeneratorFuel.h"
 #include "Buildables/FGBuildableCircuitSwitch.h"
 #include "Buildables/FGBuildablePriorityPowerSwitch.h"
+#include "Buildables/FGBuildablePipelinePump.h"
+#include "FGPowerConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -93,6 +95,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::GridBUsesMore:     return AMTY_Text(TEXT("A usage < B usage"));
 	case EAMCondition::GridAMakesMore:    return AMTY_Text(TEXT("A power > B power"));
 	case EAMCondition::GridBMakesMore:    return AMTY_Text(TEXT("A power < B power"));
+	case EAMCondition::FlowAbove:         return AMTY_Text(TEXT("Flow above"));
+	case EAMCondition::FlowBelow:         return AMTY_Text(TEXT("Flow below"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -115,6 +119,7 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::SwitchOff:     return AMTY_Text(TEXT("Turn off"));
 	case EAMAction::ToggleSwitch:  return AMTY_Text(TEXT("Turn on or off"));
 	case EAMAction::SetPriority:   return AMTY_Text(TEXT("Set priority"));
+	case EAMAction::SetFlowLimit:  return AMTY_Text(TEXT("Set flow limit"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -203,6 +208,10 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make more power than those of Power Grid B: their capacity (the top line of the graph), which counts only generators that have fuel.\n\nPair it with \"A power < B power\", which rings when it turns the other way."));
 	case EAMCondition::GridBMakesMore:
 		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make less power than those of Power Grid B (their capacity, generators with fuel only)."));
+	case EAMCondition::FlowAbove:
+		return AMTY_Text(TEXT("Rings when more fluid than this flows through it (m3 per minute, like its window's flow)."));
+	case EAMCondition::FlowBelow:
+		return AMTY_Text(TEXT("Rings when less fluid than this flows through it (m3 per minute). 0: rings when nothing flows any more."));
 	default:
 		return FText::GetEmpty();
 	}
@@ -238,6 +247,8 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Turns the switch off, like its own button: the power grid behind it is cut off. Does nothing if it is already off."));
 	case EAMAction::ToggleSwitch:
 		return AMTY_Text(TEXT("Turns the switch off if it is on, on if it is off. Handy for one alarm that switches something on and off."));
+	case EAMAction::SetFlowLimit:
+		return AMTY_Text(TEXT("Sets the flow limit, like the slider in its window (m3 per minute). 0 closes it: nothing flows through."));
 	case EAMAction::SetPriority:
 		return AMTY_Text(TEXT("Sets the priority of the switch, like the priority in its window. During a power shortage the game turns off the switches with the highest number first; 0 means the game never turns this one off."));
 	default:
@@ -272,6 +283,15 @@ AMRules::FValueInfo AMRules::GetConditionValueInfo(EAMCondition Condition)
 		Info.Max = 100.f;
 		Info.Default = Condition == EAMCondition::LoadAbove ? 90.f : 20.f;
 	}
+	else if (Condition == EAMCondition::FlowAbove || Condition == EAMCondition::FlowBelow)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Flow");
+		Info.Min = 0.f;
+		Info.Max = 600.f;
+		Info.Default = Condition == EAMCondition::FlowAbove ? 300.f : 1.f;
+		Info.Unit = TEXT("m3/min");
+	}
 	else if (Condition == EAMCondition::FuelBelow)
 	{
 		Info.bNeeded = true;
@@ -303,6 +323,15 @@ AMRules::FValueInfo AMRules::GetActionValueInfo(EAMAction Action)
 		Info.Min = 1.f;
 		Info.Max = 250.f;
 		Info.Default = 100.f;
+	}
+	else if (Action == EAMAction::SetFlowLimit)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Flow limit");
+		Info.Min = 0.f;
+		Info.Max = 600.f;
+		Info.Default = 300.f;
+		Info.Unit = TEXT("m3/min");
 	}
 	else if (Action == EAMAction::SetPriority)
 	{
@@ -458,6 +487,28 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 	{
 		return bSwitchEvent;
 	}
+	if (Machine->IsA<AFGBuildablePipelinePump>())
+	{
+		// Flow; a pump (it has power) also power and standby.
+		const bool bPowered = Machine->FindComponentByClass<UFGPowerConnectionComponent>() != nullptr;
+		switch (Condition)
+		{
+		case EAMCondition::FlowAbove:
+		case EAMCondition::FlowBelow:
+			return true;
+		case EAMCondition::LosesPower:
+		case EAMCondition::GetsPower:
+		case EAMCondition::Paused:
+		case EAMCondition::Resumed:
+			return bPowered;
+		default:
+			return false;
+		}
+	}
+	if (Condition == EAMCondition::FlowAbove || Condition == EAMCondition::FlowBelow)
+	{
+		return false;
+	}
 	if (Machine->IsA<AFGBuildableManufacturer>())
 	{
 		return !bStorageEvent && !bGeneratorEvent && !bSwitchEvent;
@@ -517,6 +568,16 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	if (!Machine || IsWorldAction(Action))
 	{
 		return true;
+	}
+	if (Machine->IsA<AFGBuildablePipelinePump>())
+	{
+		const bool bPowered = Machine->FindComponentByClass<UFGPowerConnectionComponent>() != nullptr;
+		return Action == EAMAction::SetFlowLimit
+			|| (bPowered && (Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::TogglePause));
+	}
+	if (Action == EAMAction::SetFlowLimit)
+	{
+		return false;
 	}
 	if (Machine->IsA<AFGBuildableCircuitSwitch>())
 	{

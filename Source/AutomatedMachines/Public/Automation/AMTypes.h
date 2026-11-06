@@ -64,6 +64,9 @@ enum class EAMCondition : uint8
 	GridBUsesMore      UMETA(DisplayName = "A usage < B usage"),
 	GridAMakesMore     UMETA(DisplayName = "A power > B power"),
 	GridBMakesMore     UMETA(DisplayName = "A power < B power"),
+	// Pipeline pumps and valves: the fluid flowing through them (m3/min).
+	FlowAbove          UMETA(DisplayName = "Flow above"),
+	FlowBelow          UMETA(DisplayName = "Flow below"),
 	Count              UMETA(Hidden)
 };
 
@@ -86,6 +89,8 @@ enum class EAMAction : uint8
 	SwitchOff      UMETA(DisplayName = "Turn off"),
 	ToggleSwitch   UMETA(DisplayName = "Turn on or off"),
 	SetPriority    UMETA(DisplayName = "Set priority"),
+	// Pipeline pumps and valves: the flow limit of their window (m3/min).
+	SetFlowLimit   UMETA(DisplayName = "Set flow limit"),
 	Count          UMETA(Hidden)
 };
 

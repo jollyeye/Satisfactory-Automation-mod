@@ -249,7 +249,7 @@ void UAMRuleRow::BuildCompact()
 		AMUI::MarkAsInputBox(ValueField);
 		AddValue(AMRR_Cell(Tree, AMRowLayout::ValueField, ValueField), 8.f);
 		mValueUnit = AMUI::MakeText(Tree, Info.Unit, Font, AMUI::Grey);
-		AddValue(AMRR_Cell(Tree, 16.f, mValueUnit), 6.f);
+		AddValue(AMRR_Cell(Tree, FMath::Max(16.f, 9.f * FCString::Strlen(Info.Unit)), mValueUnit), 6.f);
 	}
 	else if (AMRules::ActionNeedsRecipe(Action) || AMRules::ActionNeedsSound(Action))
 	{
