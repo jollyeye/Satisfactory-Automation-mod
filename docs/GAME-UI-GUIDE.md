@@ -181,6 +181,12 @@ in `SizeBox_0`: signal picture, "Current State"). Hooked as Indirect_Child of `m
 `Widget_TrainStationNew` (`.../Factory/Train/Station/`): Kind A, sliding pages in `HorizontalBox_0` (inside
 `Widget_SlidingTabs`' `mContent`), hooked like the production window.
 
+### Freight platform windows (7 Nov 2026)
+
+Items: `Widget_Train_DockingStation` (`/Game/FactoryGame/Buildable/-Shared/Widgets/`), one page `CanvasPanel_149`,
+hooked as Indirect_Child of its background image `bg`. Fluids: `BPW_Train_DockingStation_Fluid` (same folder),
+one page `CanvasPanel_0`, hooked through `BPW_PipeModule` like the fluid buffer.
+
 ### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
 
 For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /

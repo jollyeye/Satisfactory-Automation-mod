@@ -88,6 +88,12 @@ namespace
 	// production window.
 	const TCHAR* const AMWH_StationWindow = TEXT("/Game/FactoryGame/Buildable/Factory/Train/Station/Widget_TrainStationNew.Widget_TrainStationNew_C");
 
+	// Freight platforms (dump 7 Nov 2026), one page each: items Widget_Train_DockingStation (CanvasPanel_149,
+	// hooked through its background image "bg"), fluids BPW_Train_DockingStation_Fluid (CanvasPanel_0,
+	// through BPW_PipeModule like the fluid buffer).
+	const TCHAR* const AMWH_PlatformWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Train_DockingStation.Widget_Train_DockingStation_C");
+	const TCHAR* const AMWH_FluidPlatformWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/BPW_Train_DockingStation_Fluid.BPW_Train_DockingStation_Fluid_C");
+
 	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
 	// the page panel holding its Revert Settings button (mSaveButton).
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
@@ -175,6 +181,10 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_SignalWindow, AMWH_SignalPageChild, TEXT("AM_SignalAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_StationWindow, TEXT("HorizontalBox_0"), TEXT("AM_StationAutomationTabHook"));
+		AMWH_HookPages(HookManager, AMWH_PlatformWindow, TEXT("bg"), TEXT("AM_PlatformAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_FluidPlatformWindow, TEXT("BPW_PipeModule"), TEXT("AM_FluidPlatformAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());
 		AMWH_HookPages(HookManager, AMWH_LightWindow, AMWH_LightPageChild, TEXT("AM_LightSettingsTabsHook"), false,
