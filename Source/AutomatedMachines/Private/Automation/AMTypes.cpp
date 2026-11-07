@@ -12,6 +12,7 @@
 #include "Buildables/FGBuildablePipeReservoir.h"
 #include "Buildables/FGBuildableResourceSink.h"
 #include "Buildables/FGBuildableRailroadSignal.h"
+#include "Buildables/FGBuildableRailroadStation.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
 #include "GameFramework/Actor.h"
@@ -106,6 +107,9 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::SignalGreen:       return AMTY_Text(TEXT("Turns green"));
 	case EAMCondition::TrainInBlock:      return AMTY_Text(TEXT("Train on track"));
 	case EAMCondition::BlockEmpty:        return AMTY_Text(TEXT("Track empty"));
+	case EAMCondition::TrainArrives:      return AMTY_Text(TEXT("Train arrives"));
+	case EAMCondition::TrainLeaves:       return AMTY_Text(TEXT("Train leaves"));
+	case EAMCondition::TransferDone:      return AMTY_Text(TEXT("Transfer done"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -133,6 +137,8 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::FlushBuffer:   return AMTY_Text(TEXT("Flush buffer"));
 	case EAMAction::BlockSignal:   return AMTY_Text(TEXT("Block"));
 	case EAMAction::UnblockSignal: return AMTY_Text(TEXT("Unblock"));
+	case EAMAction::StationText:   return AMTY_Text(TEXT("Display text"));
+	case EAMAction::StationName:   return AMTY_Text(TEXT("Display its name"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -221,6 +227,12 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make more power than those of Power Grid B: their capacity (the top line of the graph), which counts only generators that have fuel.\n\nPair it with \"A power < B power\", which rings when it turns the other way."));
 	case EAMCondition::GridBMakesMore:
 		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make less power than those of Power Grid B (their capacity, generators with fuel only)."));
+	case EAMCondition::TrainArrives:
+		return AMTY_Text(TEXT("Rings when a train docks at the station."));
+	case EAMCondition::TrainLeaves:
+		return AMTY_Text(TEXT("Rings when the docked train leaves the station."));
+	case EAMCondition::TransferDone:
+		return AMTY_Text(TEXT("Rings when the docked train has finished loading / unloading at the station's platforms."));
 	case EAMCondition::SignalRed:
 		return AMTY_Text(TEXT("Rings when the signal turns red: trains must stop at it (its block is taken, or it is blocked)."));
 	case EAMCondition::SignalGreen:
@@ -276,6 +288,10 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Sets the flow limit, like the slider in its window (m3 per minute). 0 closes it: nothing flows through."));
 	case EAMAction::FlushNetwork:
 		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nValves and buffers do not split a network: this empties every pipe, pump, valve and buffer connected to it."));
+	case EAMAction::StationText:
+		return AMTY_Text(TEXT("The station shows this text instead of its name (its sign, the map, the timetables), until an alarm displays its name again. Trains still go there: their timetables point at the station, not at its name.\n\nSaves always keep the station's own name."));
+	case EAMAction::StationName:
+		return AMTY_Text(TEXT("The station shows its own name again."));
 	case EAMAction::BlockSignal:
 		return AMTY_Text(TEXT("On: the signal stays red when the alarm rings: trains arriving at it wait, until an alarm unblocks it (off). A train already past the signal is not stopped."));
 	case EAMAction::UnblockSignal:
@@ -395,7 +411,7 @@ bool AMRules::ActionNeedsRecipe(EAMAction Action)
 
 bool AMRules::ActionNeedsMessage(EAMAction Action)
 {
-	return Action == EAMAction::ShowMessage;
+	return Action == EAMAction::ShowMessage || Action == EAMAction::StationText;
 }
 
 bool AMRules::IsWorldAction(EAMAction Action)
@@ -433,6 +449,8 @@ bool AMRules::ActionsConflict(EAMAction A, EAMAction B)
 		case EAMAction::ToggleSwitch: return 2;
 		case EAMAction::BlockSignal:
 		case EAMAction::UnblockSignal: return 3;
+		case EAMAction::StationText:
+		case EAMAction::StationName:   return 4;
 		default:                      return 100 + static_cast<int32>(Action);
 		}
 	};
@@ -569,6 +587,15 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 	{
 		return IsSignalCondition(Condition);
 	}
+	const bool bStationEvent = Condition == EAMCondition::TrainArrives || Condition == EAMCondition::TrainLeaves || Condition == EAMCondition::TransferDone;
+	if (Machine->IsA<AFGBuildableRailroadStation>())
+	{
+		return bStationEvent;
+	}
+	if (bStationEvent)
+	{
+		return false;
+	}
 	if (IsSignalCondition(Condition))
 	{
 		return false;
@@ -660,6 +687,15 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	if (Machine->IsA<AFGBuildableRailroadSignal>())
 	{
 		return IsSignalAction(Action);
+	}
+	const bool bStationAction = Action == EAMAction::StationText || Action == EAMAction::StationName;
+	if (Machine->IsA<AFGBuildableRailroadStation>())
+	{
+		return bStationAction || Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::TogglePause;
+	}
+	if (bStationAction)
+	{
+		return false;
 	}
 	if (IsSignalAction(Action))
 	{

@@ -23,6 +23,7 @@
 #include "Buildables/FGBuildablePipeReservoir.h"
 #include "Buildables/FGBuildableResourceSink.h"
 #include "Buildables/FGBuildableRailroadSignal.h"
+#include "Buildables/FGBuildableRailroadStation.h"
 
 namespace
 {
@@ -248,7 +249,8 @@ namespace
 		return Object && (Object->IsA<AFGBuildableCircuitSwitch>() || Object->IsA<AFGBuildableLightSource>()
 			|| Object->IsA<AFGBuildableLightsControlPanel>() || Object->IsA<AFGBuildableResourceExtractor>()
 			|| Object->IsA<AFGBuildablePipelinePump>() || Object->IsA<AFGBuildablePipeReservoir>()
-			|| Object->IsA<AFGBuildableResourceSink>() || Object->IsA<AFGBuildableRailroadSignal>());
+			|| Object->IsA<AFGBuildableResourceSink>() || Object->IsA<AFGBuildableRailroadSignal>()
+			|| Object->IsA<AFGBuildableRailroadStation>());
 	}
 
 	void AMWD_CheckWorld(UWorld* World)

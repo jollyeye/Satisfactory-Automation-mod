@@ -20,6 +20,8 @@
 #include "FGResourceSinkSubsystem.h"
 #include "Buildables/FGBuildableRailroadSignal.h"
 #include "Automation/AMSignal.h"
+#include "Buildables/FGBuildableRailroadStation.h"
+#include "FGTrainStationIdentifier.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -208,8 +210,38 @@ void AAMAutomationSubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+namespace
+{
+	/** A station's name (its identifier's). */
+	AFGTrainStationIdentifier* AMAS_StationId(const AFGBuildable* Machine)
+	{
+		const AFGBuildableRailroadStation* Station = Cast<AFGBuildableRailroadStation>(Machine);
+		return Station ? Station->GetStationIdentifier() : nullptr;
+	}
+}
+
+void AAMAutomationSubsystem::PostSaveGame_Implementation(int32 SaveVersion, int32 GameVersion)
+{
+	// Our station texts again, after the save kept the stations' own names.
+	for (const FAMMachineRules& Entry : mMachines)
+	{
+		if (AFGTrainStationIdentifier* Id = !Entry.StationTextShown.IsEmpty() ? AMAS_StationId(Entry.Machine) : nullptr)
+		{
+			Id->SetStationName(FText::FromString(Entry.StationTextShown));
+		}
+	}
+}
+
 void AAMAutomationSubsystem::PreSaveGame_Implementation(int32 SaveVersion, int32 GameVersion)
 {
+	// Stations showing our text: their own name in the save (uninstall-safe).
+	for (const FAMMachineRules& Entry : mMachines)
+	{
+		if (AFGTrainStationIdentifier* Id = !Entry.StationTextShown.IsEmpty() ? AMAS_StationId(Entry.Machine) : nullptr)
+		{
+			Id->SetStationName(Entry.StationOwnName);
+		}
+	}
 	// The waiting wrong items are saved, so none is lost.
 	mHeldItems.Reset();
 	FScopeLock HeldScope(&AMAS_HeldLock);
@@ -236,12 +268,16 @@ void AAMAutomationSubsystem::PostLoadGame_Implementation(int32 SaveVersion, int3
 	mHeldItems.Reset();
 	MoveWorldActionsFromMachines();
 	RemoveInvalidEntries();
-	// Signals our Block action held red.
+	// Signals our Block action held red; stations showing our text (the save has their own name).
 	for (const FAMMachineRules& Entry : mMachines)
 	{
 		if (Entry.bSignalBlocked)
 		{
 			AMSignal::SetBlocked(Cast<AFGBuildableRailroadSignal>(Entry.Machine), true);
+		}
+		if (AFGTrainStationIdentifier* Id = !Entry.StationTextShown.IsEmpty() ? AMAS_StationId(Entry.Machine) : nullptr)
+		{
+			Id->SetStationName(FText::FromString(Entry.StationTextShown));
 		}
 	}
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem loaded: %d automated machines, %d events"),
@@ -753,7 +789,7 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
 		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine)
 		|| AMRules::IsValve(Machine) || Machine->IsA<AFGBuildablePipeReservoir>() || Machine->IsA<AFGBuildableResourceSink>()
-		|| Machine->IsA<AFGBuildableRailroadSignal>());
+		|| Machine->IsA<AFGBuildableRailroadSignal>() || Machine->IsA<AFGBuildableRailroadStation>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -765,6 +801,14 @@ bool AAMAutomationSubsystem::RemoveInvalidEntries()
 		{
 			// A signal without automation is never held red.
 			AMSignal::SetBlocked(Cast<AFGBuildableRailroadSignal>(Entry.Machine), false);
+		}
+		if (bRemove && !Entry.StationTextShown.IsEmpty())
+		{
+			// A station without automation shows its own name.
+			if (AFGTrainStationIdentifier* Id = AMAS_StationId(Entry.Machine))
+			{
+				Id->SetStationName(Entry.StationOwnName);
+			}
 		}
 		return bRemove;
 	});
@@ -1028,6 +1072,20 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::Paused:            return Factory->IsProductionPaused();
 	case EAMCondition::Resumed:           return !Factory->IsProductionPaused();
 	case EAMCondition::ProductivityBelow: return Factory->GetProductivity() * 100.f < Rule.Value;
+	case EAMCondition::TrainArrives:
+	case EAMCondition::TrainLeaves:
+	case EAMCondition::TransferDone:
+		if (const AFGBuildableRailroadStation* Station = Cast<AFGBuildableRailroadStation>(Factory))
+		{
+			const ETrainPlatformDockingStatus Status = Station->GetDockingStatus();
+			switch (Rule.Condition)
+			{
+			case EAMCondition::TrainArrives: return Status != ETrainPlatformDockingStatus::ETPDS_None;
+			case EAMCondition::TrainLeaves:  return Status == ETrainPlatformDockingStatus::ETPDS_None;
+			default:                         return Status == ETrainPlatformDockingStatus::ETPDS_Complete;
+			}
+		}
+		return false;
 	case EAMCondition::CouponsAbove:
 	case EAMCondition::CouponsBelow:
 		if (const AFGResourceSinkSubsystem* Sinks = AFGResourceSinkSubsystem::Get(const_cast<AFGBuildableFactory*>(Factory)))
@@ -1476,6 +1534,26 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 				Pump->SetUserFlowLimit(Limit);
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s flow limit %.1f m3/min"), *AMAS_Describe(Factory), Rule.Value);
 			}
+		}
+		break;
+	case EAMAction::StationText:
+	case EAMAction::StationName:
+		if (AFGTrainStationIdentifier* Id = AMAS_StationId(Factory))
+		{
+			FAMMachineRules* Entry = mMachines.FindByPredicate([Factory](const FAMMachineRules& E) { return E.Machine == Factory; });
+			if (!Entry)
+			{
+				break;
+			}
+			const FString Text = Rule.Action == EAMAction::StationText ? Rule.Message.TrimStartAndEnd() : FString();
+			if (Entry->StationTextShown.IsEmpty())
+			{
+				// Showing its own name now: that is the name to put back.
+				Entry->StationOwnName = Id->GetStationName();
+			}
+			Entry->StationTextShown = Text;
+			Id->SetStationName(Text.IsEmpty() ? Entry->StationOwnName : FText::FromString(Text));
+			UE_LOG(LogAutomatedMachines, Log, TEXT("%s displays %s"), *AMAS_Describe(Factory), Text.IsEmpty() ? *Entry->StationOwnName.ToString() : *Text);
 		}
 		break;
 	case EAMAction::FlushBuffer:

@@ -292,7 +292,7 @@ void UAMRuleRow::BuildCompact()
 		MessageField->SetVerticalAlignment(VAlign_Center);
 		mMessageText = Tree->ConstructWidget<UAMUppercaseText>(UAMUppercaseText::StaticClass());
 		mMessageText->SetFont(Font);
-		mMessageText->SetHintText(FText::FromString(TEXT("empty: which machine rang")));
+		mMessageText->SetHintText(FText::FromString(Action == EAMAction::StationText ? TEXT("the text to display") : TEXT("empty: which machine rang")));
 		mMessageText->OnTextCommitted.AddDynamic(this, &UAMRuleRow::OnMessageCommitted);
 		MessageField->AddChild(mMessageText);
 		AMUI::MarkAsInputBox(MessageField);

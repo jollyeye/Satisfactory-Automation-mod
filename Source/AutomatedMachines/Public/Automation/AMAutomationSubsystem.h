@@ -38,6 +38,7 @@ public:
 	virtual bool ShouldSave_Implementation() const override { return true; }
 	virtual void PreSaveGame_Implementation(int32 SaveVersion, int32 GameVersion) override;
 	virtual void PostLoadGame_Implementation(int32 SaveVersion, int32 GameVersion) override;
+	virtual void PostSaveGame_Implementation(int32 SaveVersion, int32 GameVersion) override;
 
 	/** The rules of a machine, or null if it has none. */
 	const FAMMachineRules* FindRules(const AFGBuildable* Machine) const;

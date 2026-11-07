@@ -75,6 +75,10 @@ enum class EAMCondition : uint8
 	SignalGreen        UMETA(DisplayName = "Turns green"),
 	TrainInBlock       UMETA(DisplayName = "Train on track"),
 	BlockEmpty         UMETA(DisplayName = "Track empty"),
+	// Train stations: a train docked at it, gone, its transfer (loading / unloading) done.
+	TrainArrives       UMETA(DisplayName = "Train arrives"),
+	TrainLeaves        UMETA(DisplayName = "Train leaves"),
+	TransferDone       UMETA(DisplayName = "Transfer done"),
 	Count              UMETA(Hidden)
 };
 
@@ -106,6 +110,9 @@ enum class EAMAction : uint8
 	// Railway signals: held red for trains entering through it, and let go.
 	BlockSignal    UMETA(DisplayName = "Block"),
 	UnblockSignal  UMETA(DisplayName = "Unblock"),
+	// Train stations: the name it shows replaced by a text (Message), and its own name back.
+	StationText    UMETA(DisplayName = "Display text"),
+	StationName    UMETA(DisplayName = "Display its name"),
 	Count          UMETA(Hidden)
 };
 
@@ -323,6 +330,16 @@ struct AUTOMATEDMACHINES_API FAMMachineRules
 
 	UPROPERTY(SaveGame)
 	FString LightShowing;
+
+	/**
+	 * Train stations: the station's own name while our Display text shows something else (empty: its
+	 * own name shows). Put back for every save, so a save never keeps our text.
+	 */
+	UPROPERTY(SaveGame)
+	FText StationOwnName;
+
+	UPROPERTY(SaveGame)
+	FString StationTextShown;
 
 	/** Railway signals: held red by our Block action. */
 	UPROPERTY(SaveGame)
