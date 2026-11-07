@@ -58,10 +58,16 @@ Do                     when event
 - No "all of these at once" combinations for now.
 - A machine can have **any number** of rows. No limit for now; if many automated machines cause lag, we add a limit or optimise later.
 
+### Freight platforms (7 Nov 2026)
+
+- Item platform: the container's alarms (Full / Not full, Empty / Not empty, Filled above / below, Item count above / below); fluid platform: the same without item counts (like the fluid buffer).
+- Both: **Busy** / **Not busy** (a docked train being loaded / unloaded, not finished yet).
+- Actions: **Load mode** with the on / off switch (on = load into trains, off = unload them), Delete contents.
+
 ### Train stations (7 Nov 2026)
 
 - Automation tab in the station window (sliding pages, like the production window).
-- Alarms: Train arrives (docks), Train leaves, Transfer done (loading / unloading finished).
+- Alarms: Train arrives (docks or stops), Train leaves, Docking done (its platforms finished; renamed from "Transfer done" 7 Nov 2026: the transfer itself is tracked on the freight platforms).
 - Action: **Display text** (a text field): the station's display (its 3D sign, `UFGTextRenderer`) shows the text; empty shows its name again. The station is **not renamed** (map, timetables keep the name; decided 7 Nov 2026). Only the picture changes, re-drawn every second on every machine from our replicated entry: nothing in the game's data.
 - No on / off: stations have no standby.
 - Train arrives / leaves: a train with `IsDocked()` whose `mDockedAtStation` is this station (the station's own docking status and docked vehicle stay empty: tested 7 Nov 2026). A station without freight platforms has no docking (trains only stop): a train standing (under 1 m/s) on the station (its bounds + 2 m) counts as arrived.

@@ -21,6 +21,7 @@
 #include "Buildables/FGBuildableRailroadSignal.h"
 #include "Automation/AMSignal.h"
 #include "Buildables/FGBuildableRailroadStation.h"
+#include "Buildables/FGBuildableTrainPlatformCargo.h"
 #include "FGTrainStationIdentifier.h"
 #include "FGTextRenderer.h"
 #include "FGTrain.h"
@@ -792,7 +793,8 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
 		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine)
 		|| AMRules::IsValve(Machine) || Machine->IsA<AFGBuildablePipeReservoir>() || Machine->IsA<AFGBuildableResourceSink>()
-		|| Machine->IsA<AFGBuildableRailroadSignal>() || Machine->IsA<AFGBuildableRailroadStation>());
+		|| Machine->IsA<AFGBuildableRailroadSignal>() || Machine->IsA<AFGBuildableRailroadStation>()
+		|| Machine->IsA<AFGBuildableTrainPlatformCargo>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -1126,6 +1128,17 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::Paused:            return Factory->IsProductionPaused();
 	case EAMCondition::Resumed:           return !Factory->IsProductionPaused();
 	case EAMCondition::ProductivityBelow: return Factory->GetProductivity() * 100.f < Rule.Value;
+	case EAMCondition::PlatformBusy:
+	case EAMCondition::PlatformIdle:
+		if (const AFGBuildableTrainPlatformCargo* Platform = Cast<AFGBuildableTrainPlatformCargo>(Factory))
+		{
+			// Busy: a docked train being loaded / unloaded (not yet complete).
+			const ETrainPlatformDockingStatus Status = Platform->GetDockingStatus();
+			const bool bBusy = Platform->GetDockedActor() && Status != ETrainPlatformDockingStatus::ETPDS_None
+				&& Status != ETrainPlatformDockingStatus::ETPDS_Complete;
+			return Rule.Condition == EAMCondition::PlatformBusy ? bBusy : !bBusy;
+		}
+		return false;
 	case EAMCondition::TrainArrives:
 	case EAMCondition::TrainLeaves:
 	case EAMCondition::TransferDone:
@@ -1228,6 +1241,23 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	}
 }
 
+namespace
+{
+	/** The contents of a storage container or a freight platform (items or fluid). */
+	const UFGInventoryComponent* AMAS_StorageInventory(const AFGBuildableFactory* Factory)
+	{
+		if (const AFGBuildableStorage* Storage = Cast<AFGBuildableStorage>(Factory))
+		{
+			return const_cast<AFGBuildableStorage*>(Storage)->GetStorageInventory();
+		}
+		if (const AFGBuildableTrainPlatformCargo* Platform = Cast<AFGBuildableTrainPlatformCargo>(Factory))
+		{
+			return Platform->GetInventory();
+		}
+		return nullptr;
+	}
+}
+
 float AAMAutomationSubsystem::GetFillLevel(const AFGBuildableFactory* Factory)
 {
 	// Fluid buffers: their fluid / their capacity (it can go a little over: kept at 1).
@@ -1237,8 +1267,7 @@ float AAMAutomationSubsystem::GetFillLevel(const AFGBuildableFactory* Factory)
 		return Max > 0.f ? FMath::Clamp(Buffer->GetFluidContent() / Max, 0.f, 1.f) : 0.f;
 	}
 	// 0..1: each slot counts as (items / stack size); a container of 48 slots with 24 full stacks is 0.5.
-	AFGBuildableStorage* Storage = const_cast<AFGBuildableStorage*>(Cast<AFGBuildableStorage>(Factory));
-	const UFGInventoryComponent* Inventory = Storage ? Storage->GetStorageInventory() : nullptr;
+	const UFGInventoryComponent* Inventory = AMAS_StorageInventory(Factory);
 	if (!Inventory || Inventory->GetSizeLinear() <= 0)
 	{
 		return 0.f;
@@ -1288,21 +1317,19 @@ bool AAMAutomationSubsystem::IsFuseBlown(const AFGBuildableFactory* Factory)
 
 int32 AAMAutomationSubsystem::CountItem(const AFGBuildableFactory* Factory, TSubclassOf<UFGItemDescriptor> Item)
 {
-	AFGBuildableStorage* Storage = const_cast<AFGBuildableStorage*>(Cast<AFGBuildableStorage>(Factory));
-	const UFGInventoryComponent* Inventory = Storage ? Storage->GetStorageInventory() : nullptr;
+	const UFGInventoryComponent* Inventory = AMAS_StorageInventory(Factory);
 	return Inventory && Item ? Inventory->GetNumItems(Item) : 0;
 }
 
 bool AAMAutomationSubsystem::IsBeltBlocked(const AFGBuildableFactory* Factory)
 {
 	// The item waiting at the end of an input belt has no room in the container.
-	AFGBuildableStorage* Storage = const_cast<AFGBuildableStorage*>(Cast<AFGBuildableStorage>(Factory));
-	const UFGInventoryComponent* Inventory = Storage ? Storage->GetStorageInventory() : nullptr;
+	const UFGInventoryComponent* Inventory = AMAS_StorageInventory(Factory);
 	if (!Inventory)
 	{
 		return false;
 	}
-	for (const UFGFactoryConnectionComponent* Connection : Storage->GetConnectionComponents())
+	for (const UFGFactoryConnectionComponent* Connection : Factory->GetConnectionComponents())
 	{
 		if (!Connection || Connection->GetDirection() != EFactoryConnectionDirection::FCD_INPUT || !Connection->IsConnected())
 		{
@@ -1688,10 +1715,22 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			}
 		}
 		break;
-	case EAMAction::DeleteContents:
-		if (AFGBuildableStorage* Storage = Cast<AFGBuildableStorage>(Factory))
+	case EAMAction::LoadMode:
+	case EAMAction::UnloadMode:
+		if (AFGBuildableTrainPlatformCargo* Platform = Cast<AFGBuildableTrainPlatformCargo>(Factory))
 		{
-			const int32 Slots = DeleteAllItems(Storage->GetStorageInventory());
+			const bool bLoad = Rule.Action == EAMAction::LoadMode;
+			if (Platform->GetIsInLoadMode() != bLoad)
+			{
+				Platform->SetIsInLoadMode(bLoad);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %s mode"), *AMAS_Describe(Factory), bLoad ? TEXT("load") : TEXT("unload"));
+			}
+		}
+		break;
+	case EAMAction::DeleteContents:
+		if (UFGInventoryComponent* Contents = const_cast<UFGInventoryComponent*>(AMAS_StorageInventory(Factory)))
+		{
+			const int32 Slots = DeleteAllItems(Contents);
 			UE_LOG(LogAutomatedMachines, Log, TEXT("%s: contents deleted (%d slots had items)"), *AMAS_Describe(Factory), Slots);
 		}
 		break;

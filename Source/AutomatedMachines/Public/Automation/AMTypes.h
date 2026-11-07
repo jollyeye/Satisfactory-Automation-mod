@@ -78,7 +78,10 @@ enum class EAMCondition : uint8
 	// Train stations: a train docked at it, gone, its transfer (loading / unloading) done.
 	TrainArrives       UMETA(DisplayName = "Train arrives"),
 	TrainLeaves        UMETA(DisplayName = "Train leaves"),
-	TransferDone       UMETA(DisplayName = "Transfer done"),
+	TransferDone       UMETA(DisplayName = "Docking done"),
+	// Freight platforms: loading / unloading a docked train.
+	PlatformBusy       UMETA(DisplayName = "Busy"),
+	PlatformIdle       UMETA(DisplayName = "Not busy"),
 	Count              UMETA(Hidden)
 };
 
@@ -114,6 +117,9 @@ enum class EAMAction : uint8
 	// keeps its name. (StationName: not offered any more, kept so saves keep their numbers.)
 	StationText    UMETA(DisplayName = "Display text"),
 	StationName    UMETA(DisplayName = "Display its name"),
+	// Freight platforms: load into trains, unload from them.
+	LoadMode       UMETA(DisplayName = "Load mode"),
+	UnloadMode     UMETA(DisplayName = "Unload mode"),
 	Count          UMETA(Hidden)
 };
 
@@ -393,6 +399,9 @@ namespace AMRules
 	/** Events / actions of railway signals. */
 	AUTOMATEDMACHINES_API bool IsSignalCondition(EAMCondition Condition);
 	AUTOMATEDMACHINES_API bool IsSignalAction(EAMAction Action);
+
+	/** A freight platform for fluids (it has pipe connections), not items. */
+	AUTOMATEDMACHINES_API bool IsFluidPlatform(const UObject* Machine);
 
 	/**
 	 * Two actions that make no sense together under one alarm: the same action twice (two messages),

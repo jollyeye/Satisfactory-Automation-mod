@@ -13,6 +13,8 @@
 #include "Buildables/FGBuildableResourceSink.h"
 #include "Buildables/FGBuildableRailroadSignal.h"
 #include "Buildables/FGBuildableRailroadStation.h"
+#include "Buildables/FGBuildableTrainPlatformCargo.h"
+#include "FGPipeConnectionComponent.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
 #include "GameFramework/Actor.h"
@@ -109,7 +111,9 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::BlockEmpty:        return AMTY_Text(TEXT("Track empty"));
 	case EAMCondition::TrainArrives:      return AMTY_Text(TEXT("Train arrives"));
 	case EAMCondition::TrainLeaves:       return AMTY_Text(TEXT("Train leaves"));
-	case EAMCondition::TransferDone:      return AMTY_Text(TEXT("Transfer done"));
+	case EAMCondition::TransferDone:      return AMTY_Text(TEXT("Docking done"));
+	case EAMCondition::PlatformBusy:      return AMTY_Text(TEXT("Busy"));
+	case EAMCondition::PlatformIdle:      return AMTY_Text(TEXT("Not busy"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -139,6 +143,8 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::UnblockSignal: return AMTY_Text(TEXT("Unblock"));
 	case EAMAction::StationText:   return AMTY_Text(TEXT("Display text"));
 	case EAMAction::StationName:   return AMTY_Text(TEXT("Display its name"));
+	case EAMAction::LoadMode:      return AMTY_Text(TEXT("Load mode"));
+	case EAMAction::UnloadMode:    return AMTY_Text(TEXT("Unload mode"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -232,7 +238,11 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	case EAMCondition::TrainLeaves:
 		return AMTY_Text(TEXT("Rings when the docked train leaves the station."));
 	case EAMCondition::TransferDone:
-		return AMTY_Text(TEXT("Rings when the docked train has finished loading / unloading at the station's platforms."));
+		return AMTY_Text(TEXT("Rings when the docked train has finished its docking: the freight platforms next to the station have finished loading / unloading it."));
+	case EAMCondition::PlatformBusy:
+		return AMTY_Text(TEXT("Rings when the platform starts loading or unloading a docked train."));
+	case EAMCondition::PlatformIdle:
+		return AMTY_Text(TEXT("Rings when the platform has nothing to do: no train, or its loading / unloading is finished."));
 	case EAMCondition::SignalRed:
 		return AMTY_Text(TEXT("Rings when the signal turns red: trains must stop at it (its block is taken, or it is blocked)."));
 	case EAMCondition::SignalGreen:
@@ -288,6 +298,10 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Sets the flow limit, like the slider in its window (m3 per minute). 0 closes it: nothing flows through."));
 	case EAMAction::FlushNetwork:
 		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nValves and buffers do not split a network: this empties every pipe, pump, valve and buffer connected to it."));
+	case EAMAction::LoadMode:
+		return AMTY_Text(TEXT("On: the platform loads its contents into docked trains. Off: it unloads them into the platform (like the Load / Unload switch in its window)."));
+	case EAMAction::UnloadMode:
+		return AMTY_Text(TEXT("Off: the platform unloads docked trains into itself."));
 	case EAMAction::StationText:
 		return AMTY_Text(TEXT("The display on the station shows this text instead of its name. Empty: it shows its name again.\n\nOnly the display changes: the station keeps its name (map, timetables)."));
 	case EAMAction::StationName:
@@ -451,6 +465,8 @@ bool AMRules::ActionsConflict(EAMAction A, EAMAction B)
 		case EAMAction::UnblockSignal: return 3;
 		case EAMAction::StationText:
 		case EAMAction::StationName:   return 4;
+		case EAMAction::LoadMode:
+		case EAMAction::UnloadMode:    return 5;
 		default:                      return 100 + static_cast<int32>(Action);
 		}
 	};
@@ -466,6 +482,12 @@ bool AMRules::IsSignalCondition(EAMCondition Condition)
 bool AMRules::IsSignalAction(EAMAction Action)
 {
 	return Action == EAMAction::BlockSignal || Action == EAMAction::UnblockSignal;
+}
+
+bool AMRules::IsFluidPlatform(const UObject* Machine)
+{
+	const AActor* Actor = Cast<AActor>(Machine);
+	return Actor && Actor->IsA<AFGBuildableTrainPlatformCargo>() && Actor->FindComponentByClass<UFGPipeConnectionComponent>();
 }
 
 bool AMRules::IsValve(const UObject* Machine)
@@ -587,6 +609,20 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 	{
 		return IsSignalCondition(Condition);
 	}
+	const bool bPlatformEvent = Condition == EAMCondition::PlatformBusy || Condition == EAMCondition::PlatformIdle;
+	if (Machine->IsA<AFGBuildableTrainPlatformCargo>())
+	{
+		// Like a container (items) / a fluid buffer (no item counts), and busy / not busy.
+		if (IsFluidPlatform(Machine) && (Condition == EAMCondition::ItemCountAbove || Condition == EAMCondition::ItemCountBelow))
+		{
+			return false;
+		}
+		return bStorageEvent || bPlatformEvent;
+	}
+	if (bPlatformEvent)
+	{
+		return false;
+	}
 	const bool bStationEvent = Condition == EAMCondition::TrainArrives || Condition == EAMCondition::TrainLeaves || Condition == EAMCondition::TransferDone;
 	if (Machine->IsA<AFGBuildableRailroadStation>())
 	{
@@ -687,6 +723,15 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	if (Machine->IsA<AFGBuildableRailroadSignal>())
 	{
 		return IsSignalAction(Action);
+	}
+	const bool bPlatformAction = Action == EAMAction::LoadMode || Action == EAMAction::UnloadMode;
+	if (Machine->IsA<AFGBuildableTrainPlatformCargo>())
+	{
+		return bPlatformAction || Action == EAMAction::DeleteContents;
+	}
+	if (bPlatformAction)
+	{
+		return false;
 	}
 	const bool bStationAction = Action == EAMAction::StationText || Action == EAMAction::StationName;
 	if (Machine->IsA<AFGBuildableRailroadStation>())
