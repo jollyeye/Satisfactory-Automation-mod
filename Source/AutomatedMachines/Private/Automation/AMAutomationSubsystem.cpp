@@ -23,6 +23,7 @@
 #include "Buildables/FGBuildableRailroadStation.h"
 #include "FGTrainStationIdentifier.h"
 #include "FGTextRenderer.h"
+#include "FGTrain.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -420,7 +421,12 @@ void AAMAutomationSubsystem::ClearAlarm(const FString& Event, bool bRingers, con
 		}
 		else
 		{
-			Removed += Entry.Reactions.RemoveAll([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
+			const int32 RemovedReactions = Entry.Reactions.RemoveAll([&Event](const FAMReactionRule& Rule) { return Rule.Event == Event; });
+			Removed += RemovedReactions;
+			if (RemovedReactions > 0)
+			{
+				ReleaseActionStates(Entry);
+			}
 			const int32 Designs = Entry.SignDesigns.RemoveAll([&Event](const FAMSignDesign& Design) { return Design.Event == Event; });
 			if (Designs > 0)
 			{
@@ -529,10 +535,16 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 	NewRules.Options = Options;
 	if (const FAMMachineRules* Existing = FindRules(Machine))
 	{
-		// Sign designs are set on their own (SetSignDesigns).
+		// Sign designs and light settings are set on their own (SetSignDesigns, SetLightSettings);
+		// a signal's block and a station's display text are states the actions left.
 		NewRules.SignDesigns = Existing->SignDesigns;
 		NewRules.SignNormal = Existing->SignNormal;
 		NewRules.SignShowing = Existing->SignShowing;
+		NewRules.LightSettings = Existing->LightSettings;
+		NewRules.LightNormal = Existing->LightNormal;
+		NewRules.LightShowing = Existing->LightShowing;
+		NewRules.bSignalBlocked = Existing->bSignalBlocked;
+		NewRules.StationTextShown = Existing->StationTextShown;
 	}
 	NewRules.Options.bPassWrongItems = Options.bPassWrongItems && AMRules::HasPassWrongItems(Machine);
 	NewRules.Options.bPassExtraItems = Options.bPassExtraItems && AMRules::HasPassWrongItems(Machine);
@@ -559,6 +571,8 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 			NewRules.Reactions.Add(Clean);
 		}
 	}
+
+	ReleaseActionStates(NewRules);
 
 	const int32 Index = mMachines.IndexOfByPredicate([Machine](const FAMMachineRules& Entry) { return Entry.Machine == Machine; });
 
@@ -599,6 +613,22 @@ void AAMAutomationSubsystem::SetRules(AFGBuildable* Machine, const TArray<FAMFir
 
 	ForceNetUpdate();
 	OnRulesChanged.Broadcast();
+}
+
+void AAMAutomationSubsystem::ReleaseActionStates(FAMMachineRules& Entry)
+{
+	// A signal with no Blocked action any more works normally again.
+	if (Entry.bSignalBlocked && !Entry.Reactions.ContainsByPredicate([](const FAMReactionRule& Rule) { return AMRules::IsSignalAction(Rule.Action); }))
+	{
+		Entry.bSignalBlocked = false;
+		AMSignal::SetBlocked(Cast<AFGBuildableRailroadSignal>(Entry.Machine), false);
+		UE_LOG(LogAutomatedMachines, Log, TEXT("%s unblocked (no Blocked action left)"), *AMAS_Describe(Entry.Machine));
+	}
+	// A station with no Display text action any more shows its name.
+	if (!Entry.StationTextShown.IsEmpty() && !Entry.Reactions.ContainsByPredicate([](const FAMReactionRule& Rule) { return Rule.Action == EAMAction::StationText; }))
+	{
+		Entry.StationTextShown.Reset();
+	}
 }
 
 FAMReactionRule AAMAutomationSubsystem::CleanReaction(const FAMReactionRule& Rule)
@@ -1100,12 +1130,15 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::TransferDone:
 		if (const AFGBuildableRailroadStation* Station = Cast<AFGBuildableRailroadStation>(Factory))
 		{
-			// Docked: the station holds a docked locomotive (its own docking status stays None: the
-			// freight platforms beside it do the loading). Read by name: both are protected.
-			static const FObjectPropertyBase* DockedProperty = FindFProperty<FObjectPropertyBase>(AFGBuildableTrainPlatform::StaticClass(), TEXT("mDockedRailroadVehicle"));
+			// Docked: a train docked (IsDocked) at this station (its mDockedAtStation, read by name: private).
+			// The station's own docking status and docked vehicle stayed empty (tested 7 Nov 2026).
+			static const FObjectPropertyBase* DockedAtProperty = FindFProperty<FObjectPropertyBase>(AFGTrain::StaticClass(), TEXT("mDockedAtStation"));
 			static const FArrayProperty* PlatformsProperty = FindFProperty<FArrayProperty>(AFGBuildableRailroadStation::StaticClass(), TEXT("mDockedPlatformList"));
-			const bool bDocked = (DockedProperty && DockedProperty->GetObjectPropertyValue_InContainer(Station) != nullptr)
-				|| Station->GetDockingStatus() != ETrainPlatformDockingStatus::ETPDS_None;
+			bool bDocked = false;
+			for (TActorIterator<AFGTrain> It(Station->GetWorld()); It && DockedAtProperty && !bDocked; ++It)
+			{
+				bDocked = It->IsDocked() && DockedAtProperty->GetObjectPropertyValue_InContainer(*It) == Station;
+			}
 			switch (Rule.Condition)
 			{
 			case EAMCondition::TrainArrives: return bDocked;

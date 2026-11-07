@@ -64,6 +64,8 @@ Do                     when event
 - Alarms: Train arrives (docks), Train leaves, Transfer done (loading / unloading finished).
 - Action: **Display text** (a text field): the station's display (its 3D sign, `UFGTextRenderer`) shows the text; empty shows its name again. The station is **not renamed** (map, timetables keep the name; decided 7 Nov 2026). Only the picture changes, re-drawn every second on every machine from our replicated entry: nothing in the game's data.
 - No on / off: stations have no standby.
+- Train arrives / leaves: a train with `IsDocked()` whose `mDockedAtStation` is this station (the station's own docking status and docked vehicle stay empty: tested 7 Nov 2026).
+- **States left by actions are released when their actions go** (7 Nov 2026): a signal with no Blocked action left is unblocked, a station with no Display text action left shows its name (`ReleaseActionStates`, on every rules change and alarm removal).
 
 ### Railway signals (started 7 Nov 2026)
 

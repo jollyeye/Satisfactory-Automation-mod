@@ -232,6 +232,9 @@ private:
 	/** A cleaned copy of a rule (name in capitals, value in range, unused fields cleared). */
 	static FAMReactionRule CleanReaction(const FAMReactionRule& Rule);
 
+	/** States left by actions that are gone: a signal unblocked, a station's display text cleared. */
+	void ReleaseActionStates(FAMMachineRules& Entry);
+
 	/**
 	 * Last known value of each fire rule's condition, per machine (not saved: after loading, a
 	 * condition that is already true fires once, so reacting machines catch up).
