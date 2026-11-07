@@ -24,6 +24,7 @@
 #include "FGTrainStationIdentifier.h"
 #include "FGTextRenderer.h"
 #include "FGTrain.h"
+#include "FGRailroadVehicle.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -1138,6 +1139,16 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 			for (TActorIterator<AFGTrain> It(Station->GetWorld()); It && DockedAtProperty && !bDocked; ++It)
 			{
 				bDocked = It->IsDocked() && DockedAtProperty->GetObjectPropertyValue_InContainer(*It) == Station;
+			}
+			// A station without freight platforms: trains only stop there (no docking). A train
+			// standing (under 1 m/s) on the station counts too.
+			if (!bDocked)
+			{
+				const FBox Area = Station->GetComponentsBoundingBox().ExpandBy(200.f);
+				for (TActorIterator<AFGRailroadVehicle> It(Station->GetWorld()); It && !bDocked; ++It)
+				{
+					bDocked = Area.IsInside(It->GetActorLocation()) && It->GetVelocity().Size() < 100.f;
+				}
 			}
 			switch (Rule.Condition)
 			{
