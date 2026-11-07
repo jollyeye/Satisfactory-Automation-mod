@@ -22,6 +22,7 @@
 #include "Automation/AMSignal.h"
 #include "Buildables/FGBuildableRailroadStation.h"
 #include "Buildables/FGBuildableTrainPlatformCargo.h"
+#include "Buildables/FGBuildableDockingStation.h"
 #include "FGTrainStationIdentifier.h"
 #include "FGTextRenderer.h"
 #include "FGTrain.h"
@@ -794,7 +795,7 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine)
 		|| AMRules::IsValve(Machine) || Machine->IsA<AFGBuildablePipeReservoir>() || Machine->IsA<AFGBuildableResourceSink>()
 		|| Machine->IsA<AFGBuildableRailroadSignal>() || Machine->IsA<AFGBuildableRailroadStation>()
-		|| Machine->IsA<AFGBuildableTrainPlatformCargo>());
+		|| Machine->IsA<AFGBuildableTrainPlatformCargo>() || Machine->IsA<AFGBuildableDockingStation>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
@@ -1138,6 +1139,19 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 				&& Status != ETrainPlatformDockingStatus::ETPDS_Complete;
 			return Rule.Condition == EAMCondition::PlatformBusy ? bBusy : !bBusy;
 		}
+		if (const AFGBuildableDockingStation* TruckStation = Cast<AFGBuildableDockingStation>(Factory))
+		{
+			const bool bBusy = TruckStation->GetDockedActor() && TruckStation->IsLoadUnloading();
+			return Rule.Condition == EAMCondition::PlatformBusy ? bBusy : !bBusy;
+		}
+		return false;
+	case EAMCondition::VehicleArrives:
+	case EAMCondition::VehicleLeaves:
+		if (const AFGBuildableDockingStation* TruckStation = Cast<AFGBuildableDockingStation>(Factory))
+		{
+			const bool bDocked = TruckStation->GetDockedActor() != nullptr;
+			return Rule.Condition == EAMCondition::VehicleArrives ? bDocked : !bDocked;
+		}
 		return false;
 	case EAMCondition::TrainArrives:
 	case EAMCondition::TrainLeaves:
@@ -1254,6 +1268,10 @@ namespace
 		{
 			return Platform->GetInventory();
 		}
+		if (const AFGBuildableDockingStation* TruckStation = Cast<AFGBuildableDockingStation>(Factory))
+		{
+			return TruckStation->GetInventory();
+		}
 		return nullptr;
 	}
 }
@@ -1287,12 +1305,31 @@ float AAMAutomationSubsystem::GetFillLevel(const AFGBuildableFactory* Factory)
 
 bool AAMAutomationSubsystem::IsOutOfFuel(const AFGBuildableFactory* Factory)
 {
+	if (Cast<AFGBuildableDockingStation>(Factory))
+	{
+		return CountFuel(Factory) <= 0;
+	}
 	const AFGBuildableGeneratorFuel* Generator = Cast<AFGBuildableGeneratorFuel>(Factory);
 	return Generator && !Generator->HasFuel();
 }
 
 int32 AAMAutomationSubsystem::CountFuel(const AFGBuildableFactory* Factory)
 {
+	// Truck stations: every item in the fuel slot(s).
+	if (const AFGBuildableDockingStation* TruckStation = Cast<AFGBuildableDockingStation>(Factory))
+	{
+		const UFGInventoryComponent* StationFuel = TruckStation->GetFuelInventory();
+		int32 Count = 0;
+		for (int32 SlotIndex = 0; StationFuel && SlotIndex < StationFuel->GetSizeLinear(); ++SlotIndex)
+		{
+			FInventoryStack Stack;
+			if (StationFuel->GetStackFromIndex(SlotIndex, Stack) && Stack.HasItems())
+			{
+				Count += Stack.NumItems;
+			}
+		}
+		return Count;
+	}
 	const AFGBuildableGeneratorFuel* Generator = Cast<AFGBuildableGeneratorFuel>(Factory);
 	const UFGInventoryComponent* Fuel = Generator ? Generator->GetFuelInventory() : nullptr;
 	FInventoryStack Stack;
@@ -1738,6 +1775,15 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			if (Platform->GetIsInLoadMode() != bLoad)
 			{
 				Platform->SetIsInLoadMode(bLoad);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %s mode"), *AMAS_Describe(Factory), bLoad ? TEXT("load") : TEXT("unload"));
+			}
+		}
+		else if (AFGBuildableDockingStation* TruckStation = Cast<AFGBuildableDockingStation>(Factory))
+		{
+			const bool bLoad = Rule.Action == EAMAction::LoadMode;
+			if (TruckStation->GetIsInLoadMode() != bLoad)
+			{
+				TruckStation->SetIsInLoadMode(bLoad);
 				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %s mode"), *AMAS_Describe(Factory), bLoad ? TEXT("load") : TEXT("unload"));
 			}
 		}

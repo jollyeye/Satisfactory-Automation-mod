@@ -14,6 +14,7 @@
 #include "Buildables/FGBuildableRailroadSignal.h"
 #include "Buildables/FGBuildableRailroadStation.h"
 #include "Buildables/FGBuildableTrainPlatformCargo.h"
+#include "Buildables/FGBuildableDockingStation.h"
 #include "FGPipeConnectionComponent.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
@@ -114,6 +115,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::TransferDone:      return AMTY_Text(TEXT("Docking done"));
 	case EAMCondition::PlatformBusy:      return AMTY_Text(TEXT("Busy"));
 	case EAMCondition::PlatformIdle:      return AMTY_Text(TEXT("Not busy"));
+	case EAMCondition::VehicleArrives:    return AMTY_Text(TEXT("Vehicle arrives"));
+	case EAMCondition::VehicleLeaves:     return AMTY_Text(TEXT("Vehicle leaves"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -206,11 +209,11 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	case EAMCondition::ItemCountBelow:
 		return AMTY_Text(TEXT("Rings when the container holds less of one item than the number you set. Pick the item under the alarm.\n\nE.g. resume the Constructor making Iron Plates when there are fewer than 200."));
 	case EAMCondition::FuelEmpty:
-		return AMTY_Text(TEXT("Rings when the generator has burned its last fuel: no fuel in its slot and nothing burning, so it stops making power.\n\nUse it to get a message, or to start a backup generator."));
+		return AMTY_Text(TEXT("Generator: rings when it has burned its last fuel: no fuel in its slot and nothing burning, so it stops making power.\n\nTruck station: rings when its fuel slot is empty, so it cannot refuel the vehicles that dock.\n\nUse it to get a message, or to start a backup."));
 	case EAMCondition::FuelAvailable:
-		return AMTY_Text(TEXT("Rings when the generator has fuel again."));
+		return AMTY_Text(TEXT("Rings when there is fuel again."));
 	case EAMCondition::FuelBelow:
-		return AMTY_Text(TEXT("Rings when the generator's fuel slot holds fewer items than the number you set: it is running low.\n\nUse it to start the machines that bring its fuel, or to get a warning before it runs out."));
+		return AMTY_Text(TEXT("Rings when the fuel slot holds fewer items than the number you set: it is running low.\n\nUse it to start the machines that bring its fuel, or to get a warning before it runs out."));
 	case EAMCondition::LoadAbove:
 		return AMTY_Text(TEXT("Rings when the generator's load rises above the percentage you set: how much of what it can make the power grid is using.\n\nUse it to start more generators before the grid runs out of power and the fuse blows."));
 	case EAMCondition::LoadBelow:
@@ -242,9 +245,13 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	case EAMCondition::TransferDone:
 		return AMTY_Text(TEXT("Rings when the docked train has finished its docking: the freight platforms next to the station have finished loading / unloading it."));
 	case EAMCondition::PlatformBusy:
-		return AMTY_Text(TEXT("Rings when the platform starts loading or unloading a docked train."));
+		return AMTY_Text(TEXT("Rings when the platform or truck station starts loading or unloading a docked train or vehicle."));
 	case EAMCondition::PlatformIdle:
-		return AMTY_Text(TEXT("Rings when the platform has nothing to do: no train, or its loading / unloading is finished."));
+		return AMTY_Text(TEXT("Rings when the platform or truck station has nothing to do: nothing docked, or its loading / unloading is finished."));
+	case EAMCondition::VehicleArrives:
+		return AMTY_Text(TEXT("Rings when a vehicle (truck, tractor, explorer) docks at the truck station."));
+	case EAMCondition::VehicleLeaves:
+		return AMTY_Text(TEXT("Rings when the docked vehicle leaves the truck station."));
 	case EAMCondition::SignalRed:
 		return AMTY_Text(TEXT("Rings when the signal turns red: trains must stop at it (its block is taken, or it is blocked)."));
 	case EAMCondition::SignalGreen:
@@ -492,6 +499,12 @@ bool AMRules::IsSignalAction(EAMAction Action)
 	return Action == EAMAction::BlockSignal || Action == EAMAction::UnblockSignal;
 }
 
+bool AMRules::IsFluidTruckStation(const UObject* Machine)
+{
+	const AFGBuildableDockingStation* Station = Cast<AFGBuildableDockingStation>(Machine);
+	return Station && Station->GetDockingStationResourceForm() != EResourceForm::RF_SOLID;
+}
+
 bool AMRules::IsFluidPlatform(const UObject* Machine)
 {
 	const AActor* Actor = Cast<AActor>(Machine);
@@ -618,6 +631,32 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 		return IsSignalCondition(Condition);
 	}
 	const bool bPlatformEvent = Condition == EAMCondition::PlatformBusy || Condition == EAMCondition::PlatformIdle;
+	const bool bVehicleEvent = Condition == EAMCondition::VehicleArrives || Condition == EAMCondition::VehicleLeaves;
+	if (Machine->IsA<AFGBuildableDockingStation>())
+	{
+		// A freight platform and a station in one, with a fuel slot, power and standby.
+		if (IsFluidTruckStation(Machine) && (Condition == EAMCondition::ItemCountAbove || Condition == EAMCondition::ItemCountBelow))
+		{
+			return false;
+		}
+		switch (Condition)
+		{
+		case EAMCondition::FuelEmpty:
+		case EAMCondition::FuelAvailable:
+		case EAMCondition::FuelBelow:
+		case EAMCondition::LosesPower:
+		case EAMCondition::GetsPower:
+		case EAMCondition::Paused:
+		case EAMCondition::Resumed:
+			return true;
+		default:
+			return bStorageEvent || bPlatformEvent || bVehicleEvent;
+		}
+	}
+	if (bVehicleEvent)
+	{
+		return false;
+	}
 	if (Machine->IsA<AFGBuildableTrainPlatformCargo>())
 	{
 		// Like a container (items) / a fluid buffer (no item counts), and busy / not busy.
@@ -737,6 +776,11 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 		return false;
 	}
 	const bool bPlatformAction = Action == EAMAction::LoadMode || Action == EAMAction::UnloadMode;
+	if (Machine->IsA<AFGBuildableDockingStation>())
+	{
+		return bPlatformAction || Action == EAMAction::DeleteContents
+			|| Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::TogglePause;
+	}
 	if (Machine->IsA<AFGBuildableTrainPlatformCargo>())
 	{
 		return bPlatformAction || Action == EAMAction::DeleteContents;

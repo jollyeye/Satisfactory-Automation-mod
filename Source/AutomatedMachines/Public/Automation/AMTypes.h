@@ -82,6 +82,9 @@ enum class EAMCondition : uint8
 	// Freight platforms: loading / unloading a docked train.
 	PlatformBusy       UMETA(DisplayName = "Busy"),
 	PlatformIdle       UMETA(DisplayName = "Not busy"),
+	// Truck stations: a vehicle (truck, tractor, explorer) docked at it, gone.
+	VehicleArrives     UMETA(DisplayName = "Vehicle arrives"),
+	VehicleLeaves      UMETA(DisplayName = "Vehicle leaves"),
 	Count              UMETA(Hidden)
 };
 
@@ -405,6 +408,8 @@ namespace AMRules
 
 	/** A freight platform for fluids (it has pipe connections), not items. */
 	AUTOMATEDMACHINES_API bool IsFluidPlatform(const UObject* Machine);
+	/** A truck station that holds fluid instead of items. */
+	AUTOMATEDMACHINES_API bool IsFluidTruckStation(const UObject* Machine);
 
 	/**
 	 * Two actions that make no sense together under one alarm: the same action twice (two messages),
