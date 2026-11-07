@@ -70,6 +70,11 @@ enum class EAMCondition : uint8
 	// AWESOME Sinks: the coupons waiting to be printed (the same for every sink: a world number).
 	CouponsAbove       UMETA(DisplayName = "Coupons above"),
 	CouponsBelow       UMETA(DisplayName = "Coupons below"),
+	// Railway signals: their light, and a train in the block they watch.
+	SignalRed          UMETA(DisplayName = "Turns red"),
+	SignalGreen        UMETA(DisplayName = "Turns green"),
+	TrainInBlock       UMETA(DisplayName = "Train in block"),
+	BlockEmpty         UMETA(DisplayName = "Block empty"),
 	Count              UMETA(Hidden)
 };
 
@@ -98,6 +103,9 @@ enum class EAMAction : uint8
 	FlushNetwork   UMETA(DisplayName = "Flush pipe network"),
 	// Fluid buffers: empties the buffer only (its network keeps its fluid).
 	FlushBuffer    UMETA(DisplayName = "Flush buffer"),
+	// Railway signals: held red for trains entering through it, and let go.
+	BlockSignal    UMETA(DisplayName = "Block"),
+	UnblockSignal  UMETA(DisplayName = "Unblock"),
 	Count          UMETA(Hidden)
 };
 
@@ -316,6 +324,10 @@ struct AUTOMATEDMACHINES_API FAMMachineRules
 	UPROPERTY(SaveGame)
 	FString LightShowing;
 
+	/** Railway signals: held red by our Block action. */
+	UPROPERTY(SaveGame)
+	bool bSignalBlocked = false;
+
 	bool IsEmpty() const { return Fires.Num() == 0 && Reactions.Num() == 0 && Options.IsDefault() && SignDesigns.Num() == 0 && LightSettings.Num() == 0; }
 };
 
@@ -361,6 +373,10 @@ namespace AMRules
 
 	/** A valve: a pipeline pump without power (pumps themselves are not automated). */
 	AUTOMATEDMACHINES_API bool IsValve(const UObject* Machine);
+
+	/** Events / actions of railway signals. */
+	AUTOMATEDMACHINES_API bool IsSignalCondition(EAMCondition Condition);
+	AUTOMATEDMACHINES_API bool IsSignalAction(EAMAction Action);
 
 	/**
 	 * Two actions that make no sense together under one alarm: the same action twice (two messages),

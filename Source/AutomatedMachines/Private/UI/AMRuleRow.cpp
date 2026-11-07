@@ -42,6 +42,8 @@ namespace
 		case EAMAction::Resume:    return TEXT("Running");
 		case EAMAction::SwitchOn:
 		case EAMAction::SwitchOff: return TEXT("Power");
+		case EAMAction::BlockSignal:
+		case EAMAction::UnblockSignal: return TEXT("Blocked");
 		default:                   return AMRules::GetActionText(Action).ToString();
 		}
 	}
@@ -49,7 +51,8 @@ namespace
 	/** The action a one-line row's switch is about (on = the first one). */
 	bool AMRR_HasSwitch(EAMAction Action)
 	{
-		return Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::SwitchOn || Action == EAMAction::SwitchOff;
+		return Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::SwitchOn || Action == EAMAction::SwitchOff
+			|| Action == EAMAction::BlockSignal || Action == EAMAction::UnblockSignal;
 	}
 
 	constexpr float AMRR_CompactHeight = 34.f;
@@ -317,7 +320,7 @@ void UAMRuleRow::UpdateCompact()
 	}
 	if (mStateImage)
 	{
-		const bool bOn = Rule->Action == EAMAction::Resume || Rule->Action == EAMAction::SwitchOn;
+		const bool bOn = Rule->Action == EAMAction::Resume || Rule->Action == EAMAction::SwitchOn || Rule->Action == EAMAction::BlockSignal;
 		AMUI::SetImage(mStateImage, bOn ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
 	}
 	if (mValueText)
@@ -357,7 +360,16 @@ void UAMRuleRow::OnStateClicked()
 	case EAMAction::Resume:    Rule->Action = EAMAction::Pause; break;
 	case EAMAction::SwitchOn:  Rule->Action = EAMAction::SwitchOff; break;
 	case EAMAction::SwitchOff: Rule->Action = EAMAction::SwitchOn; break;
+	case EAMAction::BlockSignal:   Rule->Action = EAMAction::UnblockSignal; break;
+	case EAMAction::UnblockSignal: Rule->Action = EAMAction::BlockSignal; break;
 	default: return;
+	}
+	if (AMRules::IsSignalAction(Rule->Action))
+	{
+		mTab->OnRulesEdited();
+		UpdateCompact();
+		mTab->ShowInfo(FText::FromString(TEXT("Blocked")), AMRules::GetActionDescription(Rule->Action));
+		return;
 	}
 	mTab->OnRulesEdited();
 	UpdateCompact();
@@ -1227,7 +1239,7 @@ void UAMRuleRow::OpenPicker(EAMChoiceKind Kind, UWidget* Anchor)
 			for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
 			{
 				const EAMAction Action = static_cast<EAMAction>(Value);
-				if (Action == EAMAction::Resume || Action == EAMAction::SwitchOff)
+				if (Action == EAMAction::Resume || Action == EAMAction::SwitchOff || Action == EAMAction::UnblockSignal)
 				{
 					continue;
 				}

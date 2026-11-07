@@ -11,6 +11,7 @@
 #include "Buildables/FGBuildablePipelinePump.h"
 #include "Buildables/FGBuildablePipeReservoir.h"
 #include "Buildables/FGBuildableResourceSink.h"
+#include "Buildables/FGBuildableRailroadSignal.h"
 #include "FGPowerConnectionComponent.h"
 #include "FGFactoryConnectionComponent.h"
 #include "GameFramework/Actor.h"
@@ -101,6 +102,10 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::FlowBelow:         return AMTY_Text(TEXT("Flow below"));
 	case EAMCondition::CouponsAbove:      return AMTY_Text(TEXT("Coupons above"));
 	case EAMCondition::CouponsBelow:      return AMTY_Text(TEXT("Coupons below"));
+	case EAMCondition::SignalRed:         return AMTY_Text(TEXT("Turns red"));
+	case EAMCondition::SignalGreen:       return AMTY_Text(TEXT("Turns green"));
+	case EAMCondition::TrainInBlock:      return AMTY_Text(TEXT("Train in block"));
+	case EAMCondition::BlockEmpty:        return AMTY_Text(TEXT("Block empty"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -126,6 +131,8 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::SetFlowLimit:  return AMTY_Text(TEXT("Set flow limit"));
 	case EAMAction::FlushNetwork:  return AMTY_Text(TEXT("Flush pipe network"));
 	case EAMAction::FlushBuffer:   return AMTY_Text(TEXT("Flush buffer"));
+	case EAMAction::BlockSignal:   return AMTY_Text(TEXT("Block"));
+	case EAMAction::UnblockSignal: return AMTY_Text(TEXT("Unblock"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -214,6 +221,14 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make more power than those of Power Grid B: their capacity (the top line of the graph), which counts only generators that have fuel.\n\nPair it with \"A power < B power\", which rings when it turns the other way."));
 	case EAMCondition::GridBMakesMore:
 		return AMTY_Text(TEXT("Rings when the generators of Power Grid A can make less power than those of Power Grid B (their capacity, generators with fuel only)."));
+	case EAMCondition::SignalRed:
+		return AMTY_Text(TEXT("Rings when the signal turns red: trains must stop at it (its block is taken, or it is blocked)."));
+	case EAMCondition::SignalGreen:
+		return AMTY_Text(TEXT("Rings when the signal turns green: trains may pass."));
+	case EAMCondition::TrainInBlock:
+		return AMTY_Text(TEXT("Rings when a train enters the block this signal guards (the track after it, up to the next signals)."));
+	case EAMCondition::BlockEmpty:
+		return AMTY_Text(TEXT("Rings when the last train leaves the block this signal guards."));
 	case EAMCondition::CouponsAbove:
 		return AMTY_Text(TEXT("Rings when there are more coupons than this to print (the coupons the AWESOME Sinks have earned and nobody has printed yet; the same number at every sink).\n\nUse it to get a message when it is time to go shopping."));
 	case EAMCondition::CouponsBelow:
@@ -261,6 +276,10 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Sets the flow limit, like the slider in its window (m3 per minute). 0 closes it: nothing flows through."));
 	case EAMAction::FlushNetwork:
 		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nValves and buffers do not split a network: this empties every pipe, pump, valve and buffer connected to it."));
+	case EAMAction::BlockSignal:
+		return AMTY_Text(TEXT("On: the signal stays red when the alarm rings: trains arriving at it wait, until an alarm unblocks it (off). A train already past the signal is not stopped."));
+	case EAMAction::UnblockSignal:
+		return AMTY_Text(TEXT("Off: the signal works normally again when the alarm rings."));
 	case EAMAction::FlushBuffer:
 		return AMTY_Text(TEXT("Empties this fluid buffer only, like its own Flush button: its fluid is destroyed. The pipes around it keep theirs."));
 	case EAMAction::SetPriority:
@@ -412,10 +431,23 @@ bool AMRules::ActionsConflict(EAMAction A, EAMAction B)
 		case EAMAction::SwitchOn:
 		case EAMAction::SwitchOff:
 		case EAMAction::ToggleSwitch: return 2;
+		case EAMAction::BlockSignal:
+		case EAMAction::UnblockSignal: return 3;
 		default:                      return 100 + static_cast<int32>(Action);
 		}
 	};
 	return Family(A) == Family(B);
+}
+
+bool AMRules::IsSignalCondition(EAMCondition Condition)
+{
+	return Condition == EAMCondition::SignalRed || Condition == EAMCondition::SignalGreen
+		|| Condition == EAMCondition::TrainInBlock || Condition == EAMCondition::BlockEmpty;
+}
+
+bool AMRules::IsSignalAction(EAMAction Action)
+{
+	return Action == EAMAction::BlockSignal || Action == EAMAction::UnblockSignal;
 }
 
 bool AMRules::IsValve(const UObject* Machine)
@@ -533,6 +565,14 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 			return false;
 		}
 	}
+	if (Machine->IsA<AFGBuildableRailroadSignal>())
+	{
+		return IsSignalCondition(Condition);
+	}
+	if (IsSignalCondition(Condition))
+	{
+		return false;
+	}
 	if (Machine->IsA<AFGBuildableResourceSink>())
 	{
 		// Only the coupons (a world number), like the MAM's alarms.
@@ -616,6 +656,14 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	if (Machine->IsA<AFGBuildablePipeReservoir>())
 	{
 		return Action == EAMAction::FlushBuffer || Action == EAMAction::FlushNetwork;
+	}
+	if (Machine->IsA<AFGBuildableRailroadSignal>())
+	{
+		return IsSignalAction(Action);
+	}
+	if (IsSignalAction(Action))
+	{
+		return false;
 	}
 	if (Machine->IsA<AFGBuildableResourceSink>())
 	{

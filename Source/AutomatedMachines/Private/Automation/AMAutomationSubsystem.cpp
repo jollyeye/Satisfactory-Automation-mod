@@ -18,6 +18,8 @@
 #include "Buildables/FGBuildablePipeReservoir.h"
 #include "Buildables/FGBuildableResourceSink.h"
 #include "FGResourceSinkSubsystem.h"
+#include "Buildables/FGBuildableRailroadSignal.h"
+#include "Automation/AMSignal.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -156,6 +158,7 @@ void AAMAutomationSubsystem::InstallRegistration()
 		}
 	});
 	InstallOutputHooks();
+	AMSignal::InstallHooks();
 }
 
 void AAMAutomationSubsystem::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -233,6 +236,14 @@ void AAMAutomationSubsystem::PostLoadGame_Implementation(int32 SaveVersion, int3
 	mHeldItems.Reset();
 	MoveWorldActionsFromMachines();
 	RemoveInvalidEntries();
+	// Signals our Block action held red.
+	for (const FAMMachineRules& Entry : mMachines)
+	{
+		if (Entry.bSignalBlocked)
+		{
+			AMSignal::SetBlocked(Cast<AFGBuildableRailroadSignal>(Entry.Machine), true);
+		}
+	}
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem loaded: %d automated machines, %d events"),
 		mMachines.Num(), GetAllEventNames().Num());
 }
@@ -741,14 +752,21 @@ bool AAMAutomationSubsystem::CanAutomate(const AActor* Machine)
 		|| (Machine->IsA<AFGBuildableStorage>() && !Machine->IsA<AFGCentralStorageContainer>())
 		|| Machine->IsA<AFGBuildableGeneratorFuel>() || Machine->IsA<AFGBuildableWidgetSign>()
 		|| Machine->IsA<AFGBuildableCircuitSwitch>() || AMLight::IsLight(Machine)
-		|| AMRules::IsValve(Machine) || Machine->IsA<AFGBuildablePipeReservoir>() || Machine->IsA<AFGBuildableResourceSink>());
+		|| AMRules::IsValve(Machine) || Machine->IsA<AFGBuildablePipeReservoir>() || Machine->IsA<AFGBuildableResourceSink>()
+		|| Machine->IsA<AFGBuildableRailroadSignal>());
 }
 
 bool AAMAutomationSubsystem::RemoveInvalidEntries()
 {
 	const int32 Removed = mMachines.RemoveAll([](const FAMMachineRules& Entry)
 	{
-		return !IsValid(Entry.Machine) || Entry.IsEmpty();
+		const bool bRemove = !IsValid(Entry.Machine) || Entry.IsEmpty();
+		if (bRemove && Entry.bSignalBlocked)
+		{
+			// A signal without automation is never held red.
+			AMSignal::SetBlocked(Cast<AFGBuildableRailroadSignal>(Entry.Machine), false);
+		}
+		return bRemove;
 	});
 	for (auto It = mLastConditionValues.CreateIterator(); It; ++It)
 	{
@@ -824,8 +842,9 @@ void AAMAutomationSubsystem::EvaluateFireRules()
 	{
 		const AFGBuildableFactory* Factory = Cast<AFGBuildableFactory>(Entry.Machine);
 		const AFGBuildableCircuitSwitch* Switch = Cast<AFGBuildableCircuitSwitch>(Entry.Machine);
+		AFGBuildableRailroadSignal* Signal = Cast<AFGBuildableRailroadSignal>(Entry.Machine);
 		const AFGBuildable* Machine = Entry.Machine;
-		if ((!Factory && !Switch) || Entry.Fires.Num() == 0)
+		if ((!Factory && !Switch && !Signal) || Entry.Fires.Num() == 0)
 		{
 			continue;
 		}
@@ -855,7 +874,22 @@ void AAMAutomationSubsystem::EvaluateFireRules()
 		for (int32 Index = 0; Index < Entry.Fires.Num(); ++Index)
 		{
 			const FAMFireRule& Rule = Entry.Fires[Index];
-			const bool bNow = Switch ? IsSwitchConditionTrue(Switch, Rule) : IsConditionTrue(Factory, Rule, bRecipeChanged);
+			bool bNow = false;
+			if (Signal)
+			{
+				switch (Rule.Condition)
+				{
+				case EAMCondition::SignalRed:    bNow = AMSignal::IsRed(Signal); break;
+				case EAMCondition::SignalGreen:  bNow = AMSignal::IsGreen(Signal); break;
+				case EAMCondition::TrainInBlock: bNow = AMSignal::IsBlockOccupied(Signal); break;
+				case EAMCondition::BlockEmpty:   bNow = !AMSignal::IsBlockOccupied(Signal); break;
+				default: break;
+				}
+			}
+			else
+			{
+				bNow = Switch ? IsSwitchConditionTrue(Switch, Rule) : IsConditionTrue(Factory, Rule, bRecipeChanged);
+			}
 			const bool bBecameTrue = bNow && LastValues[Index] != 1;
 			LastValues[Index] = bNow ? 1 : 0;
 			if (bBecameTrue)
@@ -917,6 +951,20 @@ void AAMAutomationSubsystem::FireEvent(const FString& Event, const AActor* Ringe
 		// Lights: after this loop (panels first, then single lights).
 		if (AMLight::IsLight(Entry.Machine))
 		{
+			continue;
+		}
+		// Railway signals: Block / Unblock (kept in the entry, saved).
+		if (AFGBuildableRailroadSignal* Signal = Cast<AFGBuildableRailroadSignal>(Entry.Machine))
+		{
+			for (const FAMReactionRule& Rule : Entry.Reactions)
+			{
+				if (Rule.Event == Event && AMRules::IsSignalAction(Rule.Action))
+				{
+					Entry.bSignalBlocked = Rule.Action == EAMAction::BlockSignal;
+					AMSignal::SetBlocked(Signal, Entry.bSignalBlocked);
+					UE_LOG(LogAutomatedMachines, Log, TEXT("%s %s"), *AMAS_Describe(Signal), Entry.bSignalBlocked ? TEXT("blocked") : TEXT("unblocked"));
+				}
+			}
 			continue;
 		}
 		// Power switches.
