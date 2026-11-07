@@ -17,7 +17,6 @@
 
 class AAMAutomationSubsystem;
 class UDecalComponent;
-class UPointLightComponent;
 class UMaterialInterface;
 
 UCLASS(NotPlaceable, Transient)
@@ -45,7 +44,10 @@ protected:
 
 private:
 	/** Makes the decal of one machine (null if it has no size yet). */
-	UDecalComponent* MakeGlow(const AActor* Machine, bool& bOutSettled, UPointLightComponent*& OutLight);
+	UDecalComponent* MakeGlow(const AActor* Machine, bool& bOutSettled, UDecalComponent*& OutUp);
+
+	/** Makes one decal with this material (registered, on this actor). */
+	UDecalComponent* MakeDecal(UMaterialInterface* Material);
 
 	/** The HUB and the MAMs glow while they have alarms (their Automation tabs: world alarms, the HUB's world actions). */
 	void AddWorldBuildings(TSet<const AActor*>& Wanted) const;
@@ -55,14 +57,7 @@ private:
 	 * false if the floor was not found (not loaded yet): the anchor is used meanwhile, and it is
 	 * placed again on the next rebuild.
 	 */
-	bool PlaceGlow(UDecalComponent* Glow, const AActor* Machine, UPointLightComponent* Light) const;
-
-	/**
-	 * The decal's emissive light only colours what it lies on: it lights nothing (no global
-	 * illumination). Each glow also gets a soft cyan point light (no shadows), so the area around
-	 * the machine is really lit; drawn half as far as the glows.
-	 */
-	UPointLightComponent* MakeLight();
+	bool PlaceGlow(UDecalComponent* Glow, const AActor* Machine, UDecalComponent* Up) const;
 
 	/**
 	 * How far the glows are drawn: the game's own distance for medium buildings (Constructors,
@@ -71,7 +66,7 @@ private:
 	 */
 	void UpdateDrawDistance();
 	float mDrawDistance = 0.f;
-	void ApplyDrawDistance(UDecalComponent* Glow, UPointLightComponent* Light) const;
+	void ApplyDrawDistance(UDecalComponent* Glow) const;
 
 	/** The machine's visible footprint in its local space (its meshes, not its clearance box). */
 	static FBox GetVisibleBox(const AActor* Machine);
@@ -79,11 +74,15 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> mGlowMaterial;
 
+	/** The glow projected up from the floor, on surfaces facing down (M_AM_Overglow; optional). */
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> mUpMaterial;
+
 	/** The glow of each automated machine (the decals are kept alive as this actor's instance components). */
 	struct FGlow
 	{
 		TWeakObjectPtr<UDecalComponent> Decal;
-		TWeakObjectPtr<UPointLightComponent> Light;
+		TWeakObjectPtr<UDecalComponent> Up;
 		/** False while the floor around it was not found: placed again on the next rebuild. */
 		bool bSettled = false;
 	};

@@ -313,6 +313,83 @@ save(glow)
 log("  underglow: deferred decal, translucent, emissive cyan circuit lines")
 
 
+# --- Overglow material (the same glow, projected up onto surfaces facing down) ------------------
+# 7 Nov 2026: a second decal per machine, from the floor up: the soft glow (no circuit lines) only on
+# surfaces facing down (machine overhangs, the ceiling / floor above), so the glow seems to light
+# them. Same edge fade (FadeStart); it fades out with height above the floor (Reach, per machine).
+# The facing comes from the surface's slope (screen derivatives of the position relative to the
+# camera), turned towards the camera.
+over_path = ROOT + "/Marker/M_AM_Overglow"
+if eal.does_asset_exist(over_path):
+    over = load(over_path)
+    MEL.delete_all_material_expressions(over)
+    log("Rebuilding " + over_path)
+else:
+    over = asset_tools.create_asset("M_AM_Overglow", ROOT + "/Marker", unreal.Material, unreal.MaterialFactoryNew())
+    log("Created " + over_path)
+over.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+over.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+o_uv = node(over, unreal.MaterialExpressionTextureCoordinate, -900, 0)
+o_world = node(over, unreal.MaterialExpressionWorldPosition, -1300, 600)
+o_world_z = node(over, unreal.MaterialExpressionComponentMask, -1100, 600, r=False, g=False, b=True, a=False)
+link(o_world, "", o_world_z, "")
+o_base_z = node(over, unreal.MaterialExpressionScalarParameter, -1100, 700, parameter_name="BaseZ", default_value=0.0)
+o_height = node(over, unreal.MaterialExpressionSubtract, -900, 650)
+link(o_world_z, "", o_height, "A")
+link(o_base_z, "", o_height, "B")
+o_camera = node(over, unreal.MaterialExpressionCameraPositionWS, -1300, 800)
+o_relative = node(over, unreal.MaterialExpressionSubtract, -900, 800)
+link(o_world, "", o_relative, "A")
+link(o_camera, "", o_relative, "B")
+o_fade_start = node(over, unreal.MaterialExpressionVectorParameter, -900, 150, parameter_name="FadeStart",
+                    default_value=unreal.LinearColor(0.75, 0.75, 0.0, 0.0))
+o_reach = node(over, unreal.MaterialExpressionScalarParameter, -900, 300, parameter_name="Reach", default_value=500.0)
+o_shape = node(over, unreal.MaterialExpressionCustom, -600, 50)
+o_shape.set_editor_property("code",
+    "float2 P = abs(UV * 2.0 - 1.0);\n"
+    "float2 F = clamp(FadeStart.xy, 0.0, 0.98);\n"
+    "float2 D = max(P - F, 0.0) / (1.0 - F);\n"
+    "float G = saturate(1.0 - length(D));\n"
+    "G = G * G;\n"
+    "float Fade = 1.0 - saturate(H / max(Reach, 1.0));\n"
+    "Fade = Fade * Fade * saturate(H / 10.0);\n"
+    "float3 N = normalize(cross(ddx(RP), ddy(RP)));\n"
+    "N = dot(N, RP) > 0.0 ? -N : N;\n"
+    "float Facing = saturate((-N.z - 0.3) / 0.4);\n"
+    "return G * Fade * Facing;")
+o_shape.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
+o_shape.set_editor_property("description", "OverglowShape")
+o_inputs = []
+for name in ("UV", "FadeStart", "H", "RP", "Reach"):
+    ci = unreal.CustomInput()
+    ci.set_editor_property("input_name", name)
+    o_inputs.append(ci)
+o_shape.set_editor_property("inputs", o_inputs)
+link(o_uv, "", o_shape, "UV")
+link(o_fade_start, "", o_shape, "FadeStart")
+link(o_height, "", o_shape, "H")
+link(o_relative, "", o_shape, "RP")
+link(o_reach, "", o_shape, "Reach")
+o_colour = node(over, unreal.MaterialExpressionVectorParameter, -600, 250, parameter_name="Color",
+                default_value=unreal.LinearColor(0.12, 0.7, 1.0, 1.0))
+o_brightness = node(over, unreal.MaterialExpressionScalarParameter, -600, 400, parameter_name="Brightness", default_value=0.7)
+o_strength = node(over, unreal.MaterialExpressionScalarParameter, -600, 500, parameter_name="Strength", default_value=0.45)
+o_tint = node(over, unreal.MaterialExpressionMultiply, -350, 250)
+link(o_colour, "", o_tint, "A")
+link(o_brightness, "", o_tint, "B")
+o_emissive = node(over, unreal.MaterialExpressionMultiply, -150, 150)
+link(o_tint, "", o_emissive, "A")
+link(o_shape, "", o_emissive, "B")
+o_opacity = node(over, unreal.MaterialExpressionMultiply, -150, 400)
+link(o_shape, "", o_opacity, "A")
+link(o_strength, "", o_opacity, "B")
+MEL.connect_material_property(o_emissive, "", MP.MP_EMISSIVE_COLOR)
+MEL.connect_material_property(o_opacity, "", MP.MP_OPACITY)
+MEL.recompile_material(over)
+save(over)
+log("  overglow: deferred decal projected up, surfaces facing down only")
+
+
 # --- Marker mesh -------------------------------------------------------------------------------
 mesh_options = unreal.FbxImportUI()
 mesh_options.set_editor_property("import_mesh", True)

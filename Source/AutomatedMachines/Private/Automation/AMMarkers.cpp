@@ -17,7 +17,6 @@
 #include "Components/SceneComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "Components/PointLightComponent.h"
 #include "EngineUtils.h"
 #include "Buildables/FGBuildableTradingPost.h"
 #include "Buildables/FGBuildableMAM.h"
@@ -26,6 +25,10 @@ namespace
 {
 	// Made by Tools/create_assets.py.
 	const TCHAR* const AMMK_GlowMaterialPath = TEXT("/AutomatedMachines/Marker/M_AM_Underglow.M_AM_Underglow");
+	const TCHAR* const AMMK_UpMaterialPath = TEXT("/AutomatedMachines/Marker/M_AM_Overglow.M_AM_Overglow");
+
+	/** The glow projected up reaches this far above the machine's top, in cm (fading out on the way). */
+	constexpr float AMMK_UpReach = 300.f;
 
 	/** How far the glow reaches out from the machine's visible edge, in cm. */
 	constexpr float AMMK_Margin = 45.f;
@@ -53,13 +56,6 @@ namespace
 	/** If the game's distance for medium buildings cannot be read: this far, in cm (times View Distance). */
 	constexpr float AMMK_FallbackDrawDistance = 30000.f;
 
-	/** The glow's real light: the same cyan, this bright (candelas) for a machine about 6 m wide (scaled with its size). */
-	constexpr float AMMK_LightCandelas = 40.f;
-	/** Its height above the floor, in cm, and how far past the glow's edge it reaches. */
-	constexpr float AMMK_LightHeight = 60.f;
-	constexpr float AMMK_LightReach = 250.f;
-	const FLinearColor AMMK_LightColor(0.12f, 0.7f, 1.0f);
-
 	/** Glows are checked again this often, in seconds (a machine may have been dismantled, the floor loaded). */
 	constexpr float AMMK_RefreshInterval = 5.f;
 }
@@ -80,6 +76,7 @@ void AAMMarkers::Init(AAMAutomationSubsystem* InSubsystem)
 		mRulesChangedHandle = InSubsystem->OnRulesChanged.AddUObject(this, &AAMMarkers::OnRulesChanged);
 	}
 	mGlowMaterial = LoadObject<UMaterialInterface>(nullptr, AMMK_GlowMaterialPath);
+	mUpMaterial = LoadObject<UMaterialInterface>(nullptr, AMMK_UpMaterialPath);
 	Rebuild();
 	if (UWorld* World = GetWorld())
 	{
@@ -141,10 +138,10 @@ void AAMMarkers::Rebuild()
 				RemoveInstanceComponent(Glow);
 				Glow->DestroyComponent();
 			}
-			if (UPointLightComponent* Light = It->Value.Light.Get())
+			if (UDecalComponent* Up = It->Value.Up.Get())
 			{
-				RemoveInstanceComponent(Light);
-				Light->DestroyComponent();
+				RemoveInstanceComponent(Up);
+				Up->DestroyComponent();
 			}
 			It.RemoveCurrent();
 		}
@@ -159,18 +156,18 @@ void AAMMarkers::Rebuild()
 			{
 				if (UDecalComponent* Decal = Existing->Decal.Get())
 				{
-					Existing->bSettled = PlaceGlow(Decal, Machine, Existing->Light.Get());
+					Existing->bSettled = PlaceGlow(Decal, Machine, Existing->Up.Get());
 				}
 			}
 			continue;
 		}
 		bool bSettled = false;
-		UPointLightComponent* Light = nullptr;
-		if (UDecalComponent* Glow = MakeGlow(Machine, bSettled, Light))
+		UDecalComponent* Up = nullptr;
+		if (UDecalComponent* Glow = MakeGlow(Machine, bSettled, Up))
 		{
 			FGlow& Added = mGlows.Add(TWeakObjectPtr<const AActor>(Machine));
 			Added.Decal = Glow;
-			Added.Light = Light;
+			Added.Up = Up;
 			Added.bSettled = bSettled;
 		}
 	}
@@ -233,7 +230,14 @@ void AAMMarkers::AddWorldBuildings(TSet<const AActor*>& Wanted) const
 	bool bMam = false;
 	for (const FAMFireRule& Rule : Subsystem->GetWorldFires())
 	{
-		(AMRules::IsMamCondition(Rule.Condition) ? bMam : bHub) = true;
+		if (AMRules::IsMamCondition(Rule.Condition))
+		{
+			bMam = true;
+		}
+		else
+		{
+			bHub = true;
+		}
 	}
 	if (bHub)
 	{
@@ -251,49 +255,37 @@ void AAMMarkers::AddWorldBuildings(TSet<const AActor*>& Wanted) const
 	}
 }
 
-UPointLightComponent* AAMMarkers::MakeLight()
+UDecalComponent* AAMMarkers::MakeDecal(UMaterialInterface* Material)
 {
-	UPointLightComponent* Light = NewObject<UPointLightComponent>(this);
-	Light->SetupAttachment(GetRootComponent());
-	Light->SetUsingAbsoluteLocation(true);
-	Light->SetUsingAbsoluteRotation(true);
-	Light->SetMobility(EComponentMobility::Movable);
-	Light->SetCastShadows(false);
-	Light->bAffectsTranslucentLighting = false;
-	Light->SetVolumetricScatteringIntensity(0.f);
-	Light->SetIntensityUnits(ELightUnits::Candelas);
-	Light->SetLightColor(AMMK_LightColor);
-	Light->SetSourceRadius(50.f);
-	AddInstanceComponent(Light);
-	Light->RegisterComponent();
-	return Light;
+	UDecalComponent* Decal = NewObject<UDecalComponent>(this);
+	Decal->SetupAttachment(GetRootComponent());
+	Decal->SetUsingAbsoluteLocation(true);
+	Decal->SetUsingAbsoluteRotation(true);
+	Decal->SetUsingAbsoluteScale(true);
+	Decal->SetDecalMaterial(UMaterialInstanceDynamic::Create(Material, Decal));
+	AddInstanceComponent(Decal);
+	Decal->RegisterComponent();
+	return Decal;
 }
 
-UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine, bool& bOutSettled, UPointLightComponent*& OutLight)
+UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine, bool& bOutSettled, UDecalComponent*& OutUp)
 {
 	bOutSettled = false;
-	OutLight = nullptr;
-	UDecalComponent* Glow = NewObject<UDecalComponent>(this);
-	Glow->SetupAttachment(GetRootComponent());
-	Glow->SetUsingAbsoluteLocation(true);
-	Glow->SetUsingAbsoluteRotation(true);
-	Glow->SetUsingAbsoluteScale(true);
-	Glow->SetDecalMaterial(UMaterialInstanceDynamic::Create(mGlowMaterial, Glow));
+	OutUp = nullptr;
 	const FBox Box = GetVisibleBox(Machine);
 	if (!Box.IsValid || Box.GetExtent().X < 1.0 || Box.GetExtent().Y < 1.0)
 	{
-		Glow->DestroyComponent();
 		return nullptr;
 	}
-	AddInstanceComponent(Glow);
-	Glow->RegisterComponent();
-	OutLight = MakeLight();
-	bOutSettled = PlaceGlow(Glow, Machine, OutLight);
-	ApplyDrawDistance(Glow, OutLight);
+	UDecalComponent* Glow = MakeDecal(mGlowMaterial);
+	OutUp = mUpMaterial ? MakeDecal(mUpMaterial) : nullptr;
+	bOutSettled = PlaceGlow(Glow, Machine, OutUp);
+	ApplyDrawDistance(Glow);
+	ApplyDrawDistance(OutUp);
 	return Glow;
 }
 
-bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine, UPointLightComponent* Light) const
+bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine, UDecalComponent* Up) const
 {
 	const FBox Box = GetVisibleBox(Machine);
 	if (!Box.IsValid)
@@ -363,16 +355,25 @@ bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine, UPointL
 		// The glow's half size in cm (U, V), so the circuit lines keep the same size on every machine.
 		Material->SetVectorParameterValue(TEXT("HalfSize"), FLinearColor(HalfZ, HalfY, 0.f, 0.f));
 	}
-	if (Light)
+
+	// The same footprint projected up, from just below the floor to AMMK_UpReach above the machine's
+	// top: only surfaces facing down take it (the material), fading out with height.
+	if (Up)
 	{
-		// In the middle, a little above the floor: it lights the floor around the machine and its lower sides.
-		FVector LightAt = ToWorld.TransformPosition(LocalCenter);
-		LightAt.Z = FloorZ + AMMK_LightHeight;
-		Light->SetWorldLocation(LightAt);
-		const float Half = FMath::Max(HalfY, HalfZ);
-		Light->SetAttenuationRadius(Half + AMMK_LightReach);
-		const float Scale = FMath::Clamp(Half / 300.f, 0.5f, 4.f);
-		Light->SetIntensity(AMMK_LightCandelas * Scale * Scale);
+		const float Reach = FMath::Max(static_cast<float>(AnchorZ + Box.Max.Z - FloorZ), 100.f) + AMMK_UpReach;
+		const float UpHalfDepth = (Reach + 20.f) * 0.5f;
+		FVector UpCenter = ToWorld.TransformPosition(LocalCenter);
+		UpCenter.Z = FloorZ - 20.f + UpHalfDepth;
+		Up->SetWorldLocationAndRotation(UpCenter, ToWorld.GetRotation() * FRotator(90.f, 0.f, 0.f).Quaternion());
+		Up->DecalSize = FVector(UpHalfDepth, HalfY, HalfZ);
+		Up->MarkRenderStateDirty();
+		if (UMaterialInstanceDynamic* UpMaterial = Cast<UMaterialInstanceDynamic>(Up->GetDecalMaterial()))
+		{
+			UpMaterial->SetVectorParameterValue(TEXT("FadeStart"), FLinearColor(
+				FMath::Max(0.f, 1.f - AMMK_FadeWidth / HalfZ), FMath::Max(0.f, 1.f - AMMK_FadeWidth / HalfY), 0.f, 0.f));
+			UpMaterial->SetScalarParameterValue(TEXT("BaseZ"), static_cast<float>(FloorZ));
+			UpMaterial->SetScalarParameterValue(TEXT("Reach"), Reach);
+		}
 	}
 	return bFound;
 }
@@ -407,20 +408,14 @@ void AAMMarkers::UpdateDrawDistance()
 	{
 		if (UDecalComponent* Glow = Entry.Value.Decal.Get())
 		{
-			ApplyDrawDistance(Glow, Entry.Value.Light.Get());
+			ApplyDrawDistance(Glow);
 		}
+		ApplyDrawDistance(Entry.Value.Up.Get());
 	}
 }
 
-void AAMMarkers::ApplyDrawDistance(UDecalComponent* Glow, UPointLightComponent* Light) const
+void AAMMarkers::ApplyDrawDistance(UDecalComponent* Glow) const
 {
-	if (Light && mDrawDistance > 0.f)
-	{
-		// Real lights cost more than decals: drawn half as far, fading out over the last quarter.
-		Light->MaxDrawDistance = mDrawDistance * 0.5f;
-		Light->MaxDistanceFadeRange = mDrawDistance * 0.125f;
-		Light->MarkRenderStateDirty();
-	}
 	// A decal is drawn while it is at least FadeScreenSize of the screen; its screen size is about
 	// its bounds radius / distance (90 degrees field of view), so this size stops it near mDrawDistance.
 	if (Glow && mDrawDistance > 0.f)
