@@ -811,7 +811,17 @@ void AAMAutomationSubsystem::UpdateStationDisplays()
 		Station->GetComponents<UFGTextRenderer>(Displays);
 		for (UFGTextRenderer* Display : Displays)
 		{
-			Display->UpdateText(0, Entry.StationTextShown);
+			// UpdateText is private in C++ but a Blueprint function: called by name.
+			if (UFunction* Update = Display->FindFunction(TEXT("UpdateText")))
+			{
+				struct
+				{
+					int32 ElementID = 0;
+					FString Text;
+				} Params;
+				Params.Text = Entry.StationTextShown;
+				Display->ProcessEvent(Update, &Params);
+			}
 		}
 		if (!mStationDisplays.Contains(Station))
 		{
