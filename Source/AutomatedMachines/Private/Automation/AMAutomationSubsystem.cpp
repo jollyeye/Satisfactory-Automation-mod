@@ -1100,12 +1100,41 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 	case EAMCondition::TransferDone:
 		if (const AFGBuildableRailroadStation* Station = Cast<AFGBuildableRailroadStation>(Factory))
 		{
-			const ETrainPlatformDockingStatus Status = Station->GetDockingStatus();
+			// Docked: the station holds a docked locomotive (its own docking status stays None: the
+			// freight platforms beside it do the loading). Read by name: both are protected.
+			static const FObjectPropertyBase* DockedProperty = FindFProperty<FObjectPropertyBase>(AFGBuildableTrainPlatform::StaticClass(), TEXT("mDockedRailroadVehicle"));
+			static const FArrayProperty* PlatformsProperty = FindFProperty<FArrayProperty>(AFGBuildableRailroadStation::StaticClass(), TEXT("mDockedPlatformList"));
+			const bool bDocked = (DockedProperty && DockedProperty->GetObjectPropertyValue_InContainer(Station) != nullptr)
+				|| Station->GetDockingStatus() != ETrainPlatformDockingStatus::ETPDS_None;
 			switch (Rule.Condition)
 			{
-			case EAMCondition::TrainArrives: return Status != ETrainPlatformDockingStatus::ETPDS_None;
-			case EAMCondition::TrainLeaves:  return Status == ETrainPlatformDockingStatus::ETPDS_None;
-			default:                         return Status == ETrainPlatformDockingStatus::ETPDS_Complete;
+			case EAMCondition::TrainArrives: return bDocked;
+			case EAMCondition::TrainLeaves:  return !bDocked;
+			default:
+			{
+				// Done: docked, and every platform it docked has finished (Complete).
+				if (!bDocked || !PlatformsProperty)
+				{
+					return false;
+				}
+				FScriptArrayHelper Platforms(PlatformsProperty, PlatformsProperty->ContainerPtrToValuePtr<void>(Station));
+				const FObjectPropertyBase* Inner = CastField<FObjectPropertyBase>(PlatformsProperty->Inner);
+				int32 Done = 0;
+				int32 Count = 0;
+				for (int32 Index = 0; Inner && Index < Platforms.Num(); ++Index)
+				{
+					if (const AFGBuildableTrainPlatform* Platform = Cast<AFGBuildableTrainPlatform>(Inner->GetObjectPropertyValue(Platforms.GetRawPtr(Index))))
+					{
+						if (Platform == Station)
+						{
+							continue;
+						}
+						++Count;
+						Done += Platform->GetDockingStatus() == ETrainPlatformDockingStatus::ETPDS_Complete ? 1 : 0;
+					}
+				}
+				return Count > 0 && Done == Count;
+			}
 			}
 		}
 		return false;
