@@ -64,6 +64,12 @@ Do                     when event
 - Both: **Busy** / **Not busy** (a docked train being loaded / unloaded, not finished yet).
 - Actions: **Load mode** with the on / off switch (on = load into trains, off = unload them), Delete contents.
 
+### Truck stations (7 Nov 2026, not tested yet)
+
+- Automation tab in the truck station window (one page). The window has **no standby button**: no Running action, no Paused / Resumed.
+- Alarms: the container's (fluid stations: without item counts), **Busy** / **Not busy** (loading / unloading a docked vehicle), **Vehicle arrives** / **Vehicle leaves** (trucks, tractors, explorers), the fuel slot (**Out of fuel**, **Has fuel**, **Fuel below** N items; the generator alarms, reworded for both), power (Loses / Gets power).
+- Actions: **Load mode** (on = load into vehicles, off = unload them), **Replace differing fuel** (the window's "Replace Differing Fuel" switch: on swaps a docked vehicle's other fuel for the station's), Delete contents.
+
 ### Train stations (7 Nov 2026)
 
 - Automation tab in the station window (sliding pages, like the production window).

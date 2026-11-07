@@ -42,7 +42,8 @@ Done and tested: production machines (production window), miners, Water / Oil Ex
 **Transport:**
 - Train Station, Freight Platform, Fluid Freight Platform: train arrives / leaves, loading / unloading done; action: change load / unload mode.
 - Railway signals: (maybe) blocked / free.
-- Truck Station, Drone Port: vehicle arrives / leaves, fuel low, input / output full.
+- Truck Station: done 7 Nov 2026 (to test): vehicle arrives / leaves, busy, fuel, container alarms; load mode, replace differing fuel, delete contents.
+- Drone Port: vehicle arrives / leaves, fuel low, input / output full.
 
 **Other buildings:**
 - Doors: open / closed / locked (actions: lock, unlock).

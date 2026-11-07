@@ -311,3 +311,10 @@ Now pointed at the HUB terminal (`BPW_Hub_C`): its tree, plus variables and func
 - one line per new widget class seen (`new widget class: ...`), useful later for other buildings.
 
 Test of the Automation tab: open a Smelter and a Constructor, click Automation, Production, Automation, check that the other tabs still work, quit, and let Claude read the log (`Automation tab:` lines).
+
+## Truck stations (7 Nov 2026, untested)
+
+- `AFGBuildableDockingStation` (a factory). Vehicle arrives / leaves: `GetDockedActor()`; Busy: docked and `IsLoadUnloading()`. Fuel: `GetFuelInventory()` (all slots summed; Out of fuel = 0). Contents: `GetInventory()` through `AMAS_StorageInventory`. Fluid stations: `GetDockingStationResourceForm() != RF_SOLID` (`AMRules::IsFluidTruckStation`), no item counts.
+- Actions: `SetIsInLoadMode`, `SetForceVehicleFuelType` (the "Replace Differing Fuel" switch; `ReplaceFuelOn/Off`, conflict family 7, compact row), Delete contents.
+- New conditions `VehicleArrives` / `VehicleLeaves`, new actions `ReplaceFuelOn` / `ReplaceFuelOff`, appended last (saved by index).
+

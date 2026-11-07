@@ -48,6 +48,8 @@ namespace
 		case EAMAction::UnloadMode:    return TEXT("Load mode");
 		case EAMAction::OverflowOn:
 		case EAMAction::OverflowOff:   return TEXT("Output overflow");
+		case EAMAction::ReplaceFuelOn:
+		case EAMAction::ReplaceFuelOff: return TEXT("Replace differing fuel");
 		default:                   return AMRules::GetActionText(Action).ToString();
 		}
 	}
@@ -58,7 +60,8 @@ namespace
 		return Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::SwitchOn || Action == EAMAction::SwitchOff
 			|| Action == EAMAction::BlockSignal || Action == EAMAction::UnblockSignal
 			|| Action == EAMAction::LoadMode || Action == EAMAction::UnloadMode
-			|| Action == EAMAction::OverflowOn || Action == EAMAction::OverflowOff;
+			|| Action == EAMAction::OverflowOn || Action == EAMAction::OverflowOff
+			|| Action == EAMAction::ReplaceFuelOn || Action == EAMAction::ReplaceFuelOff;
 	}
 
 	constexpr float AMRR_CompactHeight = 34.f;
@@ -327,7 +330,7 @@ void UAMRuleRow::UpdateCompact()
 	if (mStateImage)
 	{
 		const bool bOn = Rule->Action == EAMAction::Resume || Rule->Action == EAMAction::SwitchOn || Rule->Action == EAMAction::BlockSignal
-			|| Rule->Action == EAMAction::LoadMode || Rule->Action == EAMAction::OverflowOn;
+			|| Rule->Action == EAMAction::LoadMode || Rule->Action == EAMAction::OverflowOn || Rule->Action == EAMAction::ReplaceFuelOn;
 		AMUI::SetImage(mStateImage, bOn ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
 	}
 	if (mValueText)
@@ -373,10 +376,13 @@ void UAMRuleRow::OnStateClicked()
 	case EAMAction::UnloadMode:    Rule->Action = EAMAction::LoadMode; break;
 	case EAMAction::OverflowOn:    Rule->Action = EAMAction::OverflowOff; break;
 	case EAMAction::OverflowOff:   Rule->Action = EAMAction::OverflowOn; break;
+	case EAMAction::ReplaceFuelOn: Rule->Action = EAMAction::ReplaceFuelOff; break;
+	case EAMAction::ReplaceFuelOff: Rule->Action = EAMAction::ReplaceFuelOn; break;
 	default: return;
 	}
 	if (AMRules::IsSignalAction(Rule->Action) || Rule->Action == EAMAction::LoadMode || Rule->Action == EAMAction::UnloadMode
-		|| Rule->Action == EAMAction::OverflowOn || Rule->Action == EAMAction::OverflowOff)
+		|| Rule->Action == EAMAction::OverflowOn || Rule->Action == EAMAction::OverflowOff
+		|| Rule->Action == EAMAction::ReplaceFuelOn || Rule->Action == EAMAction::ReplaceFuelOff)
 	{
 		mTab->OnRulesEdited();
 		UpdateCompact();
@@ -1251,7 +1257,7 @@ void UAMRuleRow::OpenPicker(EAMChoiceKind Kind, UWidget* Anchor)
 			for (uint8 Value = 0; Value < static_cast<uint8>(EAMAction::Count); ++Value)
 			{
 				const EAMAction Action = static_cast<EAMAction>(Value);
-				if (Action == EAMAction::Resume || Action == EAMAction::SwitchOff || Action == EAMAction::UnblockSignal || Action == EAMAction::UnloadMode || Action == EAMAction::OverflowOff)
+				if (Action == EAMAction::Resume || Action == EAMAction::SwitchOff || Action == EAMAction::UnblockSignal || Action == EAMAction::UnloadMode || Action == EAMAction::OverflowOff || Action == EAMAction::ReplaceFuelOff)
 				{
 					continue;
 				}

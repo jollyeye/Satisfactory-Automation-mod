@@ -150,6 +150,8 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::UnloadMode:    return AMTY_Text(TEXT("Unload mode"));
 	case EAMAction::OverflowOn:    return AMTY_Text(TEXT("Output overflow on"));
 	case EAMAction::OverflowOff:   return AMTY_Text(TEXT("Output overflow off"));
+	case EAMAction::ReplaceFuelOn: return AMTY_Text(TEXT("Replace differing fuel on"));
+	case EAMAction::ReplaceFuelOff: return AMTY_Text(TEXT("Replace differing fuel off"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -307,6 +309,10 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Sets the flow limit, like the slider in its window (m3 per minute). 0 closes it: nothing flows through."));
 	case EAMAction::FlushNetwork:
 		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nValves and buffers do not split a network: this empties every pipe, pump, valve and buffer connected to it."));
+	case EAMAction::ReplaceFuelOn:
+		return AMTY_Text(TEXT("On: the truck station's \"Replace Differing Fuel\" switch is turned on when the alarm rings: a docked vehicle burning another fuel gets it swapped for the station's fuel."));
+	case EAMAction::ReplaceFuelOff:
+		return AMTY_Text(TEXT("Off: the truck station's \"Replace Differing Fuel\" switch is turned off when the alarm rings: vehicles keep their own fuel."));
 	case EAMAction::OverflowOn:
 		return AMTY_Text(TEXT("On: the machine's Output overflow option is switched on when the alarm rings: everything that would block an input belt goes onto the output belt."));
 	case EAMAction::OverflowOff:
@@ -482,6 +488,8 @@ bool AMRules::ActionsConflict(EAMAction A, EAMAction B)
 		case EAMAction::UnloadMode:    return 5;
 		case EAMAction::OverflowOn:
 		case EAMAction::OverflowOff:   return 6;
+		case EAMAction::ReplaceFuelOn:
+		case EAMAction::ReplaceFuelOff: return 7;
 		default:                      return 100 + static_cast<int32>(Action);
 		}
 	};
@@ -634,7 +642,7 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 	const bool bVehicleEvent = Condition == EAMCondition::VehicleArrives || Condition == EAMCondition::VehicleLeaves;
 	if (Machine->IsA<AFGBuildableDockingStation>())
 	{
-		// A freight platform and a station in one, with a fuel slot, power and standby.
+		// A freight platform and a station in one, with a fuel slot and power (no standby button).
 		if (IsFluidTruckStation(Machine) && (Condition == EAMCondition::ItemCountAbove || Condition == EAMCondition::ItemCountBelow))
 		{
 			return false;
@@ -646,8 +654,6 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 		case EAMCondition::FuelBelow:
 		case EAMCondition::LosesPower:
 		case EAMCondition::GetsPower:
-		case EAMCondition::Paused:
-		case EAMCondition::Resumed:
 			return true;
 		default:
 			return bStorageEvent || bPlatformEvent || bVehicleEvent;
@@ -779,7 +785,11 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	if (Machine->IsA<AFGBuildableDockingStation>())
 	{
 		return bPlatformAction || Action == EAMAction::DeleteContents
-			|| Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::TogglePause;
+			|| Action == EAMAction::ReplaceFuelOn || Action == EAMAction::ReplaceFuelOff;
+	}
+	if (Action == EAMAction::ReplaceFuelOn || Action == EAMAction::ReplaceFuelOff)
+	{
+		return false;
 	}
 	if (Machine->IsA<AFGBuildableTrainPlatformCargo>())
 	{

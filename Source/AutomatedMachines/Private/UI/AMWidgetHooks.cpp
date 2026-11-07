@@ -93,6 +93,8 @@ namespace
 	// through BPW_PipeModule like the fluid buffer).
 	const TCHAR* const AMWH_PlatformWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_Train_DockingStation.Widget_Train_DockingStation_C");
 	const TCHAR* const AMWH_FluidPlatformWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/BPW_Train_DockingStation_Fluid.BPW_Train_DockingStation_Fluid_C");
+	// Truck stations (7 Nov 2026): one canvas page (CanvasPanel_68), hooked through its background mStationBG.
+	const TCHAR* const AMWH_TruckStationWindow = TEXT("/Game/FactoryGame/Buildable/-Shared/Widgets/Widget_DockingStation.Widget_DockingStation_C");
 
 	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
 	// the page panel holding its Revert Settings button (mSaveButton).
@@ -184,6 +186,8 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_PlatformWindow, TEXT("bg"), TEXT("AM_PlatformAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_FluidPlatformWindow, TEXT("BPW_PipeModule"), TEXT("AM_FluidPlatformAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_TruckStationWindow, TEXT("mStationBG"), TEXT("AM_TruckStationAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());

@@ -1788,6 +1788,18 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			}
 		}
 		break;
+	case EAMAction::ReplaceFuelOn:
+	case EAMAction::ReplaceFuelOff:
+		if (AFGBuildableDockingStation* TruckStation = Cast<AFGBuildableDockingStation>(Factory))
+		{
+			const bool bOn = Rule.Action == EAMAction::ReplaceFuelOn;
+			if (TruckStation->GetIsForceVehicleFuelType() != bOn)
+			{
+				TruckStation->SetForceVehicleFuelType(bOn);
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: replace differing fuel %s"), *AMAS_Describe(Factory), bOn ? TEXT("on") : TEXT("off"));
+			}
+		}
+		break;
 	case EAMAction::DeleteContents:
 		if (UFGInventoryComponent* Contents = const_cast<UFGInventoryComponent*>(AMAS_StorageInventory(Factory)))
 		{

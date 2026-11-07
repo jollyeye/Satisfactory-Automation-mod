@@ -126,6 +126,9 @@ enum class EAMAction : uint8
 	// Machines with the Output overflow option: switch it on / off.
 	OverflowOn     UMETA(DisplayName = "Output overflow on"),
 	OverflowOff    UMETA(DisplayName = "Output overflow off"),
+	// Truck stations: their "Replace Differing Fuel" switch.
+	ReplaceFuelOn  UMETA(DisplayName = "Replace differing fuel on"),
+	ReplaceFuelOff UMETA(DisplayName = "Replace differing fuel off"),
 	Count          UMETA(Hidden)
 };
 

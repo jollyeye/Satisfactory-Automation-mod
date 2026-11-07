@@ -187,6 +187,12 @@ Items: `Widget_Train_DockingStation` (`/Game/FactoryGame/Buildable/-Shared/Widge
 hooked as Indirect_Child of its background image `bg`. Fluids: `BPW_Train_DockingStation_Fluid` (same folder),
 one page `CanvasPanel_0`, hooked through `BPW_PipeModule` like the fluid buffer.
 
+### Truck station window (7 Nov 2026, to test)
+
+`Widget_DockingStation` (`/Game/FactoryGame/Buildable/-Shared/Widgets/`): Kind B, one canvas page `CanvasPanel_68`
+in `WindowBody` (fuel slot, name field, load / unload `BPW_OnOffSwitch`, "Replace Differing Fuel:" `mForceFluidSwitch`,
+inventory; `BPW_FluidTank` for fluids). No standby button. Hooked as Indirect_Child of its background image `mStationBG`.
+
 ### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
 
 For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /
