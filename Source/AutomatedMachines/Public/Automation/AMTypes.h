@@ -73,8 +73,8 @@ enum class EAMCondition : uint8
 	// Railway signals: their light, and a train in the block they watch.
 	SignalRed          UMETA(DisplayName = "Turns red"),
 	SignalGreen        UMETA(DisplayName = "Turns green"),
-	TrainInBlock       UMETA(DisplayName = "Train in block"),
-	BlockEmpty         UMETA(DisplayName = "Block empty"),
+	TrainInBlock       UMETA(DisplayName = "Train on track"),
+	BlockEmpty         UMETA(DisplayName = "Track empty"),
 	Count              UMETA(Hidden)
 };
 

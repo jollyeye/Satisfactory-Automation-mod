@@ -104,8 +104,8 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::CouponsBelow:      return AMTY_Text(TEXT("Coupons below"));
 	case EAMCondition::SignalRed:         return AMTY_Text(TEXT("Turns red"));
 	case EAMCondition::SignalGreen:       return AMTY_Text(TEXT("Turns green"));
-	case EAMCondition::TrainInBlock:      return AMTY_Text(TEXT("Train in block"));
-	case EAMCondition::BlockEmpty:        return AMTY_Text(TEXT("Block empty"));
+	case EAMCondition::TrainInBlock:      return AMTY_Text(TEXT("Train on track"));
+	case EAMCondition::BlockEmpty:        return AMTY_Text(TEXT("Track empty"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -226,9 +226,9 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 	case EAMCondition::SignalGreen:
 		return AMTY_Text(TEXT("Rings when the signal turns green: trains may pass."));
 	case EAMCondition::TrainInBlock:
-		return AMTY_Text(TEXT("Rings when a train enters the block this signal guards (the track after it, up to the next signals)."));
+		return AMTY_Text(TEXT("Rings when a train enters the track this signal guards (after it, up to the next signals)."));
 	case EAMCondition::BlockEmpty:
-		return AMTY_Text(TEXT("Rings when the last train leaves the block this signal guards."));
+		return AMTY_Text(TEXT("Rings when the last train leaves the track this signal guards."));
 	case EAMCondition::CouponsAbove:
 		return AMTY_Text(TEXT("Rings when there are more coupons than this to print (the coupons the AWESOME Sinks have earned and nobody has printed yet; the same number at every sink).\n\nUse it to get a message when it is time to go shopping."));
 	case EAMCondition::CouponsBelow:

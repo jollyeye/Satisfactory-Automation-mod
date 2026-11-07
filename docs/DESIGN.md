@@ -60,7 +60,7 @@ Do                     when event
 
 ### Railway signals (started 7 Nov 2026)
 
-- Alarms: Turns red, Turns green (green = clear or dock), Train in block, Block empty (the block the signal guards).
+- Alarms: Turns red, Turns green (green = clear or dock), Train on track, Track empty (the track the signal guards; renamed from "block" so it is not mixed up with the Block action). Tested 7 Nov 2026: blocking works; a train already far enough into the guarded track has it reserved and is not stopped.
 - Action: **Blocked** with the on / off switch (on = Block, off = Unblock), kept per signal and saved in our data only. A blocked signal shows red and trains entering its block through it wait; a train already past or committed is not stopped. Without the mod every signal works normally (nothing written into the game's data).
 - How: hooks on the game's block (`HasOverlappingTrains` / `HasOverlappingApprovedReservations` answer "busy" for reservations entering through a blocked signal; `GetAspectFor` answers red). `AMSignal` in `Automation/AMSignal.*`.
 
