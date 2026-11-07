@@ -289,7 +289,7 @@ FText AMRules::GetActionDescription(EAMAction Action)
 	case EAMAction::FlushNetwork:
 		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nValves and buffers do not split a network: this empties every pipe, pump, valve and buffer connected to it."));
 	case EAMAction::StationText:
-		return AMTY_Text(TEXT("The station shows this text instead of its name (its sign, the map, the timetables), until an alarm displays its name again. Trains still go there: their timetables point at the station, not at its name.\n\nSaves always keep the station's own name."));
+		return AMTY_Text(TEXT("The display on the station shows this text instead of its name. Empty: it shows its name again.\n\nOnly the display changes: the station keeps its name (map, timetables)."));
 	case EAMAction::StationName:
 		return AMTY_Text(TEXT("The station shows its own name again."));
 	case EAMAction::BlockSignal:
@@ -691,7 +691,8 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	const bool bStationAction = Action == EAMAction::StationText || Action == EAMAction::StationName;
 	if (Machine->IsA<AFGBuildableRailroadStation>())
 	{
-		return bStationAction || Action == EAMAction::Pause || Action == EAMAction::Resume || Action == EAMAction::TogglePause;
+		// No on / off (the station has none): only its display.
+		return Action == EAMAction::StationText;
 	}
 	if (bStationAction)
 	{

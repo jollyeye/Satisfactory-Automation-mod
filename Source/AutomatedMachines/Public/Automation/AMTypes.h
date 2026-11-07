@@ -110,7 +110,8 @@ enum class EAMAction : uint8
 	// Railway signals: held red for trains entering through it, and let go.
 	BlockSignal    UMETA(DisplayName = "Block"),
 	UnblockSignal  UMETA(DisplayName = "Unblock"),
-	// Train stations: the name it shows replaced by a text (Message), and its own name back.
+	// Train stations: the text on the station's own display (Message; empty: its name). The station
+	// keeps its name. (StationName: not offered any more, kept so saves keep their numbers.)
 	StationText    UMETA(DisplayName = "Display text"),
 	StationName    UMETA(DisplayName = "Display its name"),
 	Count          UMETA(Hidden)
@@ -332,12 +333,10 @@ struct AUTOMATEDMACHINES_API FAMMachineRules
 	FString LightShowing;
 
 	/**
-	 * Train stations: the station's own name while our Display text shows something else (empty: its
-	 * own name shows). Put back for every save, so a save never keeps our text.
+	 * Train stations: the text our Display text puts on the station's display (empty: its name). Only
+	 * the display's picture changes (on every machine, from this replicated value): the station keeps
+	 * its name, and nothing of it is in the game's own data.
 	 */
-	UPROPERTY(SaveGame)
-	FText StationOwnName;
-
 	UPROPERTY(SaveGame)
 	FString StationTextShown;
 

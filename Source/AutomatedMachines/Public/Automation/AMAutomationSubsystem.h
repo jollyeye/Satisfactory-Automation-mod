@@ -244,6 +244,11 @@ private:
 
 	float mTimeSinceEvaluation = 0.f;
 
+	/** Train stations: their displays show our texts (every machine with a screen, every second). */
+	void UpdateStationDisplays();
+	float mTimeSinceDisplays = 0.f;
+	TSet<TWeakObjectPtr<AActor>> mStationDisplays;
+
 	/** The markers above automated machines (local, never saved; not on a dedicated server). */
 	UPROPERTY(Transient)
 	TObjectPtr<class AAMMarkers> mMarkers;

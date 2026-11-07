@@ -176,6 +176,11 @@ standby button: hooked like the generators (Indirect_Child of `Widget_StandbyBut
 in `SizeBox_0`: signal picture, "Current State"). Hooked as Indirect_Child of `mBackdrop`; our page is at least
 560 high (`AMAT_MinSinglePageHeight`).
 
+### Train station window (7 Nov 2026)
+
+`Widget_TrainStationNew` (`.../Factory/Train/Station/`): Kind A, sliding pages in `HorizontalBox_0` (inside
+`Widget_SlidingTabs`' `mContent`), hooked like the production window.
+
 ### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
 
 For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /

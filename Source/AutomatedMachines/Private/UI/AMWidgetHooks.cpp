@@ -84,6 +84,10 @@ namespace
 	const TCHAR* const AMWH_SignalWindow = TEXT("/Game/FactoryGame/Buildable/Factory/Train/Signal/Widget_RailroadSignal.Widget_RailroadSignal_C");
 	const TCHAR* const AMWH_SignalPageChild = TEXT("mBackdrop");
 
+	// Train stations: Widget_TrainStationNew (dump 7 Nov 2026), sliding pages in HorizontalBox_0 like the
+	// production window.
+	const TCHAR* const AMWH_StationWindow = TEXT("/Game/FactoryGame/Buildable/Factory/Train/Station/Widget_TrainStationNew.Widget_TrainStationNew_C");
+
 	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
 	// the page panel holding its Revert Settings button (mSaveButton).
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
@@ -170,6 +174,7 @@ namespace
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignalWindow, AMWH_SignalPageChild, TEXT("AM_SignalAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_StationWindow, TEXT("HorizontalBox_0"), TEXT("AM_StationAutomationTabHook"));
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());
 		AMWH_HookPages(HookManager, AMWH_LightWindow, AMWH_LightPageChild, TEXT("AM_LightSettingsTabsHook"), false,

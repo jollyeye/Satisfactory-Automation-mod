@@ -22,6 +22,7 @@
 #include "Automation/AMSignal.h"
 #include "Buildables/FGBuildableRailroadStation.h"
 #include "FGTrainStationIdentifier.h"
+#include "FGTextRenderer.h"
 #include "FGCircuitSubsystem.h"
 #include "FGPowerCircuit.h"
 #include "FGPowerInfoComponent.h"
@@ -210,38 +211,13 @@ void AAMAutomationSubsystem::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-namespace
-{
-	/** A station's name (its identifier's). */
-	AFGTrainStationIdentifier* AMAS_StationId(const AFGBuildable* Machine)
-	{
-		const AFGBuildableRailroadStation* Station = Cast<AFGBuildableRailroadStation>(Machine);
-		return Station ? Station->GetStationIdentifier() : nullptr;
-	}
-}
-
 void AAMAutomationSubsystem::PostSaveGame_Implementation(int32 SaveVersion, int32 GameVersion)
 {
-	// Our station texts again, after the save kept the stations' own names.
-	for (const FAMMachineRules& Entry : mMachines)
-	{
-		if (AFGTrainStationIdentifier* Id = !Entry.StationTextShown.IsEmpty() ? AMAS_StationId(Entry.Machine) : nullptr)
-		{
-			Id->SetStationName(FText::FromString(Entry.StationTextShown));
-		}
-	}
 }
 
 void AAMAutomationSubsystem::PreSaveGame_Implementation(int32 SaveVersion, int32 GameVersion)
 {
-	// Stations showing our text: their own name in the save (uninstall-safe).
-	for (const FAMMachineRules& Entry : mMachines)
-	{
-		if (AFGTrainStationIdentifier* Id = !Entry.StationTextShown.IsEmpty() ? AMAS_StationId(Entry.Machine) : nullptr)
-		{
-			Id->SetStationName(Entry.StationOwnName);
-		}
-	}
+
 	// The waiting wrong items are saved, so none is lost.
 	mHeldItems.Reset();
 	FScopeLock HeldScope(&AMAS_HeldLock);
@@ -268,16 +244,12 @@ void AAMAutomationSubsystem::PostLoadGame_Implementation(int32 SaveVersion, int3
 	mHeldItems.Reset();
 	MoveWorldActionsFromMachines();
 	RemoveInvalidEntries();
-	// Signals our Block action held red; stations showing our text (the save has their own name).
+	// Signals our Block action held red.
 	for (const FAMMachineRules& Entry : mMachines)
 	{
 		if (Entry.bSignalBlocked)
 		{
 			AMSignal::SetBlocked(Cast<AFGBuildableRailroadSignal>(Entry.Machine), true);
-		}
-		if (AFGTrainStationIdentifier* Id = !Entry.StationTextShown.IsEmpty() ? AMAS_StationId(Entry.Machine) : nullptr)
-		{
-			Id->SetStationName(FText::FromString(Entry.StationTextShown));
 		}
 	}
 	UE_LOG(LogAutomatedMachines, Log, TEXT("Automation subsystem loaded: %d automated machines, %d events"),
@@ -802,14 +774,7 @@ bool AAMAutomationSubsystem::RemoveInvalidEntries()
 			// A signal without automation is never held red.
 			AMSignal::SetBlocked(Cast<AFGBuildableRailroadSignal>(Entry.Machine), false);
 		}
-		if (bRemove && !Entry.StationTextShown.IsEmpty())
-		{
-			// A station without automation shows its own name.
-			if (AFGTrainStationIdentifier* Id = AMAS_StationId(Entry.Machine))
-			{
-				Id->SetStationName(Entry.StationOwnName);
-			}
-		}
+
 		return bRemove;
 	});
 	for (auto It = mLastConditionValues.CreateIterator(); It; ++It)
@@ -829,9 +794,57 @@ bool AAMAutomationSubsystem::RemoveInvalidEntries()
 	return Removed > 0;
 }
 
+void AAMAutomationSubsystem::UpdateStationDisplays()
+{
+	// The text on each station's display (its UFGTextRenderer): ours, or its name again. Only the
+	// picture: re-written now and then (the station's blueprint writes its name when it changes).
+	TSet<TWeakObjectPtr<AActor>> Seen;
+	for (const FAMMachineRules& Entry : mMachines)
+	{
+		AFGBuildableRailroadStation* Station = Cast<AFGBuildableRailroadStation>(Entry.Machine);
+		if (!Station || Entry.StationTextShown.IsEmpty())
+		{
+			continue;
+		}
+		Seen.Add(Station);
+		TArray<UFGTextRenderer*> Displays;
+		Station->GetComponents<UFGTextRenderer>(Displays);
+		for (UFGTextRenderer* Display : Displays)
+		{
+			Display->UpdateText(0, Entry.StationTextShown);
+		}
+		if (!mStationDisplays.Contains(Station))
+		{
+			UE_LOG(LogAutomatedMachines, Log, TEXT("%s: %d display(s) show %s"), *AMAS_Describe(Station), Displays.Num(), *Entry.StationTextShown);
+		}
+		mStationDisplays.Add(Station);
+	}
+	// Stations whose text went: their name again (their blueprint draws it).
+	for (auto It = mStationDisplays.CreateIterator(); It; ++It)
+	{
+		if (!Seen.Contains(*It))
+		{
+			if (AFGBuildableRailroadStation* Station = Cast<AFGBuildableRailroadStation>(It->Get()))
+			{
+				Station->OnNameChanged();
+			}
+			It.RemoveCurrent();
+		}
+	}
+}
+
 void AAMAutomationSubsystem::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (!IsRunningDedicatedServer())
+	{
+		mTimeSinceDisplays += DeltaSeconds;
+		if (mTimeSinceDisplays >= 1.f)
+		{
+			mTimeSinceDisplays = 0.f;
+			UpdateStationDisplays();
+		}
+	}
 	if (!HasAuthority())
 	{
 		return;
@@ -1538,22 +1551,15 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 		break;
 	case EAMAction::StationText:
 	case EAMAction::StationName:
-		if (AFGTrainStationIdentifier* Id = AMAS_StationId(Factory))
+		if (Factory->IsA<AFGBuildableRailroadStation>())
 		{
-			FAMMachineRules* Entry = mMachines.FindByPredicate([Factory](const FAMMachineRules& E) { return E.Machine == Factory; });
-			if (!Entry)
+			if (FAMMachineRules* Entry = mMachines.FindByPredicate([Factory](const FAMMachineRules& E) { return E.Machine == Factory; }))
 			{
-				break;
+				// The displays follow (UpdateStationDisplays, on every machine).
+				Entry->StationTextShown = Rule.Action == EAMAction::StationText ? Rule.Message.TrimStartAndEnd() : FString();
+				ForceNetUpdate();
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s display: %s"), *AMAS_Describe(Factory), Entry->StationTextShown.IsEmpty() ? TEXT("its name") : *Entry->StationTextShown);
 			}
-			const FString Text = Rule.Action == EAMAction::StationText ? Rule.Message.TrimStartAndEnd() : FString();
-			if (Entry->StationTextShown.IsEmpty())
-			{
-				// Showing its own name now: that is the name to put back.
-				Entry->StationOwnName = Id->GetStationName();
-			}
-			Entry->StationTextShown = Text;
-			Id->SetStationName(Text.IsEmpty() ? Entry->StationOwnName : FText::FromString(Text));
-			UE_LOG(LogAutomatedMachines, Log, TEXT("%s displays %s"), *AMAS_Describe(Factory), Text.IsEmpty() ? *Entry->StationOwnName.ToString() : *Text);
 		}
 		break;
 	case EAMAction::FlushBuffer:

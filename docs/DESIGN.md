@@ -58,6 +58,13 @@ Do                     when event
 - No "all of these at once" combinations for now.
 - A machine can have **any number** of rows. No limit for now; if many automated machines cause lag, we add a limit or optimise later.
 
+### Train stations (7 Nov 2026)
+
+- Automation tab in the station window (sliding pages, like the production window).
+- Alarms: Train arrives (docks), Train leaves, Transfer done (loading / unloading finished).
+- Action: **Display text** (a text field): the station's display (its 3D sign, `UFGTextRenderer`) shows the text; empty shows its name again. The station is **not renamed** (map, timetables keep the name; decided 7 Nov 2026). Only the picture changes, re-drawn every second on every machine from our replicated entry: nothing in the game's data.
+- No on / off: stations have no standby.
+
 ### Railway signals (started 7 Nov 2026)
 
 - Alarms: Turns red, Turns green (green = clear or dock), Train on track, Track empty (the track the signal guards; renamed from "block" so it is not mixed up with the Block action). Tested 7 Nov 2026: blocking works; a train already far enough into the guarded track has it reserved and is not stopped.
