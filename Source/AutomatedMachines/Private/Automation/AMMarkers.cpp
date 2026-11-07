@@ -17,6 +17,10 @@
 #include "Components/SceneComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Components/PointLightComponent.h"
+#include "EngineUtils.h"
+#include "Buildables/FGBuildableTradingPost.h"
+#include "Buildables/FGBuildableMAM.h"
 
 namespace
 {
@@ -48,6 +52,13 @@ namespace
 
 	/** If the game's distance for medium buildings cannot be read: this far, in cm (times View Distance). */
 	constexpr float AMMK_FallbackDrawDistance = 30000.f;
+
+	/** The glow's real light: the same cyan, this bright (candelas) for a machine about 6 m wide (scaled with its size). */
+	constexpr float AMMK_LightCandelas = 40.f;
+	/** Its height above the floor, in cm, and how far past the glow's edge it reaches. */
+	constexpr float AMMK_LightHeight = 60.f;
+	constexpr float AMMK_LightReach = 250.f;
+	const FLinearColor AMMK_LightColor(0.12f, 0.7f, 1.0f);
 
 	/** Glows are checked again this often, in seconds (a machine may have been dismantled, the floor loaded). */
 	constexpr float AMMK_RefreshInterval = 5.f;
@@ -116,6 +127,7 @@ void AAMMarkers::Rebuild()
 			Wanted.Add(Machine);
 		}
 	}
+	AddWorldBuildings(Wanted);
 
 	// Remove the glows of machines gone or no longer automated.
 	for (auto It = mGlows.CreateIterator(); It; ++It)
@@ -128,6 +140,11 @@ void AAMMarkers::Rebuild()
 			{
 				RemoveInstanceComponent(Glow);
 				Glow->DestroyComponent();
+			}
+			if (UPointLightComponent* Light = It->Value.Light.Get())
+			{
+				RemoveInstanceComponent(Light);
+				Light->DestroyComponent();
 			}
 			It.RemoveCurrent();
 		}
@@ -142,16 +159,18 @@ void AAMMarkers::Rebuild()
 			{
 				if (UDecalComponent* Decal = Existing->Decal.Get())
 				{
-					Existing->bSettled = PlaceGlow(Decal, Machine);
+					Existing->bSettled = PlaceGlow(Decal, Machine, Existing->Light.Get());
 				}
 			}
 			continue;
 		}
 		bool bSettled = false;
-		if (UDecalComponent* Glow = MakeGlow(Machine, bSettled))
+		UPointLightComponent* Light = nullptr;
+		if (UDecalComponent* Glow = MakeGlow(Machine, bSettled, Light))
 		{
 			FGlow& Added = mGlows.Add(TWeakObjectPtr<const AActor>(Machine));
 			Added.Decal = Glow;
+			Added.Light = Light;
 			Added.bSettled = bSettled;
 		}
 	}
@@ -202,9 +221,58 @@ FBox AAMMarkers::GetVisibleBox(const AActor* Machine)
 	return Box;
 }
 
-UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine, bool& bOutSettled)
+void AAMMarkers::AddWorldBuildings(TSet<const AActor*>& Wanted) const
+{
+	const AAMAutomationSubsystem* Subsystem = mSubsystem.Get();
+	UWorld* World = GetWorld();
+	if (!Subsystem || !World)
+	{
+		return;
+	}
+	bool bHub = Subsystem->GetWorldActions().Num() > 0;
+	bool bMam = false;
+	for (const FAMFireRule& Rule : Subsystem->GetWorldFires())
+	{
+		(AMRules::IsMamCondition(Rule.Condition) ? bMam : bHub) = true;
+	}
+	if (bHub)
+	{
+		for (TActorIterator<AFGBuildableTradingPost> It(World); It; ++It)
+		{
+			Wanted.Add(*It);
+		}
+	}
+	if (bMam)
+	{
+		for (TActorIterator<AFGBuildableMAM> It(World); It; ++It)
+		{
+			Wanted.Add(*It);
+		}
+	}
+}
+
+UPointLightComponent* AAMMarkers::MakeLight()
+{
+	UPointLightComponent* Light = NewObject<UPointLightComponent>(this);
+	Light->SetupAttachment(GetRootComponent());
+	Light->SetUsingAbsoluteLocation(true);
+	Light->SetUsingAbsoluteRotation(true);
+	Light->SetMobility(EComponentMobility::Movable);
+	Light->SetCastShadows(false);
+	Light->bAffectsTranslucentLighting = false;
+	Light->SetVolumetricScatteringIntensity(0.f);
+	Light->SetIntensityUnits(ELightUnits::Candelas);
+	Light->SetLightColor(AMMK_LightColor);
+	Light->SetSourceRadius(50.f);
+	AddInstanceComponent(Light);
+	Light->RegisterComponent();
+	return Light;
+}
+
+UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine, bool& bOutSettled, UPointLightComponent*& OutLight)
 {
 	bOutSettled = false;
+	OutLight = nullptr;
 	UDecalComponent* Glow = NewObject<UDecalComponent>(this);
 	Glow->SetupAttachment(GetRootComponent());
 	Glow->SetUsingAbsoluteLocation(true);
@@ -219,12 +287,13 @@ UDecalComponent* AAMMarkers::MakeGlow(const AActor* Machine, bool& bOutSettled)
 	}
 	AddInstanceComponent(Glow);
 	Glow->RegisterComponent();
-	bOutSettled = PlaceGlow(Glow, Machine);
-	ApplyDrawDistance(Glow);
+	OutLight = MakeLight();
+	bOutSettled = PlaceGlow(Glow, Machine, OutLight);
+	ApplyDrawDistance(Glow, OutLight);
 	return Glow;
 }
 
-bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
+bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine, UPointLightComponent* Light) const
 {
 	const FBox Box = GetVisibleBox(Machine);
 	if (!Box.IsValid)
@@ -294,6 +363,17 @@ bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
 		// The glow's half size in cm (U, V), so the circuit lines keep the same size on every machine.
 		Material->SetVectorParameterValue(TEXT("HalfSize"), FLinearColor(HalfZ, HalfY, 0.f, 0.f));
 	}
+	if (Light)
+	{
+		// In the middle, a little above the floor: it lights the floor around the machine and its lower sides.
+		FVector LightAt = ToWorld.TransformPosition(LocalCenter);
+		LightAt.Z = FloorZ + AMMK_LightHeight;
+		Light->SetWorldLocation(LightAt);
+		const float Half = FMath::Max(HalfY, HalfZ);
+		Light->SetAttenuationRadius(Half + AMMK_LightReach);
+		const float Scale = FMath::Clamp(Half / 300.f, 0.5f, 4.f);
+		Light->SetIntensity(AMMK_LightCandelas * Scale * Scale);
+	}
 	return bFound;
 }
 
@@ -327,13 +407,20 @@ void AAMMarkers::UpdateDrawDistance()
 	{
 		if (UDecalComponent* Glow = Entry.Value.Decal.Get())
 		{
-			ApplyDrawDistance(Glow);
+			ApplyDrawDistance(Glow, Entry.Value.Light.Get());
 		}
 	}
 }
 
-void AAMMarkers::ApplyDrawDistance(UDecalComponent* Glow) const
+void AAMMarkers::ApplyDrawDistance(UDecalComponent* Glow, UPointLightComponent* Light) const
 {
+	if (Light && mDrawDistance > 0.f)
+	{
+		// Real lights cost more than decals: drawn half as far, fading out over the last quarter.
+		Light->MaxDrawDistance = mDrawDistance * 0.5f;
+		Light->MaxDistanceFadeRange = mDrawDistance * 0.125f;
+		Light->MarkRenderStateDirty();
+	}
 	// A decal is drawn while it is at least FadeScreenSize of the screen; its screen size is about
 	// its bounds radius / distance (90 degrees field of view), so this size stops it near mDrawDistance.
 	if (Glow && mDrawDistance > 0.f)

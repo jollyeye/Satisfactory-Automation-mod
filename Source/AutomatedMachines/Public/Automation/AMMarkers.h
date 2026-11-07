@@ -17,6 +17,7 @@
 
 class AAMAutomationSubsystem;
 class UDecalComponent;
+class UPointLightComponent;
 class UMaterialInterface;
 
 UCLASS(NotPlaceable, Transient)
@@ -44,14 +45,24 @@ protected:
 
 private:
 	/** Makes the decal of one machine (null if it has no size yet). */
-	UDecalComponent* MakeGlow(const AActor* Machine, bool& bOutSettled);
+	UDecalComponent* MakeGlow(const AActor* Machine, bool& bOutSettled, UPointLightComponent*& OutLight);
+
+	/** The HUB and the MAMs glow while they have alarms (their Automation tabs: world alarms, the HUB's world actions). */
+	void AddWorldBuildings(TSet<const AActor*>& Wanted) const;
 
 	/**
 	 * Puts a machine's decal under its visible footprint, at the floor found around it. Returns
 	 * false if the floor was not found (not loaded yet): the anchor is used meanwhile, and it is
 	 * placed again on the next rebuild.
 	 */
-	bool PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const;
+	bool PlaceGlow(UDecalComponent* Glow, const AActor* Machine, UPointLightComponent* Light) const;
+
+	/**
+	 * The decal's emissive light only colours what it lies on: it lights nothing (no global
+	 * illumination). Each glow also gets a soft cyan point light (no shadows), so the area around
+	 * the machine is really lit; drawn half as far as the glows.
+	 */
+	UPointLightComponent* MakeLight();
 
 	/**
 	 * How far the glows are drawn: the game's own distance for medium buildings (Constructors,
@@ -60,7 +71,7 @@ private:
 	 */
 	void UpdateDrawDistance();
 	float mDrawDistance = 0.f;
-	void ApplyDrawDistance(UDecalComponent* Glow) const;
+	void ApplyDrawDistance(UDecalComponent* Glow, UPointLightComponent* Light) const;
 
 	/** The machine's visible footprint in its local space (its meshes, not its clearance box). */
 	static FBox GetVisibleBox(const AActor* Machine);
@@ -72,6 +83,7 @@ private:
 	struct FGlow
 	{
 		TWeakObjectPtr<UDecalComponent> Decal;
+		TWeakObjectPtr<UPointLightComponent> Light;
 		/** False while the floor around it was not found: placed again on the next rebuild. */
 		bool bSettled = false;
 	};

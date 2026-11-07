@@ -322,4 +322,6 @@ Test of the Automation tab: open a Smelter and a Constructor, click Automation, 
 ## Underglow circuit pattern (7 Nov 2026, untested)
 
 - `M_AM_Underglow` Custom node: edge fade as before; height fade 40-110 cm above `BaseZ` (was 30 cm), no wall (slope) limit; pattern from `HalfSize` (new vector parameter, the decal's half size in cm, U along the machine's X): two grids (40 cm, density 0.42; 20 cm offset half a cell, 0.22). Each cell edge is on or off by a hash of the edge (neighbours agree); a cell with two edges at right angles draws a 45-degree bend, one or 3+ edges a pad (ring + dot). Core line + exp halo, over 0.15 base. Brightness 1.6, Strength 0.7. `AMMK_Above` 130 cm. Preview made with numpy before building.
+- HUB / MAM glows: `AAMMarkers::AddWorldBuildings` (TActorIterator over `AFGBuildableTradingPost` when there are non-MAM world fires or world actions, `AFGBuildableMAM` when there are MAM fires).
+- Glow light: a `UPointLightComponent` per glow (`MakeLight`, instance component of the markers actor): Movable, no shadows, no translucency / volumetric, Candelas, placed in `PlaceGlow`, `MaxDrawDistance` = half the glow distance. Decals add no light to Lumen GI.
 

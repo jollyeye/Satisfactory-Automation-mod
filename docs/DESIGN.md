@@ -270,4 +270,6 @@ A machine refuses an item that is not an ingredient of its recipe, so the belt s
 ### Underglow: circuit lines (7 Nov 2026, to test)
 
 The glow under automated machines is now a **circuit-board pattern**: cyan traces (40 cm grid, and a fainter 20 cm one) with 45-degree bends and round pads, glowing over a faint cyan light, with the same soft fade at the edge. It reaches up to 1.3 m and fades out between 40 cm and 1.1 m, so the lines climb a little onto the machine (also on its sides: the wall limit is gone). Made so machines whose mesh hides the old flat glow (the truck station) still show it.
+- **HUB and MAM glow too** (7 Nov 2026): the HUB while it has alarms or world actions in its Automation tab, every MAM while the MAM tab has alarms.
+- **Real light** (7 Nov 2026): a decal's emissive only colours what it lies on and lights nothing (global illumination ignores it), so each glow also has a soft cyan point light without shadows in its middle, 60 cm above the floor, reaching 2.5 m past the glow's edge (40 candelas for a 6 m machine, scaled with size), drawn up to half the glow's distance.
 
