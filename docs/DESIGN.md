@@ -188,7 +188,7 @@ Miners have no input and no recipe, so they get fewer machine events and actions
 
 - Machine events: Output full, Output not full, Starts producing, Stops producing, Loses power, Gets power, Paused, Resumed, Productivity below N%, Productivity above N%.
 - Actions: Pause, Resume, Pause or resume, Set clock speed N%, Delete output.
-- No Options (Pass wrong items through needs input belts).
+- No Options (Output overflow needs input belts).
 - The same rules cover the other extractors (water extractor, oil extractor, resource well extractor): they are the same kind of machine in the game. Their windows come one by one.
 - The miner's window has no tabs (one page), unlike the production machines' window, so where the Automation page goes is worked out from a dump of that window.
 
@@ -255,5 +255,7 @@ A machine refuses an item that is not an ingredient of its recipe, so the belt s
 - **Machine events "Wrong input" / "Input correct":** the first item waiting at an input belt is not an ingredient, or an input pipe carries a fluid that is not one.
 - **Option "Pass wrong items through"** (section Options, at the bottom of the machine's tab; saved per machine; a machine with only this option on still gets the marker): the wrong item is taken off the belt and goes **straight onto the output belt**, never into the output slot, so production does not stop and no other machine event rings. The machine's own products have priority: the wrong item goes out only when the output has nothing to give. Nothing is created or destroyed. (First version, 4 Nov 2026, put it in the output slot: that stopped production and rang Output full; changed on 5 Nov.)
 - **Option "Pass extra items through"** (6 Nov 2026, its own switch under the first one): a right item (an ingredient) waiting on an input belt while its input slot is full goes the same way, straight onto the output belt. Lets machines be chained on one belt: what one cannot take goes on to the next. Same rules: products first, an output belt needed, one waiting item per machine shared with the wrong-items option (a wrong item first).
+- **Option "Output overflow"** (7 Nov 2026, replaces the two switches above with one): everything that would block an input belt, a wrong item or an ingredient whose slot is full, goes straight onto the output belt. Same rules as above. Saved as the two old flags (both set together), so old saves keep working; the switch shows on when either is set.
+- **Action "Output overflow"** (7 Nov 2026): a compact switch row on every machine that has the option (on = Output overflow on). When the alarm rings it switches the machine's option on or off; the change is saved and shows in the Options switch. One per alarm (conflict family 6).
 - Belts only. A pipe with the wrong fluid stays stuck (the alarm can tell you).
 - This changes how factories can be built (mixed "sushi" belts, machines as filters). Idea, not decided: unlock the option together with the Smart Splitter.
