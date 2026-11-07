@@ -68,6 +68,7 @@ Do                     when event
 
 - Automation tab in the truck station window (one page). The window has **no standby button**: no Running action, no Paused / Resumed.
 - Alarms: the container's (fluid stations: without item counts), **Busy** / **Not busy** (loading / unloading a docked vehicle), **Vehicle arrives** / **Vehicle leaves** (trucks, tractors, explorers), the fuel slot (**Out of fuel**, **Has fuel**, **Fuel below** N items; the generator alarms, reworded for both), power (Loses / Gets power).
+- Transfer alarms (7 Nov 2026): **Transfer rate above / below** (items/min) and **Max transfer above / below** (stacks/min), the two rates of its window.
 - Actions: **Load mode** (on = load into vehicles, off = unload them), **Replace differing fuel** (the window's "Replace Differing Fuel" switch: on swaps a docked vehicle's other fuel for the station's), Delete contents.
 
 ### Train stations (7 Nov 2026)
@@ -265,3 +266,8 @@ A machine refuses an item that is not an ingredient of its recipe, so the belt s
 - **Action "Output overflow"** (7 Nov 2026): a compact switch row on every machine that has the option (on = Output overflow on). When the alarm rings it switches the machine's option on or off; the change is saved and shows in the Options switch. One per alarm (conflict family 6).
 - Belts only. A pipe with the wrong fluid stays stuck (the alarm can tell you).
 - This changes how factories can be built (mixed "sushi" belts, machines as filters). Idea, not decided: unlock the option together with the Smart Splitter.
+
+### Underglow: circuit lines (7 Nov 2026, to test)
+
+The glow under automated machines is now a **circuit-board pattern**: cyan traces (40 cm grid, and a fainter 20 cm one) with 45-degree bends and round pads, glowing over a faint cyan light, with the same soft fade at the edge. It reaches up to 1.3 m and fades out between 40 cm and 1.1 m, so the lines climb a little onto the machine (also on its sides: the wall limit is gone). Made so machines whose mesh hides the old flat glow (the truck station) still show it.
+

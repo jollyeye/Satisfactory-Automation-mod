@@ -85,6 +85,11 @@ enum class EAMCondition : uint8
 	// Truck stations: a vehicle (truck, tractor, explorer) docked at it, gone.
 	VehicleArrives     UMETA(DisplayName = "Vehicle arrives"),
 	VehicleLeaves      UMETA(DisplayName = "Vehicle leaves"),
+	// Truck stations: the transfer rates of their window (items / min, max stacks / min).
+	TransferAbove      UMETA(DisplayName = "Transfer rate above"),
+	TransferBelow      UMETA(DisplayName = "Transfer rate below"),
+	MaxTransferAbove   UMETA(DisplayName = "Max transfer above"),
+	MaxTransferBelow   UMETA(DisplayName = "Max transfer below"),
 	Count              UMETA(Hidden)
 };
 

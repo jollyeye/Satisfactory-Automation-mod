@@ -181,9 +181,13 @@ log("  material: unlit, masked, two-sided, camera-facing")
 # --- Underglow material (decal under automated machines) ---------------------------------------
 # Projected down onto the floor around a machine: cyan light, full from the centre to FadeStart (per
 # axis, as a part of the way to the decal's edge: R along U, G along V; set per machine by AAMMarkers
-# so the fade is 1.5 m wide), then a smooth fade to nothing at the edge, with rounded corners. It also fades out above the floor height (30 cm), a little with depth below it
-# (slopes), and on walls (surfaces steeper than about 75 degrees). Only emissive and opacity are
-# connected, so the decal adds light and leaves the floor's own colour alone.
+# so the fade is 1.5 m wide), then a smooth fade to nothing at the edge, with rounded corners.
+# Inside it, a circuit-board pattern (7 Nov 2026): glowing traces on a 40 cm grid (and a finer 20 cm
+# grid), with 45-degree bends and round pads at their ends, over a faint glow; sized in cm through
+# HalfSize (per machine) so it is the same on every machine. The decal reaches 1.3 m above the floor
+# and fades out between 40 and 110 cm, so the traces climb a little onto the machine (also on its
+# sides: no wall limit any more). It fades a little with depth below the floor (slopes). Only emissive
+# and opacity are connected, so the decal adds light and leaves the surface's own colour alone.
 glow_path = ROOT + "/Marker/M_AM_Underglow"
 if eal.does_asset_exist(glow_path):
     glow = load(glow_path)
@@ -206,28 +210,80 @@ g_base_z = node(glow, unreal.MaterialExpressionScalarParameter, -1100, 700, para
 g_height = node(glow, unreal.MaterialExpressionSubtract, -900, 650)
 link(g_world_z, "", g_height, "A")
 link(g_base_z, "", g_height, "B")
-g_camera = node(glow, unreal.MaterialExpressionCameraPositionWS, -1300, 800)
-g_relative = node(glow, unreal.MaterialExpressionSubtract, -900, 800)
-link(g_world, "", g_relative, "A")
-link(g_camera, "", g_relative, "B")
 g_fade_start = node(glow, unreal.MaterialExpressionVectorParameter, -900, 150, parameter_name="FadeStart",
                     default_value=unreal.LinearColor(0.75, 0.75, 0.0, 0.0))
+g_half = node(glow, unreal.MaterialExpressionVectorParameter, -900, 300, parameter_name="HalfSize",
+              default_value=unreal.LinearColor(300.0, 300.0, 0.0, 0.0))
 g_shape = node(glow, unreal.MaterialExpressionCustom, -600, 50)
-g_shape.set_editor_property("code",
-    "float2 P = abs(UV * 2.0 - 1.0);\n"
-    "float2 F = clamp(FadeStart.xy, 0.0, 0.98);\n"
-    "float2 D = max(P - F, 0.0) / (1.0 - F);\n"
-    "float G = saturate(1.0 - length(D));\n"
-    "G = G * G;\n"
-    "float Up = 1.0 - saturate(H / 30.0);\n"
-    "float Down = 1.0 - saturate(-H / 400.0);\n"
-    "float3 N = normalize(cross(ddx(RP), ddy(RP)));\n"
-    "float Flat = saturate((abs(N.z) - 0.2) / 0.3);\n"
-    "return G * Up * Down * Flat;")
+CIRCUIT = r"""
+float2 P = abs(UV * 2.0 - 1.0);
+float2 F = clamp(FadeStart.xy, 0.0, 0.98);
+float2 D = max(P - F, 0.0) / (1.0 - F);
+float G = saturate(1.0 - length(D));
+G = G * G;
+float Up = 1.0 - smoothstep(40.0, 110.0, H);
+float Down = 1.0 - saturate(-H / 400.0);
+float2 L = (UV * 2.0 - 1.0) * HS.xy;
+float Line = 0.0;
+for (int K = 0; K < 2; K++)
+{
+    float Cell = K == 0 ? 40.0 : 20.0;
+    float Dens = K == 0 ? 0.42 : 0.22;
+    float HalfW = K == 0 ? 1.2 : 0.7;
+    float Seed = K == 0 ? 0.0 : 17.0;
+    float2 Pos = L / Cell + (K == 0 ? float2(0.0, 0.0) : float2(0.5, 0.5));
+    float2 C = floor(Pos);
+    float2 Q = Pos - C - 0.5;
+    float2 S = float2(127.1 + Seed, 311.7 - Seed);
+    float R = step(frac(sin(dot(C * 2.0 + float2(1.0, 0.0), S)) * 43758.5453), Dens);
+    float Lf = step(frac(sin(dot(C * 2.0 - float2(1.0, 0.0), S)) * 43758.5453), Dens);
+    float U = step(frac(sin(dot(C * 2.0 + float2(0.0, 1.0), S)) * 43758.5453), Dens);
+    float Dn = step(frac(sin(dot(C * 2.0 - float2(0.0, 1.0), S)) * 43758.5453), Dens);
+    float N = R + Lf + U + Dn;
+    float Dist = 10.0;
+    bool Corner = N == 2.0 && R * Lf == 0.0 && U * Dn == 0.0;
+    if (Corner)
+    {
+        float2 A = float2(R - Lf, 0.0);
+        float2 B = float2(0.0, U - Dn);
+        float2 P0 = A * 0.5; float2 P1 = A * 0.18; float2 P2 = B * 0.18; float2 P3 = B * 0.5;
+        float2 E = P1 - P0; float2 W = Q - P0;
+        Dist = min(Dist, length(W - E * saturate(dot(W, E) / dot(E, E))));
+        E = P2 - P1; W = Q - P1;
+        Dist = min(Dist, length(W - E * saturate(dot(W, E) / dot(E, E))));
+        E = P3 - P2; W = Q - P2;
+        Dist = min(Dist, length(W - E * saturate(dot(W, E) / dot(E, E))));
+    }
+    else
+    {
+        float AX = abs(Q.y) + max(Q.x - 0.5, 0.0) + max(-Q.x, 0.0);
+        float BX = abs(Q.y) + max(-Q.x - 0.5, 0.0) + max(Q.x, 0.0);
+        float AY = abs(Q.x) + max(Q.y - 0.5, 0.0) + max(-Q.y, 0.0);
+        float BY = abs(Q.x) + max(-Q.y - 0.5, 0.0) + max(Q.y, 0.0);
+        Dist = min(Dist, AX + (1.0 - R) * 10.0);
+        Dist = min(Dist, BX + (1.0 - Lf) * 10.0);
+        Dist = min(Dist, AY + (1.0 - U) * 10.0);
+        Dist = min(Dist, BY + (1.0 - Dn) * 10.0);
+        if (N == 1.0 || N >= 3.0)
+        {
+            float Pad = 0.1 * (20.0 / Cell) * (K == 0 ? 1.0 : 0.8);
+            Dist = min(Dist, abs(length(Q) - Pad));
+            Dist = min(Dist, max(length(Q) - Pad * 0.45, 0.0));
+        }
+    }
+    float Cm = Dist * Cell;
+    float Core = 1.0 - smoothstep(HalfW, HalfW * 1.8, Cm);
+    float Halo = exp(-Cm / 5.0) * 0.4;
+    Line = max(Line, max(Core, Halo) * (K == 0 ? 1.0 : 0.75));
+}
+float Pattern = saturate(0.15 + Line);
+return G * Up * Down * Pattern;
+"""
+g_shape.set_editor_property("code", CIRCUIT)
 g_shape.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT1)
 g_shape.set_editor_property("description", "UnderglowShape")
 g_inputs = []
-for name in ("UV", "FadeStart", "H", "RP"):
+for name in ("UV", "FadeStart", "H", "HS"):
     ci = unreal.CustomInput()
     ci.set_editor_property("input_name", name)
     g_inputs.append(ci)
@@ -235,12 +291,12 @@ g_shape.set_editor_property("inputs", g_inputs)
 link(g_uv, "", g_shape, "UV")
 link(g_fade_start, "", g_shape, "FadeStart")
 link(g_height, "", g_shape, "H")
-link(g_relative, "", g_shape, "RP")
+link(g_half, "", g_shape, "HS")
 
 g_colour = node(glow, unreal.MaterialExpressionVectorParameter, -600, 250, parameter_name="Color",
                 default_value=unreal.LinearColor(0.12, 0.7, 1.0, 1.0))
-g_brightness = node(glow, unreal.MaterialExpressionScalarParameter, -600, 400, parameter_name="Brightness", default_value=0.7)
-g_strength = node(glow, unreal.MaterialExpressionScalarParameter, -600, 500, parameter_name="Strength", default_value=0.45)
+g_brightness = node(glow, unreal.MaterialExpressionScalarParameter, -600, 400, parameter_name="Brightness", default_value=1.6)
+g_strength = node(glow, unreal.MaterialExpressionScalarParameter, -600, 500, parameter_name="Strength", default_value=0.7)
 g_tint = node(glow, unreal.MaterialExpressionMultiply, -350, 250)
 link(g_colour, "", g_tint, "A")
 link(g_brightness, "", g_tint, "B")
@@ -254,7 +310,7 @@ MEL.connect_material_property(g_emissive, "", MP.MP_EMISSIVE_COLOR)
 MEL.connect_material_property(g_opacity, "", MP.MP_OPACITY)
 MEL.recompile_material(glow)
 save(glow)
-log("  underglow: deferred decal, translucent, emissive cyan")
+log("  underglow: deferred decal, translucent, emissive cyan circuit lines")
 
 
 # --- Marker mesh -------------------------------------------------------------------------------

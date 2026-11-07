@@ -317,4 +317,9 @@ Test of the Automation tab: open a Smelter and a Constructor, click Automation, 
 - `AFGBuildableDockingStation` (a factory). Vehicle arrives / leaves: `GetDockedActor()`; Busy: docked and `IsLoadUnloading()`. Fuel: `GetFuelInventory()` (all slots summed; Out of fuel = 0). Contents: `GetInventory()` through `AMAS_StorageInventory`. Fluid stations: `GetDockingStationResourceForm() != RF_SOLID` (`AMRules::IsFluidTruckStation`), no item counts.
 - Actions: `SetIsInLoadMode`, `SetForceVehicleFuelType` (the "Replace Differing Fuel" switch; `ReplaceFuelOn/Off`, conflict family 7, compact row), Delete contents.
 - New conditions `VehicleArrives` / `VehicleLeaves`, new actions `ReplaceFuelOn` / `ReplaceFuelOff`, appended last (saved by index).
+- Transfer rates: `GetItemTransferRate()` (items/s) and `GetMaximumStackTransferRate()` (stacks/s), x60 for our /min alarms (`TransferAbove/Below`, `MaxTransferAbove/Below`, appended).
+
+## Underglow circuit pattern (7 Nov 2026, untested)
+
+- `M_AM_Underglow` Custom node: edge fade as before; height fade 40-110 cm above `BaseZ` (was 30 cm), no wall (slope) limit; pattern from `HalfSize` (new vector parameter, the decal's half size in cm, U along the machine's X): two grids (40 cm, density 0.42; 20 cm offset half a cell, 0.22). Each cell edge is on or off by a hash of the edge (neighbours agree); a cell with two edges at right angles draws a 45-degree bend, one or 3+ edges a pad (ring + dot). Core line + exp halo, over 0.15 base. Brightness 1.6, Strength 0.7. `AMMK_Above` 130 cm. Preview made with numpy before building.
 

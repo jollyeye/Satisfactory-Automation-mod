@@ -29,8 +29,9 @@ namespace
 	/** How wide the fade from full light to nothing is, in cm, ending at the glow's outer edge. */
 	constexpr float AMMK_FadeWidth = 150.f;
 
-	/** The projection box around the floor height: this high above it (the material fades the light out over 30 cm) ... */
-	constexpr float AMMK_Above = 60.f;
+	/** The projection box around the floor height: this high above it, so the circuit lines climb a little onto the
+	 * machine (the material fades them out between 40 and 110 cm) ... */
+	constexpr float AMMK_Above = 130.f;
 
 	/** ... to this far below it, in cm (slopes, uneven ground). */
 	constexpr float AMMK_Below = 300.f;
@@ -290,6 +291,8 @@ bool AAMMarkers::PlaceGlow(UDecalComponent* Glow, const AActor* Machine) const
 		Material->SetVectorParameterValue(TEXT("FadeStart"), FLinearColor(
 			FMath::Max(0.f, 1.f - AMMK_FadeWidth / HalfZ), FMath::Max(0.f, 1.f - AMMK_FadeWidth / HalfY), 0.f, 0.f));
 		Material->SetScalarParameterValue(TEXT("BaseZ"), static_cast<float>(FloorZ));
+		// The glow's half size in cm (U, V), so the circuit lines keep the same size on every machine.
+		Material->SetVectorParameterValue(TEXT("HalfSize"), FLinearColor(HalfZ, HalfY, 0.f, 0.f));
 	}
 	return bFound;
 }

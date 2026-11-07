@@ -1153,6 +1153,19 @@ bool AAMAutomationSubsystem::IsConditionTrue(const AFGBuildableFactory* Factory,
 			return Rule.Condition == EAMCondition::VehicleArrives ? bDocked : !bDocked;
 		}
 		return false;
+	case EAMCondition::TransferAbove:
+	case EAMCondition::TransferBelow:
+	case EAMCondition::MaxTransferAbove:
+	case EAMCondition::MaxTransferBelow:
+		if (const AFGBuildableDockingStation* TruckStation = Cast<AFGBuildableDockingStation>(Factory))
+		{
+			// Per second in the game, per minute in its window and in our alarms.
+			const bool bMax = Rule.Condition == EAMCondition::MaxTransferAbove || Rule.Condition == EAMCondition::MaxTransferBelow;
+			const float Rate = (bMax ? TruckStation->GetMaximumStackTransferRate() : TruckStation->GetItemTransferRate()) * 60.f;
+			const bool bAbove = Rule.Condition == EAMCondition::TransferAbove || Rule.Condition == EAMCondition::MaxTransferAbove;
+			return bAbove ? Rate > Rule.Value : Rate < Rule.Value;
+		}
+		return false;
 	case EAMCondition::TrainArrives:
 	case EAMCondition::TrainLeaves:
 	case EAMCondition::TransferDone:

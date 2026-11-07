@@ -117,6 +117,10 @@ FText AMRules::GetConditionText(EAMCondition Condition)
 	case EAMCondition::PlatformIdle:      return AMTY_Text(TEXT("Not busy"));
 	case EAMCondition::VehicleArrives:    return AMTY_Text(TEXT("Vehicle arrives"));
 	case EAMCondition::VehicleLeaves:     return AMTY_Text(TEXT("Vehicle leaves"));
+	case EAMCondition::TransferAbove:     return AMTY_Text(TEXT("Transfer rate above"));
+	case EAMCondition::TransferBelow:     return AMTY_Text(TEXT("Transfer rate below"));
+	case EAMCondition::MaxTransferAbove:  return AMTY_Text(TEXT("Max transfer above"));
+	case EAMCondition::MaxTransferBelow:  return AMTY_Text(TEXT("Max transfer below"));
 	default:                              return FText::GetEmpty();
 	}
 }
@@ -254,6 +258,14 @@ FText AMRules::GetConditionDescription(EAMCondition Condition)
 		return AMTY_Text(TEXT("Rings when a vehicle (truck, tractor, explorer) docks at the truck station."));
 	case EAMCondition::VehicleLeaves:
 		return AMTY_Text(TEXT("Rings when the docked vehicle leaves the truck station."));
+	case EAMCondition::TransferAbove:
+		return AMTY_Text(TEXT("Rings when the station's transfer rate (items per minute, as in its window: what the vehicles docking here move on average) rises above the number you set."));
+	case EAMCondition::TransferBelow:
+		return AMTY_Text(TEXT("Rings when the station's transfer rate (items per minute) drops below the number you set.\n\nUse it to hear about a route that slows down or stops."));
+	case EAMCondition::MaxTransferAbove:
+		return AMTY_Text(TEXT("Rings when the station's maximum transfer rate (stacks per minute, as in its window: the most the vehicles docking here could move) rises above the number you set."));
+	case EAMCondition::MaxTransferBelow:
+		return AMTY_Text(TEXT("Rings when the station's maximum transfer rate (stacks per minute) drops below the number you set."));
 	case EAMCondition::SignalRed:
 		return AMTY_Text(TEXT("Rings when the signal turns red: trains must stop at it (its block is taken, or it is blocked)."));
 	case EAMCondition::SignalGreen:
@@ -364,6 +376,24 @@ AMRules::FValueInfo AMRules::GetConditionValueInfo(EAMCondition Condition)
 		Info.Min = 0.f;
 		Info.Max = 100.f;
 		Info.Default = Condition == EAMCondition::LoadAbove ? 90.f : 20.f;
+	}
+	else if (Condition == EAMCondition::TransferAbove || Condition == EAMCondition::TransferBelow)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Rate");
+		Info.Min = 0.f;
+		Info.Max = 99999.f;
+		Info.Default = Condition == EAMCondition::TransferAbove ? 100.f : 10.f;
+		Info.Unit = TEXT("/min");
+	}
+	else if (Condition == EAMCondition::MaxTransferAbove || Condition == EAMCondition::MaxTransferBelow)
+	{
+		Info.bNeeded = true;
+		Info.Label = TEXT("Max");
+		Info.Min = 0.f;
+		Info.Max = 9999.f;
+		Info.Default = Condition == EAMCondition::MaxTransferAbove ? 10.f : 1.f;
+		Info.Unit = TEXT("stacks/min");
 	}
 	else if (Condition == EAMCondition::FlowAbove || Condition == EAMCondition::FlowBelow)
 	{
@@ -639,7 +669,8 @@ bool AMRules::IsConditionAvailable(EAMCondition Condition, const UObject* Machin
 		return IsSignalCondition(Condition);
 	}
 	const bool bPlatformEvent = Condition == EAMCondition::PlatformBusy || Condition == EAMCondition::PlatformIdle;
-	const bool bVehicleEvent = Condition == EAMCondition::VehicleArrives || Condition == EAMCondition::VehicleLeaves;
+	const bool bVehicleEvent = Condition == EAMCondition::VehicleArrives || Condition == EAMCondition::VehicleLeaves
+		|| (Condition >= EAMCondition::TransferAbove && Condition <= EAMCondition::MaxTransferBelow);
 	if (Machine->IsA<AFGBuildableDockingStation>())
 	{
 		// A freight platform and a station in one, with a fuel slot and power (no standby button).
