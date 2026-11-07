@@ -145,6 +145,8 @@ FText AMRules::GetActionText(EAMAction Action)
 	case EAMAction::StationName:   return AMTY_Text(TEXT("Display its name"));
 	case EAMAction::LoadMode:      return AMTY_Text(TEXT("Load mode"));
 	case EAMAction::UnloadMode:    return AMTY_Text(TEXT("Unload mode"));
+	case EAMAction::OverflowOn:    return AMTY_Text(TEXT("Output overflow on"));
+	case EAMAction::OverflowOff:   return AMTY_Text(TEXT("Output overflow off"));
 	default:                       return FText::GetEmpty();
 	}
 }
@@ -298,6 +300,10 @@ FText AMRules::GetActionDescription(EAMAction Action)
 		return AMTY_Text(TEXT("Sets the flow limit, like the slider in its window (m3 per minute). 0 closes it: nothing flows through."));
 	case EAMAction::FlushNetwork:
 		return AMTY_Text(TEXT("Empties the pipe network, like the Flush button of a pipe: all the fluid in it is destroyed and the network forgets its fluid.\n\nValves and buffers do not split a network: this empties every pipe, pump, valve and buffer connected to it."));
+	case EAMAction::OverflowOn:
+		return AMTY_Text(TEXT("On: the machine's Output overflow option is switched on when the alarm rings: everything that would block an input belt goes onto the output belt."));
+	case EAMAction::OverflowOff:
+		return AMTY_Text(TEXT("Off: the machine's Output overflow option is switched off when the alarm rings: blocking items stay on the input belt."));
 	case EAMAction::LoadMode:
 		return AMTY_Text(TEXT("On: the platform loads its contents into docked trains. Off: it unloads them into the platform (like the Load / Unload switch in its window)."));
 	case EAMAction::UnloadMode:
@@ -467,6 +473,8 @@ bool AMRules::ActionsConflict(EAMAction A, EAMAction B)
 		case EAMAction::StationName:   return 4;
 		case EAMAction::LoadMode:
 		case EAMAction::UnloadMode:    return 5;
+		case EAMAction::OverflowOn:
+		case EAMAction::OverflowOff:   return 6;
 		default:                      return 100 + static_cast<int32>(Action);
 		}
 	};
@@ -723,6 +731,10 @@ bool AMRules::IsActionAvailable(EAMAction Action, const UObject* Machine)
 	if (Machine->IsA<AFGBuildableRailroadSignal>())
 	{
 		return IsSignalAction(Action);
+	}
+	if ((Action == EAMAction::OverflowOn || Action == EAMAction::OverflowOff) && !HasPassWrongItems(Machine))
+	{
+		return false;
 	}
 	const bool bPlatformAction = Action == EAMAction::LoadMode || Action == EAMAction::UnloadMode;
 	if (Machine->IsA<AFGBuildableTrainPlatformCargo>())

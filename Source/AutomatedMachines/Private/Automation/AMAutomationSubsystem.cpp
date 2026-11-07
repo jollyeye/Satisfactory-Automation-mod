@@ -1715,6 +1715,21 @@ void AAMAutomationSubsystem::ApplyAction(AFGBuildableFactory* Factory, const FAM
 			}
 		}
 		break;
+	case EAMAction::OverflowOn:
+	case EAMAction::OverflowOff:
+		if (FAMMachineRules* Entry = mMachines.FindByPredicate([Factory](const FAMMachineRules& E) { return E.Machine == Factory; }))
+		{
+			const bool bOn = Rule.Action == EAMAction::OverflowOn;
+			if (Entry->Options.bPassWrongItems != bOn || Entry->Options.bPassExtraItems != bOn)
+			{
+				Entry->Options.bPassWrongItems = bOn;
+				Entry->Options.bPassExtraItems = bOn;
+				ForceNetUpdate();
+				OnRulesChanged.Broadcast();
+				UE_LOG(LogAutomatedMachines, Log, TEXT("%s: output overflow %s"), *AMAS_Describe(Factory), bOn ? TEXT("on") : TEXT("off"));
+			}
+		}
+		break;
 	case EAMAction::LoadMode:
 	case EAMAction::UnloadMode:
 		if (AFGBuildableTrainPlatformCargo* Platform = Cast<AFGBuildableTrainPlatformCargo>(Factory))

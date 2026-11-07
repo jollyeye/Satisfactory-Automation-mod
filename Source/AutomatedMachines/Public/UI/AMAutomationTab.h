@@ -207,8 +207,6 @@ protected:
 	UFUNCTION()
 	void OnPassWrongClicked();
 
-	UFUNCTION()
-	void OnPassExtraClicked();
 
 	/** Our own Copy / Paste automation settings buttons (machines without the game's). */
 	UFUNCTION()
@@ -246,8 +244,6 @@ protected:
 	UFUNCTION()
 	void OnPassWrongHovered();
 
-	UFUNCTION()
-	void OnPassExtraHovered();
 
 private:
 	/** The machine window (Widget_Manufacturing_C) this page sits in. */
@@ -334,7 +330,6 @@ private:
 
 	/** Info panel text for "Pass wrong items through". */
 	void ShowPassWrongInfo();
-	void ShowPassExtraInfo();
 
 	/** This machine's rules as edited here (sent to the server on every change). */
 	TArray<FAMFireRule> mFires;
@@ -362,10 +357,6 @@ private:
 	TObjectPtr<class UImage> mPassWrongSwitch;
 
 	/** "Pass extra items through": its row and switch picture. */
-	UPROPERTY()
-	TObjectPtr<class UButton> mPassExtraButton;
-	UPROPERTY()
-	TObjectPtr<class UImage> mPassExtraSwitch;
 
 	FSlateFontInfo mGameFont;
 	bool bHasGameFont = false;

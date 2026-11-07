@@ -582,12 +582,10 @@ void UAMAutomationTab::BuildLayout()
 			}
 			return Button;
 		};
-		mPassWrongButton = MakeOption(TEXT("AMOptionPassWrong"), TEXT("Pass wrong items through"), mPassWrongSwitch);
+		// One option (7 Nov 2026): wrong items and extra items, saved as the two flags they were.
+		mPassWrongButton = MakeOption(TEXT("AMOptionOverflow"), TEXT("Output overflow"), mPassWrongSwitch);
 		mPassWrongButton->OnClicked.AddDynamic(this, &UAMAutomationTab::OnPassWrongClicked);
 		mPassWrongButton->OnHovered.AddDynamic(this, &UAMAutomationTab::OnPassWrongHovered);
-		mPassExtraButton = MakeOption(TEXT("AMOptionPassExtra"), TEXT("Pass extra items through"), mPassExtraSwitch);
-		mPassExtraButton->OnClicked.AddDynamic(this, &UAMAutomationTab::OnPassExtraClicked);
-		mPassExtraButton->OnHovered.AddDynamic(this, &UAMAutomationTab::OnPassExtraHovered);
 		RefreshOptions();
 	}
 
@@ -1358,41 +1356,15 @@ void UAMAutomationTab::OnWorldRulesChanged()
 
 void UAMAutomationTab::RefreshOptions()
 {
-	AMUI::SetImage(mPassWrongSwitch, mOptions.bPassWrongItems ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
-	AMUI::SetImage(mPassExtraSwitch, mOptions.bPassExtraItems ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
-}
-
-void UAMAutomationTab::ShowPassExtraInfo()
-{
-	ShowInfo(FText::FromString(TEXT("Pass extra items through")), FText::FromString(
-		TEXT("When an input slot is full and its belt brings more of that ingredient, the machine takes the extra item off the belt and puts it straight on its output belt, so the input belt keeps moving.\n\n")
-		TEXT("Use it to chain machines on one belt: what one machine cannot take goes on to the next machine.\n\n")
-		TEXT("The machine's own products go first: the extra item goes out when the output has nothing to give. The machine needs an output belt.")));
-}
-
-void UAMAutomationTab::OnPassExtraClicked()
-{
-	if (!bRulesLoaded)
-	{
-		return;
-	}
-	mOptions.bPassExtraItems = !mOptions.bPassExtraItems;
-	RefreshOptions();
-	ShowPassExtraInfo();
-	OnRulesEdited();
-}
-
-void UAMAutomationTab::OnPassExtraHovered()
-{
-	ShowPassExtraInfo();
+	AMUI::SetImage(mPassWrongSwitch, (mOptions.bPassWrongItems || mOptions.bPassExtraItems) ? AMUI::SwitchOnPath : AMUI::SwitchOffPath);
 }
 
 void UAMAutomationTab::ShowPassWrongInfo()
 {
-	ShowInfo(FText::FromString(TEXT("Pass wrong items through")), FText::FromString(
-		TEXT("When a belt brings an item that is not an ingredient of the recipe, the machine takes it off the belt and puts it straight on its output belt, so the input belt moves again. Production does not stop.\n\n")
-		TEXT("The machine's own products go first: the wrong item goes out when the output has nothing to give. The machine needs an output belt.\n\n")
-		TEXT("Only for belts: a pipe with the wrong fluid stays stuck (use the alarm \"Wrong input\" to hear about it).")));
+	ShowInfo(FText::FromString(TEXT("Output overflow")), FText::FromString(
+		TEXT("Everything that would block an input belt goes straight onto the output belt, so the input belt keeps moving: an item that is not an ingredient of the recipe, and an ingredient whose input slot is full.\n\n")
+		TEXT("Use it to chain machines on one belt: what one machine cannot take goes on to the next.\n\n")
+		TEXT("The machine's own products go first: an overflow item goes out when the output has nothing to give. The machine needs an output belt. Only for belts: a pipe with the wrong fluid stays stuck (the alarm \"Wrong input\" tells you).")));
 }
 
 void UAMAutomationTab::OnPassWrongClicked()
@@ -1401,7 +1373,9 @@ void UAMAutomationTab::OnPassWrongClicked()
 	{
 		return;
 	}
-	mOptions.bPassWrongItems = !mOptions.bPassWrongItems;
+	const bool bOn = !(mOptions.bPassWrongItems || mOptions.bPassExtraItems);
+	mOptions.bPassWrongItems = bOn;
+	mOptions.bPassExtraItems = bOn;
 	RefreshOptions();
 	ShowPassWrongInfo();
 	OnRulesEdited();

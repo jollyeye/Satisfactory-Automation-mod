@@ -120,6 +120,9 @@ enum class EAMAction : uint8
 	// Freight platforms: load into trains, unload from them.
 	LoadMode       UMETA(DisplayName = "Load mode"),
 	UnloadMode     UMETA(DisplayName = "Unload mode"),
+	// Machines with the Output overflow option: switch it on / off.
+	OverflowOn     UMETA(DisplayName = "Output overflow on"),
+	OverflowOff    UMETA(DisplayName = "Output overflow off"),
 	Count          UMETA(Hidden)
 };
 
