@@ -79,6 +79,11 @@ namespace
 	// standby button: hooked like the generators.
 	const TCHAR* const AMWH_SinkWindow = TEXT("/Game/FactoryGame/Buildable/Factory/ResourceSink/UI/BPW_ResourceSink.BPW_ResourceSink_C");
 
+	// Railway signals (block and path): Widget_RailroadSignal (dump 7 Nov 2026), one small page
+	// (CanvasPanel_1 in SizeBox_0: the signal picture and its state). Hooked through its picture.
+	const TCHAR* const AMWH_SignalWindow = TEXT("/Game/FactoryGame/Buildable/Factory/Train/Signal/Widget_RailroadSignal.Widget_RailroadSignal_C");
+	const TCHAR* const AMWH_SignalPageChild = TEXT("mBackdrop");
+
 	// Signs: the Sign Designer gets design tabs (UAMSignTabs), not an Automation page. Hooked into
 	// the page panel holding its Revert Settings button (mSaveButton).
 	const TCHAR* const AMWH_SignWindow = TEXT("/Game/FactoryGame/Interface/UI/InGame/Signs/BPW_SignInteractWidget.BPW_SignInteractWidget_C");
@@ -162,6 +167,8 @@ namespace
 		AMWH_HookPages(HookManager, AMWH_BufferWindow, AMWH_BufferPageChild, TEXT("AM_BufferAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SinkWindow, AMWH_StandbyButton, TEXT("AM_SinkAutomationTabHook"), false,
+			EWidgetBlueprintHookParentType::Indirect_Child);
+		AMWH_HookPages(HookManager, AMWH_SignalWindow, AMWH_SignalPageChild, TEXT("AM_SignalAutomationTabHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child);
 		AMWH_HookPages(HookManager, AMWH_SignWindow, AMWH_SignPageChild, TEXT("AM_SignDesignTabsHook"), false,
 			EWidgetBlueprintHookParentType::Indirect_Child, UAMSignTabs::StaticClass());

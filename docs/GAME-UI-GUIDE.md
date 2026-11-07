@@ -170,6 +170,12 @@ the tank and the flush handle). Hooked as Indirect_Child of `BPW_PipeModule`.
 `BPW_ResourceSink` (`.../Factory/ResourceSink/UI/`): Kind B, one page (`CanvasPanel_0` in `SizeBox_0`) with the
 standby button: hooked like the generators (Indirect_Child of `Widget_StandbyButton`).
 
+### Railway signal window (7 Nov 2026)
+
+`Widget_RailroadSignal` (`.../Factory/Train/Signal/`), block and path signals: Kind B, one small page (`CanvasPanel_1`
+in `SizeBox_0`: signal picture, "Current State"). Hooked as Indirect_Child of `mBackdrop`; our page is at least
+560 high (`AMAT_MinSinglePageHeight`).
+
 ### Windows with a side list instead of a tab (signs, lights; tested 6 Nov 2026)
 
 For buildings whose settings are the window itself (a sign's design, a light's colour / intensity /
