@@ -58,6 +58,12 @@ Do                     when event
 - No "all of these at once" combinations for now.
 - A machine can have **any number** of rows. No limit for now; if many automated machines cause lag, we add a limit or optimise later.
 
+### Railway signals (started 7 Nov 2026)
+
+- Alarms: Turns red, Turns green (green = clear or dock), Train in block, Block empty (the block the signal guards).
+- Action: **Blocked** with the on / off switch (on = Block, off = Unblock), kept per signal and saved in our data only. A blocked signal shows red and trains entering its block through it wait; a train already past or committed is not stopped. Without the mod every signal works normally (nothing written into the game's data).
+- How: hooks on the game's block (`HasOverlappingTrains` / `HasOverlappingApprovedReservations` answer "busy" for reservations entering through a blocked signal; `GetAspectFor` answers red). `AMSignal` in `Automation/AMSignal.*`.
+
 ### Actions grouped by alarm (decided 6 Nov 2026, option A)
 
 - The Actions panel shows one block per alarm: a header with the alarm (a dropdown: changing it moves all the block's actions) and a bin, the alarm's actions under it (moved right, no alarm column), and "+ action" under them. The panel's button is "+ Listen to an alarm" (a new block, its alarm chosen in its header). Same in the HUB.
