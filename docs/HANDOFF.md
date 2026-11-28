@@ -25,6 +25,5 @@ Read this first, then DESIGN.md, GAME-UI-GUIDE.md and ROADMAP.md. The repo also 
 4. On/off actions are a pair shown as one switch row: names in `AMRR_CompactName`, `AMRR_HasSwitch`, toggles in `OnStateClicked`, skip the "off" one in the picker, a conflict family in `ActionsConflict`.
 
 ## State right now
-- Released: 1.0.0, 1.0.1 (game update), 1.1.0 (Somersloop amplification, point-to actions with sign icons, live state arrows).
-- Next release (1.2.0), done and tested: Hold vehicles here (truck stations, issue #2).
-- In progress: other mods (docs/MODDING.md): `AM_Condition_` / `AM_Action_` / `AM_Info_` functions (number, on / off, enum dropdown), Blueprint library (events), the standalone Automation window. Road Maker's boom barrier uses them; to test together.
+- Released: 1.0.0, 1.0.1 (game update), 1.1.0 (Somersloop amplification, point-to actions with sign icons, live state arrows), 1.2.0.
+- 1.2.0 (28 Nov 2026): Hold vehicles here (truck stations, issue #2); other mods (docs/MODDING.md): `AM_Condition_` / `AM_Action_` / `AM_Info_` functions (number, on / off, enum dropdown), Blueprint library (events), the standalone Automation window. Road Maker's boom barrier uses them.

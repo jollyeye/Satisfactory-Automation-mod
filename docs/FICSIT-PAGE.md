@@ -1,4 +1,4 @@
-# ficsit.app page — Automated Machines 1.1.0
+# ficsit.app page — Automated Machines 1.2.0
 
 Copy each part into the matching field on ficsit.app.
 
@@ -31,6 +31,7 @@ No logic gates, no wiring, no programming: name an event on one machine, then pi
 - **Somersloop amplification**: an action sets a production machine's amplification (1x to 2x, in its own steps), using only the Somersloops you placed in it.
 - **Point to the machine**: every player gets a machine on the compass and the map, with its own icon or one of the game's sign icons (warning, power, droplet, trash...). In the HUB it points to the machine that triggered the event.
 - **Live state**: a condition's arrow turns green while the condition is met.
+- **Hold vehicles here** (truck stations): a truck that reaches the station stops there (its autopilot off, as you can do in its window) until the event releases it. For example: hold trucks at the source while the destination is full.
 - **Percentages** are bars you can drag. Item counts let you pick the item.
 - Pointing at anything explains it at the bottom of the window.
 
@@ -55,7 +56,7 @@ Signs, lights and light control panels, Smart and Programmable Splitters and the
 - **You can see which machines are automated:** they get a soft cyan circuit-board glow on the floor under them.
 - **No cheats:** the mod only does what you could do by hand. It creates no items. Delete actions only remove what you could throw in the trash yourself.
 - **Copy & paste:** the game's own copy and paste (Ctrl+C / Ctrl+V, middle click) copies the automation too. The tab also has its own Copy / Paste buttons.
-- **Safe to uninstall:** the mod stores its rules only in its own save data. Remove it and your machines simply keep the last state the automation gave them (clock speed, standby, switches). If a machine's Somersloop amplification was lowered, take a Somersloop out and put it back to restore it.
+- **Safe to uninstall:** the mod stores its rules only in its own save data. Remove it and your machines simply keep the last state the automation gave them (clock speed, standby, switches). If a machine's Somersloop amplification was lowered, take a Somersloop out and put it back to restore it. A truck held at a station keeps its autopilot off: switch it on in its window.
 
 ### Supported buildings
 
@@ -66,6 +67,10 @@ Production machines (Smelter, Constructor, Assembler, Foundry, Manufacturer, Ref
 - Machines built from a **blueprint** (Blueprint Designer) start without automation. Copy it with Ctrl+C / Ctrl+V or middle click instead.
 - **Multiplayer:** made for it (the server runs the rules, every player sees and edits them), but not tested with several players yet. Please report anything odd.
 - Not automated: pipeline pumps, trains / locomotives, doors, Geothermal Generators, elevators.
+
+### For mod makers
+
+Your mod's buildings can add their own conditions and actions to the Automation tab just by naming functions `AM_Condition_<Name>` / `AM_Action_<Name>`, with no dependency on this mod. Road Maker's boom barrier already does. See [MODDING.md](https://github.com/jollyeye/Satisfactory-Automation-mod/blob/main/docs/MODDING.md).
 
 ### Feedback
 

@@ -2,9 +2,9 @@
 
 Done and tested so far: see the table in `DEV-NOTES.md` ("What works").
 
-## Next: 1.2.0 (in progress)
+## Release 1.2.0 (28 Nov 2026)
 
-- **Other mods** (27 Nov 2026, to test with a test mod): naming convention `AM_Condition_` / `AM_Action_` / `AM_Info_` on buildings, and a Blueprint library for events. See `docs/MODDING.md`. Automation window for buildings with no game window (27 Nov 2026, to test): `OpenAutomationWindow(Building)`, callable by name; Road Maker's boom barrier will use it.
+- **Other mods** (done and tested 28 Nov 2026 with Road Maker's boom barrier: hooks found, enum dropdown, action run): naming convention `AM_Condition_` / `AM_Action_` / `AM_Info_` on buildings, and a Blueprint library for events. See `docs/MODDING.md`. Automation window for buildings with no game window: `OpenAutomationWindow(Building)`, callable by name; Road Maker's boom barrier will use it.
 - **Hold vehicles here** (truck stations, GitHub issue #2): done and tested 27 Nov 2026 (docked or within 3 m of the parking spot; no saved list; stops the vehicle before loading).
 
 ## Release 1.1.0 (24 Nov 2026)

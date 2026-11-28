@@ -1,8 +1,8 @@
 {
 	"FileVersion": 3,
 	"Version": 1,
-	"VersionName": "1.1.0",
-	"SemVersion": "1.1.0",
+	"VersionName": "1.2.0",
+	"SemVersion": "1.2.0",
 	"GameVersion": ">=520140",
 	"FriendlyName": "Automated Machines",
 	"Description": "Automate your existing machines: they trigger events when their status changes, and other machines react to them. No programming.",

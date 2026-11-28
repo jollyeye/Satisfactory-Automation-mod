@@ -23,6 +23,7 @@ In the game, research **Automated Machines** in the MAM's new *Automated Machine
 - **Somersloop amplification**: set a production machine's amplification (1x to 2x, in its own steps), using only the Somersloops you placed in it.
 - **Point to the machine**: show every player a machine on the compass and the map, with its own icon or one of the game's sign icons. In the HUB: the machine that triggered the event.
 - **Live state**: a condition's arrow turns green while the condition is met.
+- **Hold vehicles here** (truck stations): a truck that reaches the station stops there until the event releases it.
 - **Signs, lights, splitters**: signs, lights, light control panels, Smart / Programmable Splitters and the Priority Merger get one design or setting per event.
 - **The HUB**: world conditions and actions (*milestone completed*, *show a message*), and the **Events Overview**: every event in your world, who triggers it, who listens, when it was last triggered, with search, sorting and Locate.
 - **Output Overflow** (MAM, 2 High-Speed Connectors): production machines can push items that would block their input belt onto their output belt.
@@ -38,7 +39,7 @@ In the game, research **Automated Machines** in the MAM's new *Automated Machine
 
 - **No cheats**: the mod only does what you could do by hand. It creates no items, and delete actions only remove what you could throw in the trash yourself.
 - **Copy & paste**: the game's Ctrl+C / Ctrl+V and middle click copy the automation too.
-- **Safe to uninstall**: the rules live only in the mod's own save data. Without the mod your machines keep the last state the automation gave them. If a machine's Somersloop amplification was lowered, take a Somersloop out and put it back to restore it.
+- **Safe to uninstall**: the rules live only in the mod's own save data. Without the mod your machines keep the last state the automation gave them. If a machine's Somersloop amplification was lowered, take a Somersloop out and put it back to restore it. A truck held at a station keeps its autopilot off: switch it on in its window.
 - **Game updates**: if a game update changes the game code the mod reads, the mod pauses with a message instead of crashing. Your automation stays saved until the mod is updated.
 - **Limits**: machines built from a blueprint start without automation (copy it with Ctrl+C / Ctrl+V or middle click). Made for multiplayer, but not tested with several players yet. Not automated: pumps, trains, doors, Geothermal Generators, elevators.
 
